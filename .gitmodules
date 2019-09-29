@@ -19,3 +19,9 @@
 [submodule "extern/structured-interface"]
 	path = extern/structured-interface
 	url = git@github.com:project-arcana/structured-interface.git
+[submodule "extern/phantasm-renderer"]
+	path = extern/phantasm-renderer
+	url = git@github.com:project-arcana/phantasm-renderer.git
+[submodule "extern/phantasm-viewer"]
+	path = extern/phantasm-viewer
+	url = git@github.com:project-arcana/phantasm-viewer.git
