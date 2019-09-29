@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# qtcreator
+CMakeLists.txt.user
+
+# binary dir
+bin/
