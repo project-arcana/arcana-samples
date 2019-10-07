@@ -5,8 +5,9 @@ file(GLOB_RECURSE SOURCES
     "*.hh"
 )
 
-add_arcana_test(cc-tests ${SOURCES})
+add_arcana_test(cc-tests "${SOURCES}")
 
-target_link_libraries(cc-tests PUBLIC 
+target_link_libraries(cc-tests PUBLIC
     clean-core
+    typed-geometry
 )
