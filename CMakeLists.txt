@@ -48,6 +48,9 @@ add_subdirectory(extern/typed-geometry)
 # tracing and profiling
 add_subdirectory(extern/ctracer)
 
+# reflection and introspection
+add_subdirectory(extern/reflector)
+
 
 ## Main
 
@@ -108,6 +111,7 @@ foreach(TARGET_NAME
     ctracer
     clean-core
     doctest
+    reflector
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
 endforeach()
