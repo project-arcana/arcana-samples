@@ -1,6 +1,6 @@
 #include <doctest.hh>
 
-#include <cc/array.hh>
+#include <clean-core/array.hh>
 
 #include <typed-geometry/tg.hh>
 
