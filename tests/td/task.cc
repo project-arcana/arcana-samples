@@ -5,7 +5,13 @@
 #include <limits>
 #include <memory>
 
+#include <task-dispatcher/common/system_info.hh>
 #include <task-dispatcher/container/task.hh>
+
+namespace
+{
+int gSink = 0;
+}
 
 TEST_CASE("td::container::Task (lifetime)")
 {
@@ -48,6 +54,29 @@ TEST_CASE("td::container::Task (lifetime)")
         CHECK(taskExecuted);
     }
 #undef SHARED_INT_VALUE
+}
+
+TEST_CASE("td::container::Task (static)")
+{
+    static_assert(sizeof(td::container::Task) == td::system::l1_cacheline_size);
+
+    int a, b, c;
+    auto uptr = std::make_unique<int>(1);
+
+    auto l_trivial = [] { ++gSink; };
+    auto l_ref_cap = [&] { gSink += (a - b + c); };
+    auto l_val_cap = [=] { gSink += (a - b + c); };
+    auto l_val_cap_mutable = [=]() mutable { gSink += (c += b); };
+    auto l_noexcept = [&]() noexcept { gSink += (a - b + c); };
+    auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
+
+    // Test if these lambda types compile
+    td::container::Task(std::move(l_trivial)).executeAndCleanup();
+    td::container::Task(std::move(l_ref_cap)).executeAndCleanup();
+    td::container::Task(std::move(l_val_cap)).executeAndCleanup();
+    td::container::Task(std::move(l_val_cap_mutable)).executeAndCleanup();
+    td::container::Task(std::move(l_noexcept)).executeAndCleanup();
+    td::container::Task(std::move(l_noncopyable)).executeAndCleanup();
 }
 
 TEST_CASE("td::container::Task (metadata)")
