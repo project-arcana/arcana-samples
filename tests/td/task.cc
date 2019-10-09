@@ -43,15 +43,18 @@ TEST_CASE("td::container::Task (lifetime)")
 
         // Check if task kept the lambda capture alive
         CHECK(!weakInt.expired());
-        // Check if the task didn't run yet
         CHECK(!taskExecuted);
 
-        task.executeAndCleanup();
+        task.execute();
+
+        CHECK(taskExecuted);
+        CHECK(!weakInt.expired());
+
+        task.cleanup();
 
         // Check if execute_and_cleanup destroyed the lambda capture
-        CHECK(weakInt.expired());
-        // Check if the task ran
         CHECK(taskExecuted);
+        CHECK(weakInt.expired());
     }
 #undef SHARED_INT_VALUE
 }
@@ -68,6 +71,7 @@ TEST_CASE("td::container::Task (static)")
     auto l_val_cap = [=] { gSink += (a - b + c); };
     auto l_val_cap_mutable = [=]() mutable { gSink += (c += b); };
     auto l_noexcept = [&]() noexcept { gSink += (a - b + c); };
+    auto l_constexpr = [=]() constexpr { gSink += (a - b + c); };
     auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
 
     // Test if these lambda types compile
@@ -76,6 +80,7 @@ TEST_CASE("td::container::Task (static)")
     td::container::Task(std::move(l_val_cap)).executeAndCleanup();
     td::container::Task(std::move(l_val_cap_mutable)).executeAndCleanup();
     td::container::Task(std::move(l_noexcept)).executeAndCleanup();
+    td::container::Task(std::move(l_constexpr)).executeAndCleanup();
     td::container::Task(std::move(l_noncopyable)).executeAndCleanup();
 }
 
@@ -89,9 +94,10 @@ TEST_CASE("td::container::Task (metadata)")
 
     td::container::Task task;
 
-    auto constexpr metaMin = std::numeric_limits<uint16_t>().min();
-    auto constexpr metaMax = std::numeric_limits<uint16_t>().max();
-    for (auto testMetadata : {metaMin, metaMax})
+    using metadata_t = td::container::Task::default_metadata_t;
+    auto constexpr metaMin = std::numeric_limits<metadata_t>().min();
+    auto constexpr metaMax = std::numeric_limits<metadata_t>().max();
+    for (auto testMetadata : {metaMin, metadata_t(0), metaMax})
     {
         uint16_t taskRunCanary = TASK_CANARAY_INITIAL;
 
