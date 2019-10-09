@@ -36,3 +36,4 @@ CMakeLists.txt.user
 
 # binary dir
 bin/
+build/
