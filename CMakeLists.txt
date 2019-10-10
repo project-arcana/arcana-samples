@@ -48,6 +48,8 @@ add_subdirectory(extern/typed-geometry)
 # tracing and profiling
 add_subdirectory(extern/ctracer)
 
+# multithreading
+add_subdirectory(extern/task-dispatcher)
 
 ## Main
 
