@@ -2,7 +2,6 @@
 
 #include <vector>
 
-#include <task-dispatcher/common/math_intrin.hh>
 #include <task-dispatcher/scheduler.hh>
 
 using namespace td;

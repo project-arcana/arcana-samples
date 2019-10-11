@@ -3,6 +3,7 @@
 #include <array>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 #include <task-dispatcher/common/math_intrin.hh>
 #include <task-dispatcher/td.hh>
@@ -62,8 +63,8 @@ double chudnovsky(double k_start, double k_end)
 
 double calculate_pi(int k, int num_batches_target)
 {
-    auto batch_size = td::int_div_ceil(k, num_batches_target);
-    auto num_batches = td::int_div_ceil(k, batch_size);
+    auto batch_size = td::detail::int_div_ceil(k, num_batches_target);
+    auto num_batches = td::detail::int_div_ceil(k, batch_size);
 
     auto batchStorage = new double[num_batches];
     for (auto i = 0; i < num_batches; ++i)
@@ -288,6 +289,25 @@ TEST_CASE("td API - general")
             td::wait_for(s);
             CHECK_EQ(counter.load(), n);
             CHECK(std::this_thread::get_id() == main_thread_id);
+        }
+
+        // submit_each
+        {
+            std::vector<int> values;
+            values.resize(30, 0);
+
+            for (auto v : values)
+                CHECK_EQ(v, 0);
+
+            // TODO: cc:span from containers (deduction guide currently missing)
+            auto s = td::submit_each([](int& v) {
+                v = 1;
+            }, cc::span{values.data(), values.size()});
+
+            td::wait_for(s);
+
+            for (auto v : values)
+                CHECK_EQ(v, 1);
         }
     });
 
