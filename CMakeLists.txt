@@ -51,6 +51,9 @@ add_subdirectory(extern/ctracer)
 # multithreading
 add_subdirectory(extern/task-dispatcher)
 
+# reflection
+add_subdirectory(extern/reflector)
+
 ## Main
 
 # half-edge meshes
