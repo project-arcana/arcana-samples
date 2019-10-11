@@ -12,188 +12,159 @@ namespace
 {
 int gSink = 0;
 
-void argfun(int a, int b, int c)
-{
-    //    printf("Argfun: %d %d %d \n", a, b, c);
-}
+void fun() { ++gSink; }
+void argfun(int a, int b, int c) { gSink += (a + b + c); }
 
-struct Foo
-{
-    void process_args(int a, int b)
-    {
-        //        printf("Foo process %d %d \n", a, b);
-    }
-};
+int retfun() { return ++gSink; }
+int retargfun(int a, int b, int c) { gSink += (a + b + c); return gSink; }
+
+template<class T>
+bool constexpr is_int_future = std::is_same_v<td::future<int>, T>;
 
 template <class F, class FObj, class... Args>
 void execute(F&& func, FObj& inst, Args&&... args)
 {
     (inst.*func)(args...);
 }
+}
 
-int calculate_fibonacci(int n)
+TEST_CASE("td API - compilation")
 {
-    if (n < 2)
-        return n;
-    else
+    /// Aims to cover the entire API surface, making compilation or logic errors visible
+    /// Little to no asserts
+
+    // Launch variants
     {
-        auto f1 = td::submit(calculate_fibonacci, n - 1);
-        auto f2 = td::submit(calculate_fibonacci, n - 2);
-        return f1.get_unpinned() + f2.get_unpinned();
+        CHECK(!td::is_scheduler_alive());
+
+        // simple
+        td::launch([] { CHECK(td::is_scheduler_alive()); });
+
+        // rvalue config
+        td::launch(td::scheduler_config{}, [] { CHECK(td::is_scheduler_alive()); });
+
+        // lvalue config
+        td::scheduler_config conf;
+        td::launch(conf, [] { CHECK(td::is_scheduler_alive()); });
+
+        // nested
+        td::launch([] { td::launch([] { td::launch([] { CHECK(td::is_scheduler_alive()); }); }); });
+
+        CHECK(!td::is_scheduler_alive());
     }
-}
 
-double fac(double num)
-{
-    double result = 1.0;
-    for (double i = 2.0; i < num; i++)
-        result *= i;
-    return result;
-}
+    td::launch([] {
 
-double chudnovsky(double k_start, double k_end)
-{
-    auto res = 0.0;
-    for (double k = k_start; k < k_end; k++)
-    {
-        res += (pow(-1.0, k) * fac(6.0 * k) * (13591409.0 + (545140134.0 * k))) / (fac(3.0 * k) * pow(fac(k), 3.0) * pow(640320.0, 3.0 * k + 3.0 / 2.0));
-    }
-    return res * 12.0;
-}
+        REQUIRE(td::is_scheduler_alive());
 
-double calculate_pi(int k, int num_batches_target)
-{
-    auto batch_size = td::detail::int_div_ceil(k, num_batches_target);
-    auto num_batches = td::detail::int_div_ceil(k, batch_size);
-
-    auto batchStorage = new double[num_batches];
-    for (auto i = 0; i < num_batches; ++i)
-        batchStorage[i] = 0.0;
-
-    auto sync = td::submit_n(
-        [batchStorage, batch_size](auto i) {
-            auto k_start = double(i * batch_size);
-            auto k_end = k_start + double(batch_size);
-            batchStorage[i] = chudnovsky(k_start, k_end);
-        },
-        num_batches);
-
-    td::wait_for_unpinned(sync);
-
-    auto res = 0.0;
-    for (auto i = 0; i < num_batches; ++i)
-        res += batchStorage[i];
-
-    delete[] batchStorage;
-
-    return 1.0 / res;
-}
-
-}
-
-TEST_CASE("td API")
-{
-    td::scheduler_config config;
-
-    td::launch(config, [&] {
+        // submit - single
         {
+            // sync argument
+            {
+                td::sync s1;
+
+                // Without arguments
+                td::submit(s1, [] {});
+                td::submit(s1, +[] {});
+                td::submit(s1, fun);
+
+                // With arguments
+                td::submit(s1, [](float arg) { gSink += int(arg); }, 1.f);
+                td::submit(s1, argfun, 4, 5, 6);
+
+                td::wait_for(s1);
+            }
+
+            // sync return
+            {
+                // Without arguments
+                auto s1 = td::submit([] {});
+                auto s2 = td::submit(fun);
+
+                // With arguments
+                auto s3 = td::submit([](float arg) { gSink += int(arg); }, 1.f);
+                auto s4 = td::submit(argfun, 4, 5, 6);
+
+                td::wait_for(s1, s2, s3, s4);
+
+                // redundant wait
+                td::wait_for(s1, s2, s3, s4);
+                td::wait_for_unpinned(s1, s2, s3, s4);
+            }
+        }
+
+        // submit - single with return
+        {
+            // void return
             auto s1 = td::submit([] {});
-            td::submit(s1, [] {});
-            td::submit(s1, argfun, 1, 2, 3);
+            auto s2 = td::submit(+[] {});
+            auto s3 = td::submit(fun);
+            auto s4 = td::submit([](auto arg) { gSink += arg;}, 5);
+            auto s5 = td::submit(argfun, 5, 6, 7);
 
-            // TODO
-            //        Foo f;
-            //        td::submit(s1, &Foo::process_args, f, 15, 16);
+            td::wait_for(s1, s2, s3, s4, s5);
 
-            auto s2 = td::submit([] {});
-            auto s3 = td::submit([] {});
+            // future return
+            auto f1 = td::submit([] { return 1; });
+            auto f2 = td::submit(+[] { return 1; });
+            auto f3 = td::submit(retfun);
+            auto f4 = td::submit([](auto arg) { gSink += arg; return gSink; }, 5);
+            auto f5 = td::submit(retargfun, 8, 9, 10);
 
-            CHECK(s1.initialized);
-            CHECK(s2.initialized);
-            CHECK(s3.initialized);
-
-            td::wait_for_unpinned(s1, s2, s3);
-
-            CHECK(!s1.initialized);
-            CHECK(!s2.initialized);
-            CHECK(!s3.initialized);
+            static_assert(is_int_future<decltype(f1)>);
+            static_assert(is_int_future<decltype(f2)>);
+            static_assert(is_int_future<decltype(f3)>);
+            static_assert(is_int_future<decltype(f4)>);
+            static_assert(is_int_future<decltype(f5)>);
         }
 
-
-        for (auto _ = 0; _ < 10; ++_)
+        // submit - n, each, batched
         {
-            auto largeTaskAmount = new td::container::Task[config.max_num_jobs];
-            for (auto i = 0u; i < config.max_num_jobs; ++i)
-                largeTaskAmount[i].lambda([] { /* no-op */ });
+            // sync argument
+            {
+                td::sync s1;
 
-            auto before = td::intrin::rdtsc();
-            auto s = td::submit_raw(largeTaskAmount, config.max_num_jobs);
-            auto after = td::intrin::rdtsc();
+                td::submit_n(s1, [](auto i) { gSink += i; }, 50);
 
-            //            std::cout << "Average dispatch time: " << (after - before) / double(config.max_num_jobs) << " cycles" << std::endl;
+                std::array<int, 50> values;
+                td::submit_each(s1, [](int& val) { ++val; }, cc::span(values.data(), values.size()));
 
-            delete[] largeTaskAmount;
+                td::submit_batched(s1,
+                                   [](auto begin, auto end) {
+                                       for (auto i = begin; i < end; ++i)
+                                           gSink += i;
+                                   },
+                                   500);
 
-            auto before_wait = td::intrin::rdtsc();
-            td::wait_for_unpinned(s);
-            auto after_wait = td::intrin::rdtsc();
+                td::wait_for(s1);
+            }
 
-            //            std::cout << "Wait time: " << (after_wait - before_wait) << " cycles" << std::endl;
-        }
+            // sync return
+            {
+                auto s1 = td::submit_n([](auto i) { gSink += i; }, 50);
 
+                std::array<int, 50> values;
+                auto s2 = td::submit_each([](int& val) { ++val; }, cc::span(values.data(), values.size()));
 
-        {
-            auto f1 = td::submit([] { return 5.f * 15.f; });
-            //            std::cout << "Future 1: " << f1.get() << std::endl;
+                auto s3 = td::submit_batched([](auto begin, auto end) {
+                                       for (auto i = begin; i < end; ++i)
+                                           gSink += i;
+                                   },
+                                   500);
 
-            auto pi = calculate_pi(10000, 64);
-            //            std::cout << "PI: " << pi << std::endl;
-        }
-
-        {
-            td::sync s2;
-
-            td::submit(s2, [] {
-                //                printf("Task 2 start \n");
-
-                auto s2_i = td::submit_n([](auto i) { /*printf("Task 2 - inner %d \n", i);*/ }, 4);
-
-                td::wait_for_unpinned(s2_i);
-
-                //                printf("Task 2 end \n");
-            });
-
-            td::submit(s2, [] {});
-
-            td::wait_for_unpinned(s2);
-        }
-
-        {
-            td::sync s3;
-            td::submit_n(
-                s3,
-                [](auto i) {
-                    //                    printf("Task 4 - %d start \n", i);
-
-                    auto s4_i = td::submit_n(
-                        [i](auto i_inner) {
-                            //
-                            //                            printf("Task 4 - %d - inner %d \n", i, i_inner);
-                        },
-                        4);
-
-                    //                    printf("Task 4 - %d wait \n", i);
-                    td::wait_for_unpinned(s4_i);
-                },
-                4);
-
-            td::wait_for_unpinned(s3);
+                td::wait_for(s1, s2, s3);
+            }
         }
     });
+
+    CHECK(!td::is_scheduler_alive());
 }
 
-TEST_CASE("td API - general")
+
+TEST_CASE("td API - consistency")
 {
+    /// Basic consistency and sanity checks, WIP
+
     CHECK(!td::is_scheduler_alive());
 
     td::launch([] {
@@ -300,9 +271,7 @@ TEST_CASE("td API - general")
                 CHECK_EQ(v, 0);
 
             // TODO: cc:span from containers (deduction guide currently missing)
-            auto s = td::submit_each([](int& v) {
-                v = 1;
-            }, cc::span{values.data(), values.size()});
+            auto s = td::submit_each([](int& v) { v = 1; }, cc::span{values.data(), values.size()});
 
             td::wait_for(s);
 
