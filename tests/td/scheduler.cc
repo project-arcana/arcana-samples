@@ -70,7 +70,7 @@ TEST_CASE("td::Scheduler")
         scheduler_config config;
 
         // Make sure this test does not exceed the configured job limit
-        REQUIRE((num_tasks_inner * num_tasks_outer) + 1 < config.max_num_jobs);
+        REQUIRE((num_tasks_inner * num_tasks_outer) + 1 < config.max_num_tasks);
     }
 
     // Run a simple dependency chain
