@@ -155,6 +155,23 @@ TEST_CASE("td API - compilation")
                 td::wait_for(s1, s2, s3);
             }
         }
+
+        // move-only arguments and lambdas
+        {
+            auto u1 = std::make_unique<int>(1);
+            auto u2 = std::make_unique<int>(2);
+            auto u3 = std::make_unique<int>(3);
+            auto u4 = std::make_unique<int>(4);
+
+            auto l_moveonly = [u = std::move(u1)] { gSink += *u; };
+
+            td::sync s;
+            td::submit(s, l_moveonly);
+            td::submit(s, [](std::unique_ptr<int> const& u) { gSink += *u; }, u2);
+            //td::submit(s, [](std::unique_ptr<int> u) { gSink += *u; }, std::move(u3)); // TODO: Error!
+
+            td::wait_for(s);
+        }
     });
 
     CHECK(!td::is_scheduler_alive());
