@@ -11,8 +11,8 @@ namespace
 {
 auto constexpr spin_default = 25ull;
 
-auto constexpr num_tasks_outer = 30;
-auto constexpr num_tasks_inner = 30;
+auto constexpr num_tasks_outer = 5;
+auto constexpr num_tasks_inner = 10;
 
 void spin_cycles(uint64_t cycles = spin_default)
 {
@@ -23,7 +23,7 @@ void spin_cycles(uint64_t cycles = spin_default)
 
 void outer_task_func(void*)
 {
-    std::atomic_uint dependency = 0;
+    std::atomic_int dependency = 0;
 
     auto& sched = Scheduler::current();
     sync s;
@@ -32,8 +32,10 @@ void outer_task_func(void*)
     for (auto i = 0u; i < num_tasks_inner; ++i)
         tasks[i].lambda([&dependency]() {
             spin_cycles();
-            dependency.fetch_add(1);
+            ++dependency;
         });
+
+    CHECK_EQ(dependency.load(), 0);
     sched.submitTasks(tasks, num_tasks_inner, s);
     delete[] tasks;
 
@@ -68,7 +70,7 @@ TEST_CASE("td::Scheduler")
         scheduler_config config;
 
         // Make sure this test does not exceed the configured job limit
-        REQUIRE((num_tasks_inner * num_tasks_outer) + 1 < config.max_num_jobs);
+        REQUIRE((num_tasks_inner * num_tasks_outer) + 1 < config.max_num_tasks);
     }
 
     // Run a simple dependency chain

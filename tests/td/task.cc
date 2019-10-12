@@ -11,6 +11,8 @@
 namespace
 {
 int gSink = 0;
+
+void test_func(void* userdata) { gSink += *static_cast<int*>(userdata); }
 }
 
 TEST_CASE("td::container::Task (lifetime)")
@@ -63,25 +65,70 @@ TEST_CASE("td::container::Task (static)")
 {
     static_assert(sizeof(td::container::Task) == td::system::l1_cacheline_size);
 
-    int a, b, c;
-    auto uptr = std::make_unique<int>(1);
+    // Lambdas
+    {
+        int a = 0, b = 1, c = 2;
+        auto uptr = std::make_unique<int>(1);
 
-    auto l_trivial = [] { ++gSink; };
-    auto l_ref_cap = [&] { gSink += (a - b + c); };
-    auto l_val_cap = [=] { gSink += (a - b + c); };
-    auto l_val_cap_mutable = [=]() mutable { gSink += (c += b); };
-    auto l_noexcept = [&]() noexcept { gSink += (a - b + c); };
-    auto l_constexpr = [=]() constexpr { gSink += (a - b + c); };
-    auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
+        auto l_trivial = [] { ++gSink; };
+        auto l_ref_cap = [&] { gSink += (a - b + c); };
+        auto l_val_cap = [=] { gSink += (a - b + c); };
+        auto l_val_cap_mutable = [=]() mutable { gSink += (c += b); };
+        auto l_noexcept = [&]() noexcept { gSink += (a - b + c); };
+        auto l_constexpr = [=]() constexpr { gSink += (a - b + c); };
+        auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
 
-    // Test if these lambda types compile
-    td::container::Task(std::move(l_trivial)).executeAndCleanup();
-    td::container::Task(std::move(l_ref_cap)).executeAndCleanup();
-    td::container::Task(std::move(l_val_cap)).executeAndCleanup();
-    td::container::Task(std::move(l_val_cap_mutable)).executeAndCleanup();
-    td::container::Task(std::move(l_noexcept)).executeAndCleanup();
-    td::container::Task(std::move(l_constexpr)).executeAndCleanup();
-    td::container::Task(std::move(l_noncopyable)).executeAndCleanup();
+        // Test if these lambda types compile
+        td::container::Task(std::move(l_trivial)).executeAndCleanup();
+        td::container::Task(std::move(l_ref_cap)).executeAndCleanup();
+        td::container::Task(std::move(l_val_cap)).executeAndCleanup();
+        td::container::Task(std::move(l_val_cap_mutable)).executeAndCleanup();
+        td::container::Task(std::move(l_noexcept)).executeAndCleanup();
+        td::container::Task(std::move(l_constexpr)).executeAndCleanup();
+        td::container::Task(std::move(l_noncopyable)).executeAndCleanup();
+    }
+
+    // Function pointers
+    {
+        {
+            gSink = 0;
+            auto expected_stack = 0;
+            auto stack_increment = 5;
+
+            auto const check_increment = [&]() {
+                expected_stack += stack_increment;
+                CHECK_EQ(gSink, expected_stack);
+            };
+
+            auto l_decayable = [](void* userdata) { gSink += *static_cast<int*>(userdata); };
+
+            CHECK_EQ(gSink, expected_stack);
+
+            td::container::Task(l_decayable, &stack_increment).executeAndCleanup();
+            check_increment();
+
+            td::container::Task([](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).executeAndCleanup();
+            check_increment();
+
+            td::container::Task(+[](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).executeAndCleanup();
+            check_increment();
+
+            td::container::Task(test_func, &stack_increment).executeAndCleanup();
+            check_increment();
+        }
+
+        // Function pointer variant, takes lambdas and function pointers void(void*)
+        td::container::Task([](void*) {}).executeAndCleanup();
+        td::container::Task(+[](void*) {}).executeAndCleanup();
+        td::container::Task([](void*) {}, nullptr).executeAndCleanup();
+        td::container::Task(+[](void*) {}, nullptr).executeAndCleanup();
+
+        // Lambda variant, takes lambdas and function pointers void()
+        td::container::Task([] {}).executeAndCleanup();
+        td::container::Task(+[] {}).executeAndCleanup();
+        //td::container::Task([] {}, nullptr).executeAndCleanup(); // ERROR
+        //td::container::Task(+[] {}, nullptr).executeAndCleanup(); // ERROR
+    }
 }
 
 TEST_CASE("td::container::Task (metadata)")
