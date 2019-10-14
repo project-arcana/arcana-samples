@@ -166,7 +166,7 @@ TEST_CASE("td API - compilation")
             auto l_moveonly = [u = std::move(u1)] { gSink += *u; };
 
             td::sync s;
-            td::submit(s, l_moveonly);
+            td::submit(s, std::move(l_moveonly));
             td::submit(s, [](std::unique_ptr<int> const& u) { gSink += *u; }, u2);
             //td::submit(s, [](std::unique_ptr<int> u) { gSink += *u; }, std::move(u3)); // TODO: Error!
 

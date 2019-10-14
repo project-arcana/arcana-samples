@@ -75,7 +75,7 @@ TEST_CASE("td::container::Task (static)")
         auto l_val_cap = [=] { gSink += (a - b + c); };
         auto l_val_cap_mutable = [=]() mutable { gSink += (c += b); };
         auto l_noexcept = [&]() noexcept { gSink += (a - b + c); };
-        auto l_constexpr = [=]() constexpr { gSink += (a - b + c); };
+        //auto l_constexpr = [=]() constexpr { gSink += (a - b + c); };
         auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
 
         // Test if these lambda types compile
@@ -84,7 +84,7 @@ TEST_CASE("td::container::Task (static)")
         td::container::Task(std::move(l_val_cap)).executeAndCleanup();
         td::container::Task(std::move(l_val_cap_mutable)).executeAndCleanup();
         td::container::Task(std::move(l_noexcept)).executeAndCleanup();
-        td::container::Task(std::move(l_constexpr)).executeAndCleanup();
+        //td::container::Task(std::move(l_constexpr)).executeAndCleanup();
         td::container::Task(std::move(l_noncopyable)).executeAndCleanup();
     }
 
