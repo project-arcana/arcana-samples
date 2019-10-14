@@ -21,11 +21,13 @@ int retargfun(int a, int b, int c) { gSink += (a + b + c); return gSink; }
 template<class T>
 bool constexpr is_int_future = std::is_same_v<td::future<int>, T>;
 
-template <class F, class FObj, class... Args>
-void execute(F&& func, FObj& inst, Args&&... args)
+struct foo
 {
-    (inst.*func)(args...);
-}
+    void met() { ++gSink; }
+    void argmet(int a, int b, int c) { gSink += (a + b + c); }
+    int retmet() { return ++gSink; }
+    int retargmet(int a, int b, int c) { gSink += (a + b + c); return gSink; }
+};
 }
 
 TEST_CASE("td API - compilation")
@@ -67,6 +69,9 @@ TEST_CASE("td API - compilation")
                 td::submit(s1, [] {});
                 td::submit(s1, +[] {});
                 td::submit(s1, fun);
+
+                foo f;
+                //auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
 
                 // With arguments
                 td::submit(s1, [](float arg) { gSink += int(arg); }, 1.f);
