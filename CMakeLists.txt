@@ -51,6 +51,9 @@ add_subdirectory(extern/ctracer)
 # reflection and introspection
 add_subdirectory(extern/reflector)
 
+# multithreading
+add_subdirectory(extern/task-dispatcher)
+
 
 ## Main
 
