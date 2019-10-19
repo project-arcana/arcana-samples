@@ -10,4 +10,5 @@ add_arcana_test(cc-tests "${SOURCES}")
 target_link_libraries(cc-tests PUBLIC
     clean-core
     typed-geometry
+    ctracer
 )

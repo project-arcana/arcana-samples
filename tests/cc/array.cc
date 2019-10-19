@@ -24,3 +24,11 @@ TEST_CASE("cc::array")
     CHECK(a.empty());
     CHECK(tg::sum(b) == 6);
 }
+
+TEST_CASE("fixed cc::array")
+{
+    cc::array<int, 3> a;
+
+    a = cc::make_array(1, 2, 3);
+    CHECK(tg::sum(a) == 6);
+}
