@@ -60,6 +60,9 @@ add_subdirectory(extern/task-dispatcher)
 # half-edge meshes
 add_subdirectory(extern/polymesh)
 
+# phantasm renderer
+add_subdirectory(extern/phantasm-renderer)
+
 # TODO: other libs
 
 
