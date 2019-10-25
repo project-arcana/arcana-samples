@@ -8,14 +8,17 @@ TEST_CASE("pr backend liveness")
 {
 #ifdef PR_BACKEND_D3D12
     {
+        pr::backend::d3d12::d3d12_config config;
+        config.enable_validation = true;
+        config.enable_gpu_validation = true;
+
         pr::backend::d3d12::Adapter adapter;
-        adapter.initialize(pr::backend::d3d12::d3d12_config{});
+        adapter.initialize(config);
 
-
-        std::cout << "adapter alive!" << std::endl;
+        std::cout << "Created D3D12 adapter" << std::endl;
 
         if (adapter.getCapabilities().has_sm6_wave_intrinsics)
-            std::cout << "Adapter has SM6 Wave intrinsics" << std::endl;
+            std::cout << "Adapter has SM6 wave intrinsics" << std::endl;
 
         if (adapter.getCapabilities().has_raytracing)
             std::cout << "Adapter has Raytracing" << std::endl;
