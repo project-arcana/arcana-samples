@@ -11,4 +11,5 @@ target_link_libraries(pr-tests PUBLIC
     clean-core
     task-dispatcher
     typed-geometry
+    phantasm-renderer
 )
