@@ -9,7 +9,7 @@ TEST_CASE("pr backend liveness")
 #ifdef PR_BACKEND_D3D12
     {
         pr::backend::d3d12::Adapter adapter;
-        adapter.initialize();
+        adapter.initialize(pr::backend::d3d12::d3d12_config{});
 
 
         std::cout << "adapter alive!" << std::endl;
