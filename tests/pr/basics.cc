@@ -3,6 +3,9 @@
 #include <iostream>
 
 #include <phantasm-renderer/backend/d3d12/Adapter.hh>
+#include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
+#include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
+
 
 TEST_CASE("pr backend liveness")
 {
@@ -22,6 +25,15 @@ TEST_CASE("pr backend liveness")
 
         if (adapter.getCapabilities().has_raytracing)
             std::cout << "Adapter has Raytracing" << std::endl;
+    }
+#endif
+
+#ifdef PR_BACKEND_VULKAN
+    {
+        pr::backend::vk::vulkan_config config;
+        pr::backend::vk::BackendVulkan bv;
+        bv.initialize(config);
+
     }
 #endif
 }
