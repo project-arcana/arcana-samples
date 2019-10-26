@@ -22,7 +22,7 @@ TEST_CASE("td::container::Task (lifetime)")
     // Could be randomized.
 #define SHARED_INT_VALUE 55
 
-    td::container::Task task;
+    td::container::task task;
     std::weak_ptr<int> weakInt;
 
     for (auto i = 0; i < 3; ++i)
@@ -63,7 +63,7 @@ TEST_CASE("td::container::Task (lifetime)")
 
 TEST_CASE("td::container::Task (static)")
 {
-    static_assert(sizeof(td::container::Task) == td::system::l1_cacheline_size);
+    static_assert(sizeof(td::container::task) == td::system::l1_cacheline_size);
 
     // Lambdas
     {
@@ -80,13 +80,13 @@ TEST_CASE("td::container::Task (static)")
         auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
 
         // Test if these lambda types compile
-        td::container::Task(std::move(l_trivial)).executeAndCleanup();
-        td::container::Task(std::move(l_ref_cap)).executeAndCleanup();
-        td::container::Task(std::move(l_val_cap)).executeAndCleanup();
-        td::container::Task(std::move(l_val_cap_mutable)).executeAndCleanup();
-        td::container::Task(std::move(l_noexcept)).executeAndCleanup();
-        td::container::Task(std::move(l_constexpr)).executeAndCleanup();
-        td::container::Task(std::move(l_noncopyable)).executeAndCleanup();
+        td::container::task(std::move(l_trivial)).execute_and_cleanup();
+        td::container::task(std::move(l_ref_cap)).execute_and_cleanup();
+        td::container::task(std::move(l_val_cap)).execute_and_cleanup();
+        td::container::task(std::move(l_val_cap_mutable)).execute_and_cleanup();
+        td::container::task(std::move(l_noexcept)).execute_and_cleanup();
+        td::container::task(std::move(l_constexpr)).execute_and_cleanup();
+        td::container::task(std::move(l_noncopyable)).execute_and_cleanup();
     }
 
     // Function pointers
@@ -105,28 +105,28 @@ TEST_CASE("td::container::Task (static)")
 
             CHECK_EQ(gSink, expected_stack);
 
-            td::container::Task(l_decayable, &stack_increment).executeAndCleanup();
+            td::container::task(l_decayable, &stack_increment).execute_and_cleanup();
             check_increment();
 
-            td::container::Task([](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).executeAndCleanup();
+            td::container::task([](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).execute_and_cleanup();
             check_increment();
 
-            td::container::Task(+[](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).executeAndCleanup();
+            td::container::task(+[](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).execute_and_cleanup();
             check_increment();
 
-            td::container::Task(test_func, &stack_increment).executeAndCleanup();
+            td::container::task(test_func, &stack_increment).execute_and_cleanup();
             check_increment();
         }
 
         // Function pointer variant, takes lambdas and function pointers void(void*)
-        td::container::Task([](void*) {}).executeAndCleanup();
-        td::container::Task(+[](void*) {}).executeAndCleanup();
-        td::container::Task([](void*) {}, nullptr).executeAndCleanup();
-        td::container::Task(+[](void*) {}, nullptr).executeAndCleanup();
+        td::container::task([](void*) {}).execute_and_cleanup();
+        td::container::task(+[](void*) {}).execute_and_cleanup();
+        td::container::task([](void*) {}, nullptr).execute_and_cleanup();
+        td::container::task(+[](void*) {}, nullptr).execute_and_cleanup();
 
         // Lambda variant, takes lambdas and function pointers void()
-        td::container::Task([] {}).executeAndCleanup();
-        td::container::Task(+[] {}).executeAndCleanup();
+        td::container::task([] {}).execute_and_cleanup();
+        td::container::task(+[] {}).execute_and_cleanup();
         //td::container::Task([] {}, nullptr).executeAndCleanup(); // ERROR
         //td::container::Task(+[] {}, nullptr).executeAndCleanup(); // ERROR
     }
@@ -140,9 +140,9 @@ TEST_CASE("td::container::Task (metadata)")
 #define TASK_CANARAY_INITIAL 20
 #define CAPTURE_PAD_SIZE 32
 
-    td::container::Task task;
+    td::container::task task;
 
-    using metadata_t = td::container::Task::default_metadata_t;
+    using metadata_t = td::container::task::default_metadata_t;
     auto constexpr metaMin = std::numeric_limits<metadata_t>().min();
     auto constexpr metaMax = std::numeric_limits<metadata_t>().max();
     for (auto testMetadata : {metaMin, metadata_t(0), metaMax})
@@ -152,10 +152,10 @@ TEST_CASE("td::container::Task (metadata)")
         std::array<char, CAPTURE_PAD_SIZE> pad;
         std::fill(pad.begin(), pad.end(), 0);
 
-        task.setMetadata(testMetadata);
+        task.set_metadata(testMetadata);
 
         // Test if the write was successful
-        CHECK(task.getMetadata() == testMetadata);
+        CHECK(task.get_metadata() == testMetadata);
 
         task.lambda([testMetadata, &taskRunCanary, pad]() {
             // Sanity
@@ -171,18 +171,18 @@ TEST_CASE("td::container::Task (metadata)")
         });
 
         // Test if the task write didn't compromise the metadata
-        CHECK(task.getMetadata() == testMetadata);
+        CHECK(task.get_metadata() == testMetadata);
 
         // Sanity
         CHECK(taskRunCanary == TASK_CANARAY_INITIAL);
 
-        task.executeAndCleanup();
+        task.execute_and_cleanup();
 
         // Test if the task ran correctly
         CHECK(taskRunCanary == testMetadata);
 
         // Test if the metadata survived
-        CHECK(task.getMetadata() == testMetadata);
+        CHECK(task.get_metadata() == testMetadata);
     }
 
 #undef TASK_CANARAY_INITIAL
