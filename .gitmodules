@@ -28,3 +28,6 @@
 [submodule "extern/nexus"]
 	path = extern/nexus
 	url = git@github.com:project-arcana/nexus.git
+[submodule "extern/rich-log"]
+	path = extern/rich-log
+	url = git@github.com:project-arcana/rich-log.git

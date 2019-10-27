@@ -49,6 +49,9 @@ add_subdirectory(extern/reflector)
 # multithreading
 add_subdirectory(extern/task-dispatcher)
 
+# logging
+add_subdirectory(extern/rich-log)
+
 # testing, benchmarking, apps
 add_subdirectory(extern/nexus)
 
