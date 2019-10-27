@@ -31,11 +31,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BIN_DIR})
 # ===============================================
 # Dependencies
 
-## External
-
-# unit tests
-add_subdirectory(extern/doctest)
-
 
 ## Core
 
@@ -53,6 +48,9 @@ add_subdirectory(extern/reflector)
 
 # multithreading
 add_subdirectory(extern/task-dispatcher)
+
+# testing, benchmarking, apps
+add_subdirectory(extern/nexus)
 
 
 ## Main
@@ -97,7 +95,7 @@ function(add_arcana_test TEST_NAME SOURCES)
     target_compile_options(${TEST_NAME} PUBLIC ${COMMON_COMPILE_FLAGS})
 
     # make doctest available
-    target_link_libraries(${TEST_NAME} PUBLIC doctest)
+    target_link_libraries(${TEST_NAME} PUBLIC nexus)
 
     # move into tests folder
     set_property(TARGET ${TEST_NAME} PROPERTY FOLDER "Tests")
@@ -116,7 +114,7 @@ foreach(TARGET_NAME
     typed-geometry
     ctracer
     clean-core
-    doctest
+    nexus
     reflector
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")

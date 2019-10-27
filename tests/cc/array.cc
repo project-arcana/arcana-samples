@@ -1,10 +1,10 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <clean-core/array.hh>
 
 #include <typed-geometry/tg.hh>
 
-TEST_CASE("cc::array")
+TEST("cc::array")
 {
     cc::array<int> a;
     CHECK(a.empty());
@@ -25,7 +25,7 @@ TEST_CASE("cc::array")
     CHECK(tg::sum(b) == 6);
 }
 
-TEST_CASE("fixed cc::array")
+TEST("fixed cc::array")
 {
     cc::array<int, 3> a;
 

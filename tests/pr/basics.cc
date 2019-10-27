@@ -1,6 +1,6 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
-TEST_CASE("pr basics")
+TEST("pr basics")
 {
 
 }

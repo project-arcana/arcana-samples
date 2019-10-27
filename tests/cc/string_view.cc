@@ -1,8 +1,8 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <clean-core/string_view.hh>
 
-TEST_CASE("cc::string_view")
+TEST("cc::string_view")
 {
     cc::string_view s;
     CHECK(s.empty());

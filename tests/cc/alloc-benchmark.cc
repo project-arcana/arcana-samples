@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <iostream>
 #include <string>
@@ -66,7 +66,7 @@ void measure(std::string name, size_t samples, F&& f)
 }
 
 }
-TEST_CASE("alloc benchmark")
+TEST("alloc benchmark")
 {
 #if !DO_BENCHMARK
     return;
