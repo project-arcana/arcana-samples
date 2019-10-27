@@ -67,128 +67,136 @@ TEST("td API - compilation")
         REQUIRE(td::is_scheduler_alive());
 
         // submit - single
-        {// sync argument
-         {td::sync s1;
+        {
+            (void)0; // for clang-format
 
-        // Without arguments
-        td::submit(s1, [] {});
-        td::submit(s1, +[] {});
-        td::submit(s1, fun);
+            // sync argument
+            {
+                td::sync s1;
 
-        foo f;
-        // auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
+                // Without arguments
+                td::submit(s1, [] {});
+                td::submit(s1, +[] {});
+                td::submit(s1, fun);
 
-        // With arguments
-        td::submit(s1, [](float arg) { gSink += int(arg); }, 1.f);
-        td::submit(s1, argfun, 4, 5, 6);
+                foo f;
+                // auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
 
-        td::wait_for(s1);
+                // With arguments
+                td::submit(s1, [](float arg) { gSink += int(arg); }, 1.f);
+                td::submit(s1, argfun, 4, 5, 6);
+
+                td::wait_for(s1);
             }
 
             // sync return
             {
-        // Without arguments
-        auto s1 = td::submit([] {});
-        auto s2 = td::submit(fun);
+                // Without arguments
+                auto s1 = td::submit([] {});
+                auto s2 = td::submit(fun);
 
-        // With arguments
-        auto s3 = td::submit([](float arg) { gSink += int(arg); }, 1.f);
-        auto s4 = td::submit(argfun, 4, 5, 6);
+                // With arguments
+                auto s3 = td::submit([](float arg) { gSink += int(arg); }, 1.f);
+                auto s4 = td::submit(argfun, 4, 5, 6);
 
-        td::wait_for(s1, s2, s3, s4);
+                td::wait_for(s1, s2, s3, s4);
 
-        // redundant wait
-        td::wait_for(s1, s2, s3, s4);
-        td::wait_for_unpinned(s1, s2, s3, s4);
+                // redundant wait
+                td::wait_for(s1, s2, s3, s4);
+                td::wait_for_unpinned(s1, s2, s3, s4);
             }
-}
+        }
 
-// submit - single with return
-{
-    // void return
-    auto s1 = td::submit([] {});
-    auto s2 = td::submit(+[] {});
-    auto s3 = td::submit(fun);
-    auto s4 = td::submit([](auto arg) { gSink += arg; }, 5);
-    auto s5 = td::submit(argfun, 5, 6, 7);
+        // submit - single with return
+        {
+            // void return
+            auto s1 = td::submit([] {});
+            auto s2 = td::submit(+[] {});
+            auto s3 = td::submit(fun);
+            auto s4 = td::submit([](auto arg) { gSink += arg; }, 5);
+            auto s5 = td::submit(argfun, 5, 6, 7);
 
-    td::wait_for(s1, s2, s3, s4, s5);
+            td::wait_for(s1, s2, s3, s4, s5);
 
-    // future return
-    auto f1 = td::submit([] { return 1; });
-    auto f2 = td::submit(+[] { return 1; });
-    auto f3 = td::submit(retfun);
-    auto f4 = td::submit(
-        [](auto arg) {
-            gSink += arg;
-            return gSink;
-        },
-        5);
-    auto f5 = td::submit(retargfun, 8, 9, 10);
+            // future return
+            auto f1 = td::submit([] { return 1; });
+            auto f2 = td::submit(+[] { return 1; });
+            auto f3 = td::submit(retfun);
+            auto f4 = td::submit(
+                [](auto arg) {
+                    gSink += arg;
+                    return gSink;
+                },
+                5);
+            auto f5 = td::submit(retargfun, 8, 9, 10);
 
-    static_assert(is_int_future<decltype(f1)>);
-    static_assert(is_int_future<decltype(f2)>);
-    static_assert(is_int_future<decltype(f3)>);
-    static_assert(is_int_future<decltype(f4)>);
-    static_assert(is_int_future<decltype(f5)>);
-}
+            static_assert(is_int_future<decltype(f1)>);
+            static_assert(is_int_future<decltype(f2)>);
+            static_assert(is_int_future<decltype(f3)>);
+            static_assert(is_int_future<decltype(f4)>);
+            static_assert(is_int_future<decltype(f5)>);
+        }
 
-// submit - n, each, batched
-{// sync argument
- {td::sync s1;
+        // submit - n, each, batched
+        {
+            (void)0; // for clang-format
 
-td::submit_n(s1, [](auto i) { gSink += i; }, 50);
+            // sync argument
+            {
+                td::sync s1;
 
-std::array<int, 50> values;
-td::submit_each(s1, [](int& val) { ++val; }, cc::span(values.data(), values.size()));
+                td::submit_n(s1, [](auto i) { gSink += i; }, 50);
 
-td::submit_batched(s1,
-                   [](auto begin, auto end) {
-                       for (auto i = begin; i < end; ++i)
-                           gSink += i;
-                   },
-                   500);
+                std::array<int, 50> values;
+                td::submit_each(s1, [](int& val) { ++val; }, cc::span(values.data(), values.size()));
 
-td::wait_for(s1);
-}
+                td::submit_batched(s1,
+                                   [](auto begin, auto end) {
+                                       for (auto i = begin; i < end; ++i)
+                                           gSink += i;
+                                   },
+                                   500);
 
-// sync return
-{
-    auto s1 = td::submit_n([](auto i) { gSink += i; }, 50);
+                td::wait_for(s1);
+            }
 
-    std::array<int, 50> values;
-    auto s2 = td::submit_each([](int& val) { ++val; }, cc::span(values.data(), values.size()));
+            // sync return
+            {
+                auto s1 = td::submit_n([](auto i) { gSink += i; }, 50);
 
-    auto s3 = td::submit_batched(
-        [](auto begin, auto end) {
-            for (auto i = begin; i < end; ++i)
-                gSink += i;
-        },
-        500);
+                std::array<int, 50> values;
+                auto s2 = td::submit_each([](int& val) { ++val; }, cc::span(values.data(), values.size()));
 
-    td::wait_for(s1, s2, s3);
-}
-}
+                auto s3 = td::submit_batched(
+                    [](auto begin, auto end) {
+                        for (auto i = begin; i < end; ++i)
+                            gSink += i;
+                    },
+                    500);
 
-// move-only arguments and lambdas
-{
-    auto u1 = std::make_unique<int>(1);
-    auto u2 = std::make_unique<int>(2);
-    auto u3 = std::make_unique<int>(3);
-    auto u4 = std::make_unique<int>(4);
+                td::wait_for(s1, s2, s3);
+            }
+        }
 
-    auto l_moveonly = [u = std::move(u1)] { gSink += *u; };
+        // move-only arguments and lambdas
+        {
+            auto u1 = std::make_unique<int>(1);
+            auto u2 = std::make_unique<int>(2);
+            auto u3 = std::make_unique<int>(3);
+            auto u4 = std::make_unique<int>(4);
 
-    td::sync s;
-    td::submit(s, std::move(l_moveonly));
-    td::submit(s, [](std::unique_ptr<int> const& u) { gSink += *u; }, u2);
-    // td::submit(s, [](std::unique_ptr<int> u) { gSink += *u; }, std::move(u3)); // TODO: Error!
+            auto l_moveonly = [u = std::move(u1)] { gSink += *u; };
 
-    td::wait_for(s);
-}
-});
+            td::sync s;
+            td::submit(s, std::move(l_moveonly));
+            td::submit(s, [](std::unique_ptr<int> const& u) { gSink += *u; }, u2);
+            // td::submit(s, [](std::unique_ptr<int> u) { gSink += *u; }, std::move(u3)); // TODO: Error!
 
-CHECK(!td::is_scheduler_alive());
+            td::wait_for(s);
+        }
+    });
+
+    CHECK(!td::is_scheduler_alive());
 }
 
 
