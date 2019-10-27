@@ -127,8 +127,8 @@ TEST("td::container::Task (static)")
         // Lambda variant, takes lambdas and function pointers void()
         td::container::task([] {}).execute_and_cleanup();
         td::container::task(+[] {}).execute_and_cleanup();
-        //td::container::task([] {}, nullptr).execute_and_cleanup(); // ERROR
-        //td::container::task(+[] {}, nullptr).execute_and_cleanup(); // ERROR
+        // td::container::task([] {}, nullptr).execute_and_cleanup(); // ERROR
+        // td::container::task(+[] {}, nullptr).execute_and_cleanup(); // ERROR
     }
 }
 
