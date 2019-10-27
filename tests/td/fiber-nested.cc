@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <atomic>
 
@@ -26,7 +26,7 @@ void FirstLevelFiberStart(void* arg)
     // Return from sixth
     // We just finished 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 1
     // Intermediate check
-    CHECK_EQ(((((((0ULL + 8ULL) * 3ULL) + 7ULL) * 6ULL) - 9ULL) * 2ULL), singleFiberArg->Counter);
+    CHECK(((((((0ULL + 8ULL) * 3ULL) + 7ULL) * 6ULL) - 9ULL) * 2ULL) == singleFiberArg->Counter);
 
     // Now run the rest of the sequence
     singleFiberArg->Counter *= 4;
@@ -135,7 +135,7 @@ void SixthLevelFiberStart(void* arg)
     CHECK(false);
 }
 
-TEST_CASE("td::native::fiber (nested)")
+TEST("td::native::fiber (nested)")
 {
     auto constexpr kHalfMebibyte = 524288;
 
@@ -163,6 +163,6 @@ TEST_CASE("td::native::fiber (nested)")
     td::native::delete_fiber(singleFiberArg.SixthFiber);
     td::native::delete_main_fiber(singleFiberArg.MainFiber);
 
-    CHECK_EQ(((((((((((((((((((0ULL + 8ULL) * 3ULL) + 7ULL) * 6ULL) - 9ULL) * 2ULL) * 4) * 5) + 1) * 3) + 9) + 8) - 9) * 5) + 7) + 1) * 6) - 3),
-             singleFiberArg.Counter);
+    CHECK(((((((((((((((((((0ULL + 8ULL) * 3ULL) + 7ULL) * 6ULL) - 9ULL) * 2ULL) * 4) * 5) + 1) * 3) + 9) + 8) - 9) * 5) + 7) + 1) * 6) - 3)
+          == singleFiberArg.Counter);
 }

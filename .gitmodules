@@ -25,3 +25,6 @@
 [submodule "extern/phantasm-viewer"]
 	path = extern/phantasm-viewer
 	url = git@github.com:project-arcana/phantasm-viewer.git
+[submodule "extern/nexus"]
+	path = extern/nexus
+	url = git@github.com:project-arcana/nexus.git

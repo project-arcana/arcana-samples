@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <array>
 #include <memory>
@@ -33,9 +33,9 @@ void test_fiber_func(void* arg)
 {
     auto* const singleFiberArg = static_cast<test_fiber_arg*>(arg);
 
-    CHECK_EQ(singleFiberArg->counter, 0);
+    CHECK(singleFiberArg->counter == 0);
     ++singleFiberArg->counter;
-    CHECK_EQ(singleFiberArg->counter, 1);
+    CHECK(singleFiberArg->counter == 1);
 
     // Check stack survival
     {
@@ -56,9 +56,9 @@ void test_fiber_func(void* arg)
 
     // Returned
 
-    CHECK_EQ(singleFiberArg->counter, 2);
+    CHECK(singleFiberArg->counter == 2);
     singleFiberArg->counter = 50;
-    CHECK_EQ(singleFiberArg->counter, 50);
+    CHECK(singleFiberArg->counter == 50);
 
     td::native::switch_to_fiber(singleFiberArg->mainFiber, singleFiberArg->otherFiber);
 
@@ -67,22 +67,22 @@ void test_fiber_func(void* arg)
 }
 }
 
-TEST_CASE("td::native::fiber")
+TEST("td::native::fiber")
 {
     auto constexpr kHalfMebibyte = 524288;
 
     test_fiber_arg singleFiberArg;
     singleFiberArg.counter = 0;
 
-    CHECK_EQ(singleFiberArg.counter, 0);
+    CHECK(singleFiberArg.counter == 0);
 
     td::native::create_main_fiber(singleFiberArg.mainFiber);
 
-    CHECK_EQ(singleFiberArg.counter, 0);
+    CHECK(singleFiberArg.counter == 0);
 
     td::native::create_fiber(singleFiberArg.otherFiber, test_fiber_func, &singleFiberArg, kHalfMebibyte);
 
-    CHECK_EQ(singleFiberArg.counter, 0);
+    CHECK(singleFiberArg.counter == 0);
 
     {
         // Check local stack survival
@@ -102,13 +102,13 @@ TEST_CASE("td::native::fiber")
             CHECK(checkData(*unique_data));
         }
 
-        CHECK_EQ(singleFiberArg.counter, 1);
+        CHECK(singleFiberArg.counter == 1);
 
         ++singleFiberArg.counter;
 
         td::native::switch_to_fiber(singleFiberArg.otherFiber, singleFiberArg.mainFiber);
 
-        CHECK_EQ(singleFiberArg.counter, 50);
+        CHECK(singleFiberArg.counter == 50);
     }
 
     td::native::delete_fiber(singleFiberArg.otherFiber);

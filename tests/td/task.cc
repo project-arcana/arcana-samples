@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <array>
 #include <iostream>
@@ -15,7 +15,7 @@ int gSink = 0;
 void test_func(void* userdata) { gSink += *static_cast<int*>(userdata); }
 }
 
-TEST_CASE("td::container::Task (lifetime)")
+TEST("td::container::Task (lifetime)")
 {
     // Constants are not constexpr variables because
     // lambda captures are a concern of this test.
@@ -35,7 +35,7 @@ TEST_CASE("td::container::Task (lifetime)")
 
             task.lambda([sharedInt, &taskExecuted]() {
                 // Check if sharedInt is alive and correct
-                CHECK_EQ(*sharedInt, SHARED_INT_VALUE);
+                CHECK(*sharedInt == SHARED_INT_VALUE);
 
                 taskExecuted = true;
             });
@@ -61,21 +61,22 @@ TEST_CASE("td::container::Task (lifetime)")
 #undef SHARED_INT_VALUE
 }
 
-TEST_CASE("td::container::Task (static)")
+TEST("td::container::Task (static)")
 {
     static_assert(sizeof(td::container::Task) == td::system::l1_cacheline_size);
 
     // Lambdas
     {
-        int a = 0, b = 1, c = 2;
+        int constexpr a = 0, b = 1, c = 2;
+        int x = 3, y = 4;
         auto uptr = std::make_unique<int>(1);
 
         auto l_trivial = [] { ++gSink; };
         auto l_ref_cap = [&] { gSink += (a - b + c); };
         auto l_val_cap = [=] { gSink += (a - b + c); };
-        auto l_val_cap_mutable = [=]() mutable { gSink += (c += b); };
+        auto l_val_cap_mutable = [=]() mutable { gSink += (x += y); };
         auto l_noexcept = [&]() noexcept { gSink += (a - b + c); };
-        auto l_constexpr = [=]() constexpr { gSink += (a - b + c); };
+        auto l_constexpr = [=]() constexpr { return a - b + c; };
         auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
 
         // Test if these lambda types compile
@@ -97,12 +98,12 @@ TEST_CASE("td::container::Task (static)")
 
             auto const check_increment = [&]() {
                 expected_stack += stack_increment;
-                CHECK_EQ(gSink, expected_stack);
+                CHECK(gSink == expected_stack);
             };
 
             auto l_decayable = [](void* userdata) { gSink += *static_cast<int*>(userdata); };
 
-            CHECK_EQ(gSink, expected_stack);
+            CHECK(gSink == expected_stack);
 
             td::container::Task(l_decayable, &stack_increment).executeAndCleanup();
             check_increment();
@@ -126,12 +127,12 @@ TEST_CASE("td::container::Task (static)")
         // Lambda variant, takes lambdas and function pointers void()
         td::container::Task([] {}).executeAndCleanup();
         td::container::Task(+[] {}).executeAndCleanup();
-        //td::container::Task([] {}, nullptr).executeAndCleanup(); // ERROR
-        //td::container::Task(+[] {}, nullptr).executeAndCleanup(); // ERROR
+        // td::container::Task([] {}, nullptr).executeAndCleanup(); // ERROR
+        // td::container::Task(+[] {}, nullptr).executeAndCleanup(); // ERROR
     }
 }
 
-TEST_CASE("td::container::Task (metadata)")
+TEST("td::container::Task (metadata)")
 {
     // Constants are not constexpr variables because
     // lambda captures are a concern of this test.
