@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <iostream>
 
@@ -8,7 +8,7 @@
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
 
 
-TEST_CASE("pr backend liveness")
+TEST("pr backend liveness")
 {
 #ifdef PR_BACKEND_D3D12
     {

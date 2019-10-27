@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <reflector/introspect.hh>
 
@@ -24,7 +24,7 @@ constexpr void introspect(I&& i, foo& v)
 }
 }
 
-TEST_CASE("reflector basics")
+TEST("reflector basics")
 {
     // some static guarantees
 //    static_assert(rf::member_count<foo> == 3);

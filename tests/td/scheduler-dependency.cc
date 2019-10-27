@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <vector>
 
@@ -38,7 +38,7 @@ void mainTaskFunc(void*)
 }
 
 
-TEST_CASE("td::Scheduler (dependency)")
+TEST("td::Scheduler (dependency)")
 {
     sGlobalBuffer.resize(workloadSize, 0);
     std::fill(sGlobalBuffer.begin(), sGlobalBuffer.end(), 0);

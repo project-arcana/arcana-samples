@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <array>
 #include <iostream>
@@ -15,7 +15,7 @@ int gSink = 0;
 void test_func(void* userdata) { gSink += *static_cast<int*>(userdata); }
 }
 
-TEST_CASE("td::container::Task (lifetime)")
+TEST("td::container::Task (lifetime)")
 {
     // Constants are not constexpr variables because
     // lambda captures are a concern of this test.
@@ -35,7 +35,7 @@ TEST_CASE("td::container::Task (lifetime)")
 
             task.lambda([sharedInt, &taskExecuted]() {
                 // Check if sharedInt is alive and correct
-                CHECK_EQ(*sharedInt, SHARED_INT_VALUE);
+                CHECK(*sharedInt == SHARED_INT_VALUE);
 
                 taskExecuted = true;
             });
@@ -61,7 +61,7 @@ TEST_CASE("td::container::Task (lifetime)")
 #undef SHARED_INT_VALUE
 }
 
-TEST_CASE("td::container::Task (static)")
+TEST("td::container::Task (static)")
 {
     static_assert(sizeof(td::container::task) == td::system::l1_cacheline_size);
 
@@ -98,12 +98,12 @@ TEST_CASE("td::container::Task (static)")
 
             auto const check_increment = [&]() {
                 expected_stack += stack_increment;
-                CHECK_EQ(gSink, expected_stack);
+                CHECK(gSink == expected_stack);
             };
 
             auto l_decayable = [](void* userdata) { gSink += *static_cast<int*>(userdata); };
 
-            CHECK_EQ(gSink, expected_stack);
+            CHECK(gSink == expected_stack);
 
             td::container::task(l_decayable, &stack_increment).execute_and_cleanup();
             check_increment();
@@ -127,12 +127,12 @@ TEST_CASE("td::container::Task (static)")
         // Lambda variant, takes lambdas and function pointers void()
         td::container::task([] {}).execute_and_cleanup();
         td::container::task(+[] {}).execute_and_cleanup();
-        //td::container::Task([] {}, nullptr).executeAndCleanup(); // ERROR
-        //td::container::Task(+[] {}, nullptr).executeAndCleanup(); // ERROR
+        //td::container::task([] {}, nullptr).execute_and_cleanup(); // ERROR
+        //td::container::task(+[] {}, nullptr).execute_and_cleanup(); // ERROR
     }
 }
 
-TEST_CASE("td::container::Task (metadata)")
+TEST("td::container::Task (metadata)")
 {
     // Constants are not constexpr variables because
     // lambda captures are a concern of this test.

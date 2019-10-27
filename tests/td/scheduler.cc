@@ -1,4 +1,4 @@
-#include <doctest.hh>
+#include <nexus/test.hh>
 
 #include <iostream>
 
@@ -35,13 +35,13 @@ void outer_task_func(void*)
             ++dependency;
         });
 
-    CHECK_EQ(dependency.load(), 0);
+    CHECK(dependency.load() == 0);
     sched.submitTasks(tasks, num_tasks_inner, s);
     delete[] tasks;
 
     sched.wait(s);
 
-    CHECK_EQ(dependency.load(), num_tasks_inner);
+    CHECK(dependency.load() == num_tasks_inner);
 }
 
 void main_task_func(void* arg_void)
@@ -64,7 +64,7 @@ void main_task_func(void* arg_void)
 }
 }
 
-TEST_CASE("td::Scheduler")
+TEST("td::Scheduler")
 {
     {
         scheduler_config config;
