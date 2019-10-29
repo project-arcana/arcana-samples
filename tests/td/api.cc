@@ -38,7 +38,7 @@ struct foo
 };
 }
 
-TEST("td API - compilation")
+TEST("td API - compilation", exclusive)
 {
     /// Aims to cover the entire API surface, making compilation or logic errors visible
     /// Little to no asserts
@@ -200,7 +200,7 @@ TEST("td API - compilation")
 }
 
 
-TEST("td API - consistency")
+TEST("td API - consistency", exclusive)
 {
     /// Basic consistency and sanity checks, WIP
 
