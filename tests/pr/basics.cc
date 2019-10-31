@@ -3,16 +3,24 @@
 #include <iostream>
 
 #include <phantasm-renderer/backend/d3d12/Adapter.hh>
+#include <phantasm-renderer/backend/d3d12/CommandList.hh>
+#include <phantasm-renderer/backend/d3d12/Device.hh>
+#include <phantasm-renderer/backend/d3d12/Swapchain.hh>
+#include <phantasm-renderer/backend/d3d12/Queue.hh>
+#include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
+#include <phantasm-renderer/backend/d3d12/memory/UploadBuffer.hh>
+#include <phantasm-renderer/backend/d3d12/memory/DescriptorAllocator.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
+
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
-
 
 TEST("pr backend liveness")
 {
 #ifdef PR_BACKEND_D3D12
     {
         using namespace pr::backend::d3d12;
+        std::cout << std::endl;
 
         // Adapter choice basics
         {
@@ -42,13 +50,50 @@ TEST("pr backend liveness")
             pr::backend::d3d12::Adapter adapter;
             adapter.initialize(config);
 
-            std::cout << "Created D3D12 adapter" << std::endl;
+            pr::backend::d3d12::Device device;
+            device.initialize(adapter.getAdapter(), config);
 
-            if (adapter.getCapabilities().has_sm6_wave_intrinsics)
-                std::cout << "Adapter has SM6 wave intrinsics" << std::endl;
+            {
+                if (device.hasSM6WaveIntrinsics())
+                    std::cout << "Adapter has SM6 wave intrinsics" << std::endl;
 
-            if (adapter.getCapabilities().has_raytracing)
-                std::cout << "Adapter has Raytracing" << std::endl;
+                if (device.hasRaytracing())
+                    std::cout << "Adapter has Raytracing" << std::endl;
+            }
+
+            pr::backend::d3d12::Queue queue;
+            queue.initialize(device.getDevice());
+
+            pr::backend::d3d12::UploadBuffer uploadBuffer(device.getDevice());
+
+            for (auto i = 0; i < 5; ++i)
+            {
+                struct foo
+                {
+                    float color[4];
+                };
+
+                auto alloc = uploadBuffer.alloc<foo>();
+                (void)alloc;
+            }
+            uploadBuffer.reset();
+
+            pr::backend::d3d12::DescriptorAllocator descriptorAllocator(device.getDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+            auto desc_alloc = descriptorAllocator.allocate(50);
+            desc_alloc.free(1);
+
+            pr::backend::d3d12::Window window;
+            window.initialize("Liveness test");
+
+            pr::backend::d3d12::Swapchain swapchain;
+            swapchain.initialize(adapter.getFactory(), queue.getQueue(), window.getHandle());
+
+            pr::backend::d3d12::CommandAllocator alloc(device.getDeviceShared());
+            {
+                auto const com_list = alloc.createCommandList();
+            }
+            alloc.reset();
         }
     }
 #endif
