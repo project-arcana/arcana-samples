@@ -1,30 +1,24 @@
-#include <nexus/test.hh>
-
 #include <array>
 #include <iostream>
-
-#include <typed-geometry/tg.hh>
-
+#include <nexus/test.hh>
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/CommandList.hh>
 #include <phantasm-renderer/backend/d3d12/Device.hh>
+#include <phantasm-renderer/backend/d3d12/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/d3d12/Queue.hh>
+#include <phantasm-renderer/backend/d3d12/ResourceViewHeaps.hh>
+#include <phantasm-renderer/backend/d3d12/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/Swapchain.hh>
+#include <phantasm-renderer/backend/d3d12/UploadHeap.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
+#include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
 #include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
 #include <phantasm-renderer/backend/d3d12/resources/Texture.hh>
 #include <phantasm-renderer/backend/d3d12/resources/simple_vertex.hh>
 #include <phantasm-renderer/backend/d3d12/shader/ShaderCompiler.hh>
-
-#include <phantasm-renderer/backend/d3d12/DynamicBufferRing.hh>
-#include <phantasm-renderer/backend/d3d12/ResourceViewHeaps.hh>
-#include <phantasm-renderer/backend/d3d12/StaticBufferPool.hh>
-#include <phantasm-renderer/backend/d3d12/UploadHeap.hh>
-
-#include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
-
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
+#include <typed-geometry/tg.hh>
 
 TEST("pr backend liveness")
 {
@@ -62,14 +56,6 @@ TEST("pr backend liveness")
                 d3d12_config config;
                 config.enable_validation_extended = true;
                 backend.initialize(config, window.getHandle());
-
-                {
-                    if (backend.mDevice.hasSM6WaveIntrinsics())
-                        std::cout << "Adapter has SM6 wave intrinsics" << std::endl;
-
-                    if (backend.mDevice.hasRaytracing())
-                        std::cout << "Adapter has Raytracing" << std::endl;
-                }
             }
 
             auto const num_backbuffers = backend.mSwapchain.getNumBackbuffers();
@@ -179,19 +165,14 @@ TEST("pr backend liveness")
                 }
 
                 D3D12_VERTEX_BUFFER_VIEW mesh_vbv;
-                unsigned mesh_num_verts = 0;
+                D3D12_INDEX_BUFFER_VIEW mesh_ibv;
+                unsigned mesh_num_indices = 0;
                 {
-                    cc::array raw_vertex_data = {
-                        simple_vertex{{0.0f, 0.7f, 0.0f}, {1.0f, 0.0f, 0.0f}},   //
-                        simple_vertex{{-0.4f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}}, //
-                        simple_vertex{{0.4f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},  //
-                        simple_vertex{{0.5f, 0.9f, 0.0f}, {1.0f, 0.0f, 0.0f}},   //
-                        simple_vertex{{-0.2f, -0.2f, 0.0f}, {0.0f, 1.0f, 0.0f}}, //
-                        simple_vertex{{0.4f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},  //
-                    };
+                    auto simple_pm = load_polymesh("testdata/suzanne.obj");
+                    mesh_num_indices = unsigned(simple_pm.indices.size());
 
-                    mesh_num_verts = unsigned(raw_vertex_data.size());
-                    staticBufferPool.allocVertexBuffer(mesh_num_verts, sizeof(simple_vertex), raw_vertex_data.data(), &mesh_vbv);
+                    staticBufferPool.allocIndexBuffer(mesh_num_indices, sizeof(int), simple_pm.indices.data(), &mesh_ibv);
+                    staticBufferPool.allocVertexBuffer(unsigned(simple_pm.vertices.size()), sizeof(simple_vertex), simple_pm.vertices.data(), &mesh_vbv);
 
                     {
                         auto upload_cmd_list = commandListRing.acquireCommandList();
@@ -269,25 +250,25 @@ TEST("pr backend liveness")
                             float constexpr clearColor[] = {0.1f, 0.1125f, 0.115f, 1.0f};
                             command_list->ClearRenderTargetView(backbuffer_rtv, clearColor, 0, nullptr);
                             command_list->ClearDepthStencilView(depth_buffer_dsv_cpu, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+                            command_list->IASetIndexBuffer(&mesh_ibv);
                             command_list->IASetVertexBuffers(0, 1, &mesh_vbv);
                             command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
                             {
                                 //                                auto const viewport = swapchain.getBackbufferSize();
-                                //                                auto const proj = tg::perspective(40_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
+                                auto const proj = tg::perspective_directx(40_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
 
-                                //                                auto target = tg::pos3::zero;
-                                //                                auto camPos = tg::pos3(0.5f, .75f, 2.f) * 1.5f;
-                                //                                auto view = tg::look_at(camPos, camPos - target, tg::vec3(0, 1, 0));
-                                //                                auto model = tg::rotation_y(tg::radians(increasingValue));
-                                //                                auto const mvp = proj * view * model;
+                                auto target = tg::pos3::zero;
+                                auto camPos = tg::pos3(0.5f, .75f, 2.f) * 1.5f;
+                                auto view = tg::look_at(camPos, camPos - target, tg::vec3(0, 1, 0));
+                                auto model = tg::mat4::identity; // tg::rotation_y(tg::radians(increasingValue));
+                                auto const mvp = proj * view * model;
 
-                                // ;
-                                auto const identity = tg::mat4::identity;
-                                command_list->SetGraphicsRoot32BitConstants(0, 16, tg::data_ptr(identity), 0);
+                                command_list->SetGraphicsRoot32BitConstants(0, 16, tg::data_ptr(mvp), 0);
                             }
 
-                            command_list->DrawInstanced(mesh_num_verts, 1, 0, 0);
+                            command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
 
                             {
                                 // transition backbuffer back to present state from render target state
@@ -315,6 +296,7 @@ TEST("pr backend liveness")
 #endif
 
 #ifdef PR_BACKEND_VULKAN
+    if constexpr (0)
     {
         pr::backend::vk::vulkan_config config;
         pr::backend::vk::BackendVulkan bv;
