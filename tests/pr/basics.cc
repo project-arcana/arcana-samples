@@ -190,14 +190,14 @@ TEST("pr backend liveness")
 
                 Texture depth_buffer;
                 RViewDSV depth_buffer_dsv;
-                resViewHeaps.allocDSV(1, &depth_buffer_dsv);
+                resViewHeaps.allocDSV(1, depth_buffer_dsv);
 
                 auto const on_resize_func = [&](int w, int h) {
                     std::cout << "resize to " << w << "x" << h << std::endl;
 
-                    auto depth_buffer_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, UINT(w), UINT(h), 1, 0, 1, 0,
+                    auto const depth_buffer_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, UINT(w), UINT(h), 1, 0, 1, 0,
                                                                           D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE);
-                    depth_buffer.initDepthStencil(backend.mDevice.getDevice(), "depth buffer", &depth_buffer_desc);
+                    depth_buffer.initDepthStencil(backend.mDevice.getDevice(), "depth buffer", depth_buffer_desc);
                     depth_buffer.createDSV(0, depth_buffer_dsv);
 
                     backend.mSwapchain.onResize(w, h);
@@ -222,6 +222,9 @@ TEST("pr backend liveness")
 
                     if (!window.isMinimized())
                     {
+                        dynamicBufferRing.onBeginFrame();
+
+
                         // ... do something else ...
 
                         backend.mSwapchain.waitForSwapchain();
