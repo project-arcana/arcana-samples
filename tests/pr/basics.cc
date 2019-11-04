@@ -124,21 +124,17 @@ TEST("pr backend liveness")
                 shared_com_ptr<ID3D12RootSignature> root_sig;
 
                 {
-                    D3D12_ROOT_PARAMETER mvp_param = {};
-                    mvp_param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-                    mvp_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-                    mvp_param.Constants.Num32BitValues = 16;
-                    mvp_param.Constants.RegisterSpace = 0;
-                    mvp_param.Constants.ShaderRegister = 0;
+                    CD3DX12_ROOT_PARAMETER params[1];
+                    params[0].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX); // MVP matrix constant
 
-                    D3D12_ROOT_PARAMETER params[] = {mvp_param};
-
-                    D3D12_ROOT_SIGNATURE_DESC root_sig_desc = {};
-                    root_sig_desc.NumParameters = 1;
+                    CD3DX12_ROOT_SIGNATURE_DESC root_sig_desc = {};
                     root_sig_desc.pParameters = params;
+                    root_sig_desc.NumParameters = 1;
                     root_sig_desc.NumStaticSamplers = 0;
                     root_sig_desc.pStaticSamplers = nullptr;
-                    root_sig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+                    root_sig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE | D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+                                          | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
+                                          | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
                     ID3DBlob* serialized_root_sig = nullptr;
                     PR_D3D12_VERIFY(D3D12SerializeRootSignature(&root_sig_desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &serialized_root_sig, nullptr));
