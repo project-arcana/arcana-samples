@@ -16,7 +16,7 @@ auto constexpr numWorkers = workloadSize / chunkSize;
 
 void mainTaskFunc(void*)
 {
-    container::Task workers[numWorkers];
+    container::task workers[numWorkers];
     for (auto i = 0u; i < numWorkers; ++i)
     {
         unsigned chunkStart = i * chunkSize;
@@ -44,7 +44,7 @@ TEST("td::Scheduler (dependency)")
     std::fill(sGlobalBuffer.begin(), sGlobalBuffer.end(), 0);
 
     Scheduler scheduler;
-    scheduler.start(container::Task{mainTaskFunc});
+    scheduler.start(container::task{mainTaskFunc});
 
     bool equal = true;
     for (auto i = 0u; i < workloadSize; ++i)

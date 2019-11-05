@@ -28,7 +28,7 @@ void outer_task_func(void*)
     auto& sched = Scheduler::current();
     sync s;
 
-    auto tasks = new container::Task[num_tasks_inner];
+    auto tasks = new container::task[num_tasks_inner];
     for (auto i = 0u; i < num_tasks_inner; ++i)
         tasks[i].lambda([&dependency]() {
             spin_cycles();
@@ -53,7 +53,7 @@ void main_task_func(void* arg_void)
         sync s;
         auto& sched = Scheduler::current();
 
-        auto tasks = new container::Task[num_tasks_outer];
+        auto tasks = new container::task[num_tasks_outer];
         for (auto i = 0u; i < num_tasks_outer; ++i)
             tasks[i].ptr(outer_task_func);
         sched.submitTasks(tasks, num_tasks_outer, s);
@@ -78,7 +78,7 @@ TEST("td::Scheduler")
         Scheduler scheduler;
         auto iterations = 1;
 
-        scheduler.start(container::Task{main_task_func, &iterations});
+        scheduler.start(container::task{main_task_func, &iterations});
     }
 
     // Run multiple times
@@ -86,8 +86,8 @@ TEST("td::Scheduler")
         Scheduler scheduler;
         auto iterations = 25;
 
-        scheduler.start(container::Task{main_task_func, &iterations});
-        scheduler.start(container::Task{main_task_func, &iterations});
+        scheduler.start(container::task{main_task_func, &iterations});
+        scheduler.start(container::task{main_task_func, &iterations});
     }
 
     // Run with constrained threads
@@ -98,6 +98,6 @@ TEST("td::Scheduler")
         Scheduler scheduler(config);
         auto iterations = 150;
 
-        scheduler.start(container::Task{main_task_func, &iterations});
+        scheduler.start(container::task{main_task_func, &iterations});
     }
 }
