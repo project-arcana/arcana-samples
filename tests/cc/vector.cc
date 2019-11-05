@@ -3,7 +3,6 @@
 #include <vector>
 
 #include <clean-core/capped_vector.hh>
-#include <clean-core/poly_unique_ptr.hh>
 #include <clean-core/vector.hh>
 
 #include <typed-geometry/feature/random.hh>
