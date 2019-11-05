@@ -30,8 +30,7 @@ struct string_tester
 
     void step()
     {
-        auto nr = uniform(rng, 0, 13);
-        std::cout << nr << std::endl;
+        auto const nr = uniform(rng, 0, 13);
         switch (nr)
         {
         case 0:
@@ -96,14 +95,15 @@ struct string_tester
 
         REQUIRE(v0.size() == v1.size());
         CHECK(v0.empty() == v1.empty());
-        std::cout << v0.size() << " vs " << v1.size() << std::endl;
         for (auto i = 0u; i < v0.size(); ++i)
-            CHECK(v0[i] == v1[i]);
+            REQUIRE(v0[i] == v1[i]);
         CHECK(v0 == v0);
         CHECK(v1 == v1);
     }
 };
 }
+
+enum class testId : uint64_t {};
 
 TEST("string basics")
 {
