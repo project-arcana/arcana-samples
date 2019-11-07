@@ -4,15 +4,15 @@
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/CommandList.hh>
 #include <phantasm-renderer/backend/d3d12/Device.hh>
-#include <phantasm-renderer/backend/d3d12/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/d3d12/Queue.hh>
-#include <phantasm-renderer/backend/d3d12/ResourceViewHeaps.hh>
-#include <phantasm-renderer/backend/d3d12/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/Swapchain.hh>
-#include <phantasm-renderer/backend/d3d12/UploadHeap.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
 #include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
+#include <phantasm-renderer/backend/d3d12/memory/DynamicBufferRing.hh>
+#include <phantasm-renderer/backend/d3d12/memory/ResourceViewHeaps.hh>
+#include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
+#include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
 #include <phantasm-renderer/backend/d3d12/resources/Texture.hh>
 #include <phantasm-renderer/backend/d3d12/resources/simple_vertex.hh>
 #include <phantasm-renderer/backend/d3d12/shader/ShaderCompiler.hh>
@@ -25,12 +25,13 @@ TEST("pr backend liveness")
 #ifdef PR_BACKEND_D3D12
     {
         using namespace pr::backend::d3d12;
-        std::cout << std::endl;
 
         // Adapter choice basics
+        if constexpr (0)
         {
             auto const candidates = get_adapter_candidates();
 
+            std::cout << std::endl;
             for (auto const& cand : candidates)
             {
                 std::cout << "D3D12 Adapter Candidate #" << cand.index << ": " << cand.description << '\n';
@@ -110,14 +111,19 @@ TEST("pr backend liveness")
                 shared_com_ptr<ID3D12RootSignature> root_sig;
 
                 {
-                    CD3DX12_ROOT_PARAMETER params[1];
-                    params[0].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX); // MVP matrix constant
+                    cc::array<CD3DX12_DESCRIPTOR_RANGE, 1> desc_range;
+                    desc_range[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
+                    cc::array<CD3DX12_ROOT_PARAMETER, 2> params;
+                    params[0].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);                  // MVP matrix constant
+                    params[1].InitAsConstantBufferView(1);                                                // Custom CB
+                    params[2].InitAsDescriptorTable(1, desc_range.data(), D3D12_SHADER_VISIBILITY_PIXEL); // descriptor table
 
                     CD3DX12_ROOT_SIGNATURE_DESC root_sig_desc = {};
-                    root_sig_desc.pParameters = params;
-                    root_sig_desc.NumParameters = 1;
-                    root_sig_desc.NumStaticSamplers = 0;
+                    root_sig_desc.pParameters = params.data();
+                    root_sig_desc.NumParameters = params.size();
                     root_sig_desc.pStaticSamplers = nullptr;
+                    root_sig_desc.NumStaticSamplers = 0;
                     root_sig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE | D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
                                           | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
                                           | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
@@ -146,7 +152,7 @@ TEST("pr backend liveness")
                         false, FALSE, D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD, D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD, D3D12_LOGIC_OP_NOOP, D3D12_COLOR_WRITE_ENABLE_ALL};
 
                     pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-                    pso_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+                    pso_desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 
                     pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
                     pso_desc.DepthStencilState.DepthEnable = true;
@@ -195,8 +201,8 @@ TEST("pr backend liveness")
                 auto const on_resize_func = [&](int w, int h) {
                     std::cout << "resize to " << w << "x" << h << std::endl;
 
-                    auto const depth_buffer_desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D32_FLOAT, UINT(w), UINT(h), 1, 0, 1, 0,
-                                                                          D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE);
+                    auto const depth_buffer_desc = CD3DX12_RESOURCE_DESC::Tex2D(
+                        DXGI_FORMAT_D32_FLOAT, UINT(w), UINT(h), 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE);
                     depth_buffer.initDepthStencil(backend.mDevice.getDevice(), "depth buffer", depth_buffer_desc);
                     depth_buffer.createDSV(0, depth_buffer_dsv);
 
@@ -250,25 +256,46 @@ TEST("pr backend liveness")
                             auto const depth_buffer_dsv_cpu = depth_buffer_dsv.getCPU();
                             command_list->OMSetRenderTargets(1, &backbuffer_rtv, 1, &depth_buffer_dsv_cpu);
 
-                            float constexpr clearColor[] = {0.1f, 0.1125f, 0.115f, 1.0f};
+                            float constexpr clearColor[] = {0.1f, 0.1f, 0.1f, 1.0f};
                             command_list->ClearRenderTargetView(backbuffer_rtv, clearColor, 0, nullptr);
                             command_list->ClearDepthStencilView(depth_buffer_dsv_cpu, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
+                            // Mesh binding
                             command_list->IASetIndexBuffer(&mesh_ibv);
                             command_list->IASetVertexBuffers(0, 1, &mesh_vbv);
                             command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+                            // Root constants
                             {
-                                //                                auto const viewport = swapchain.getBackbufferSize();
-                                auto const proj = tg::perspective_directx(40_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
+                                static float increasingValue = 0.f;
+                                increasingValue += 0.001f;
+                                auto model = tg::rotation_y(tg::radians(increasingValue));
 
-                                auto target = tg::pos3::zero;
-                                auto camPos = tg::pos3(0.5f, .75f, 2.f) * 1.5f;
-                                auto view = tg::look_at(camPos, camPos - target, tg::vec3(0, 1, 0));
-                                auto model = tg::mat4::identity; // tg::rotation_y(tg::radians(increasingValue));
-                                auto const mvp = proj * view * model;
+                                command_list->SetGraphicsRoot32BitConstants(0, 16, tg::data_ptr(model), 0);
+                            }
 
-                                command_list->SetGraphicsRoot32BitConstants(0, 16, tg::data_ptr(mvp), 0);
+                            // Root CBV
+                            {
+                                struct framedata
+                                {
+                                    tg::mat4 view_proj;
+                                };
+
+                                framedata* cb_cpu;
+                                D3D12_GPU_VIRTUAL_ADDRESS cb_gpu;
+                                dynamicBufferRing.allocConstantBuffer(cb_cpu, cb_gpu);
+
+                                cb_cpu->view_proj = tg::mat4::identity;
+                                {
+                                    auto const proj = tg::perspective_directx(60_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
+
+                                    auto target = tg::pos3::zero;
+                                    auto camPos = tg::pos3(0.5f, .75f, 2.f) * 1.5f;
+                                    auto view = tg::look_at(camPos, camPos - target, tg::vec3(0, 1, 0));
+                                    cb_cpu->view_proj = proj * view;
+                                }
+
+                                command_list->SetGraphicsRootConstantBufferView(1, cb_gpu);
                             }
 
                             command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
