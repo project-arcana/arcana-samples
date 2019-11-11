@@ -119,6 +119,15 @@ TEST("pr backend liveness")
                 resViewAllocator.initialize(backend.mDevice.getDevice(), numCBVs, numSRVs, numUAVs, numDSVs, numRTVs, numSamplers);
             }
 
+            DescriptorManager descManager;
+            {
+                auto const numCBVs = 2000 + 2000 + 10;
+                auto const numDSVs = 3;
+                auto const numRTVs = 60;
+                auto const numSamplers = 20;
+                descManager.initialize(backend.mDevice.getDevice(), numCBVs, numDSVs, numRTVs, numSamplers, num_backbuffers);
+            }
+
             DynamicBufferRing dynamicBufferRing;
             {
                 auto const size = 20 * 1024 * 1024;
@@ -149,10 +158,11 @@ TEST("pr backend liveness")
                 // Resource setup
                 //
                 resource material;
+                cpu_cbv_srv_uav mat_srv = descManager.allocCBV_SRV_UAV();
                 resource_view material_srv = resViewAllocator.allocCBV_SRV_UAV(1);
                 {
                     material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
-                    make_srv(material, material_srv, 0);
+                    make_srv(material, material_srv.get_cpu());
                 }
 
                 resource mesh_vertices;
@@ -182,19 +192,19 @@ TEST("pr backend liveness")
                     = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig.raw_root_sig, pr::default_config);
 
                 resource depth_buffer;
-                resource_view depth_buffer_dsv = resViewAllocator.allocDSV(1);
+                cpu_dsv depth_buffer_dsv = descManager.allocDSV();
 
                 resource color_buffer;
-                resource_view color_buffer_rtv = resViewAllocator.allocRTV(1);
+                cpu_rtv color_buffer_rtv = descManager.allocRTV();
 
                 auto const on_resize_func = [&](int w, int h) {
                     std::cout << "resize to " << w << "x" << h << std::endl;
 
                     depth_buffer = create_depth_stencil(backend.mAllocator, w, h, DXGI_FORMAT_D32_FLOAT);
-                    make_dsv(depth_buffer, depth_buffer_dsv, 0);
+                    make_dsv(depth_buffer, depth_buffer_dsv.handle);
 
                     color_buffer = create_render_target(backend.mAllocator, w, h, DXGI_FORMAT_R16G16B16A16_FLOAT);
-                    make_rtv(color_buffer, color_buffer_rtv, 0);
+                    make_rtv(color_buffer, color_buffer_rtv.handle);
 
                     backend.mSwapchain.onResize(w, h);
                 };
@@ -213,6 +223,7 @@ TEST("pr backend liveness")
                     if (!window.isMinimized())
                     {
                         dynamicBufferRing.onBeginFrame();
+                        descManager.onBeginFrame();
 
 
                         // ... do something else ...
@@ -239,9 +250,8 @@ TEST("pr backend liveness")
                             }
 
                             auto& backbuffer_rtv = backend.mSwapchain.getCurrentBackbufferRTV();
-                            auto const depth_buffer_dsv_cpu = depth_buffer_dsv.get_cpu();
-                            auto const color_buffer_rtv_cpu = color_buffer_rtv.get_cpu();
-                            command_list->OMSetRenderTargets(1, &backbuffer_rtv, 1, &depth_buffer_dsv_cpu);
+                            auto const depth_buffer_dsv_cpu = depth_buffer_dsv.handle;
+                            command_list->OMSetRenderTargets(1, &backbuffer_rtv, 1, &depth_buffer_dsv.handle);
 
                             constexpr float clearColor[] = {0.1f, 0.1f, 0.1f, 1.0f};
                             command_list->ClearRenderTargetView(backbuffer_rtv, clearColor, 0, nullptr);
