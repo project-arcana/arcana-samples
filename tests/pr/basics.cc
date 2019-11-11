@@ -32,14 +32,9 @@
 #ifdef PR_BACKEND_D3D12
 using namespace pr::backend::d3d12;
 
-struct instance_data
+struct pass_data
 {
     wip::srv albedo_tex;
-
-    struct : pr::immediate
-    {
-        tg::mat4 model;
-    } mesh_data;
 
     struct : wip::constant_buffer
     {
@@ -47,12 +42,26 @@ struct instance_data
     } cam_data;
 };
 
+struct instance_data
+{
+    struct : pr::immediate
+    {
+        tg::mat4 model;
+        tg::vec3 offset;
+    } mesh_data;
+};
+
+template <class I>
+constexpr void introspect(I&& i, pass_data& v)
+{
+    i(v.cam_data, "cam_data");
+    i(v.albedo_tex, "albedo_tex");
+}
+
 template <class I>
 constexpr void introspect(I&& i, instance_data& v)
 {
     i(v.mesh_data, "mesh_data");
-    i(v.cam_data, "cam_data");
-    i(v.albedo_tex, "albedo_tex");
 }
 #endif
 
@@ -165,11 +174,12 @@ TEST("pr backend liveness")
 
                 uploadHeap.flushAndFinish();
 
-                shared_com_ptr<ID3D12RootSignature> root_sig = get_root_signature<instance_data>(backend.mDevice.getDevice());
+                root_signature<pass_data, instance_data> root_sig;
+                root_sig.initialize(backend.mDevice.getDevice());
 
                 auto const input_layout = get_vertex_attributes<pr::backend::d3d12::simple_vertex>();
                 shared_com_ptr<ID3D12PipelineState> pso
-                    = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig, pr::default_config);
+                    = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig.raw_root_sig, pr::default_config);
 
                 resource depth_buffer;
                 resource_view depth_buffer_dsv = resViewAllocator.allocDSV(1);
@@ -219,7 +229,7 @@ TEST("pr backend liveness")
                             command_list->SetDescriptorHeaps(unsigned(desc_heaps.size()), desc_heaps.data());
 
                             command_list->SetPipelineState(pso);
-                            command_list->SetGraphicsRootSignature(root_sig);
+                            command_list->SetGraphicsRootSignature(root_sig.raw_root_sig);
                             util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
 
                             {
@@ -243,41 +253,34 @@ TEST("pr backend liveness")
                             command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-                            // Root CBV
                             {
-                                struct framedata
-                                {
-                                    tg::mat4 view_proj;
-                                };
-
-                                framedata* cb_cpu;
-                                D3D12_GPU_VIRTUAL_ADDRESS cb_gpu;
-                                dynamicBufferRing.allocConstantBuffer(cb_cpu, cb_gpu);
+                                pass_data dpass;
+                                dpass.albedo_tex = {material_srv};
 
                                 {
                                     auto const proj = tg::perspective_directx(60_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
                                     auto target = tg::pos3(0, 1, 0);
                                     auto camPos = tg::pos3(1, 1, 1) * 5.f;
                                     auto view = tg::look_at_directx(camPos, target, tg::vec3(0, 1, 0));
-                                    cb_cpu->view_proj = proj * view;
+                                    dpass.cam_data.view_proj = proj * view;
                                 }
 
-                                command_list->SetGraphicsRootConstantBufferView(1, cb_gpu);
+                                root_sig.bind(*command_list, dynamicBufferRing, dpass);
                             }
-
-                            // Root descriptor table
-                            command_list->SetGraphicsRootDescriptorTable(2, material_srv.get_gpu());
 
                             for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                             {
-                                // Root constants
+                                instance_data dinst;
+
+                                dinst.mesh_data.offset = tg::vec3(1, 0, 0);
+
                                 {
                                     static float increasing_val = 0.f;
                                     increasing_val += 0.0001f;
-                                    auto model = tg::translation(modelpos) * tg::rotation_y(tg::radians(increasing_val));
-
-                                    command_list->SetGraphicsRoot32BitConstants(0, 16, tg::data_ptr(model), 0);
+                                    dinst.mesh_data.model = tg::translation(modelpos) * tg::rotation_y(tg::radians(increasing_val));
                                 }
+
+                                root_sig.bind(*command_list, dynamicBufferRing, dinst);
 
                                 command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
                             }
