@@ -1,31 +1,66 @@
+#include <nexus/test.hh>
+
 #include <array>
 #include <iostream>
-#include <nexus/test.hh>
+
+#include <typed-geometry/tg.hh>
+
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/CommandList.hh>
-#include <phantasm-renderer/backend/d3d12/Device.hh>
-#include <phantasm-renderer/backend/d3d12/Queue.hh>
-#include <phantasm-renderer/backend/d3d12/Swapchain.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
+#include <phantasm-renderer/backend/d3d12/common/util.hh>
 #include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
 #include <phantasm-renderer/backend/d3d12/memory/DynamicBufferRing.hh>
-#include <phantasm-renderer/backend/d3d12/memory/ResourceViewHeaps.hh>
 #include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
-#include <phantasm-renderer/backend/d3d12/resources/Texture.hh>
+#include <phantasm-renderer/backend/d3d12/pipeline_state.hh>
+#include <phantasm-renderer/backend/d3d12/resources/resource_creation.hh>
 #include <phantasm-renderer/backend/d3d12/resources/simple_vertex.hh>
-#include <phantasm-renderer/backend/d3d12/shader/ShaderCompiler.hh>
+#include <phantasm-renderer/backend/d3d12/root_signature.hh>
+#include <phantasm-renderer/backend/d3d12/shader.hh>
+
+#include <phantasm-renderer/default_config.hh>
+
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
-#include <typed-geometry/tg.hh>
+
+
+#include <d3d12.h>
+
+
+#ifdef PR_BACKEND_D3D12
+using namespace pr::backend::d3d12;
+
+struct instance_data
+{
+    wip::srv albedo_tex;
+
+    struct : pr::immediate
+    {
+        tg::mat4 model;
+    } mesh_data;
+
+    struct : wip::constant_buffer
+    {
+        tg::mat4 view_proj;
+    } cam_data;
+};
+
+template <class I>
+constexpr void introspect(I&& i, instance_data& v)
+{
+    i(v.mesh_data, "mesh_data");
+    i(v.cam_data, "cam_data");
+    i(v.albedo_tex, "albedo_tex");
+}
+#endif
+
 
 TEST("pr backend liveness")
 {
 #ifdef PR_BACKEND_D3D12
     {
-        using namespace pr::backend::d3d12;
-
         // Adapter choice basics
         if constexpr (0)
         {
@@ -64,7 +99,7 @@ TEST("pr backend liveness")
             CommandListRing commandListRing;
             commandListRing.initialize(backend, num_backbuffers, 8, backend.mDirectQueue.getQueue().GetDesc());
 
-            ResourceViewHeaps resViewHeaps;
+            ResourceViewAllocator resViewAllocator;
             {
                 auto const numCBVs = 2000;
                 auto const numSRVs = 2000;
@@ -72,19 +107,13 @@ TEST("pr backend liveness")
                 auto const numDSVs = 3;
                 auto const numRTVs = 60;
                 auto const numSamplers = 20;
-                resViewHeaps.initialize(backend.mDevice.getDevice(), numCBVs, numSRVs, numUAVs, numDSVs, numRTVs, numSamplers);
+                resViewAllocator.initialize(backend.mDevice.getDevice(), numCBVs, numSRVs, numUAVs, numDSVs, numRTVs, numSamplers);
             }
 
             DynamicBufferRing dynamicBufferRing;
             {
                 auto const size = 20 * 1024 * 1024;
                 dynamicBufferRing.initialize(backend.mDevice.getDevice(), num_backbuffers, size);
-            }
-
-            StaticBufferPool staticBufferPool;
-            {
-                auto const size = 128 * 1024 * 1024;
-                staticBufferPool.initialize(backend.mDevice.getDevice(), size, true, "Static generic");
             }
 
             UploadHeap uploadHeap;
@@ -95,124 +124,69 @@ TEST("pr backend liveness")
 
 
             {
+                // Shader compilation
+                //
+                cc::capped_vector<shader, 6> shaders;
+                {
+                    auto& vert = shaders.emplace_back();
+                    vert = compile_shader_from_file("testdata/shader.hlsl", shader_domain::vertex);
+
+                    auto& pixel = shaders.emplace_back();
+                    pixel = compile_shader_from_file("testdata/shader.hlsl", shader_domain::pixel);
+
+                    CC_RUNTIME_ASSERT(vert.is_valid() && pixel.is_valid() && "failed to load shaders");
+                }
+
                 // Resource setup
-                D3D12_SHADER_BYTECODE vertex_shader;
-                D3D12_SHADER_BYTECODE pixel_shader;
+                //
+                resource material;
+                resource_view material_srv = resViewAllocator.allocCBV_SRV_UAV(1);
                 {
-                    auto const s1 = compile_shader_from_file("testdata/shader.hlsl", "mainVS", "vs_5_0", vertex_shader);
-                    auto const s2 = compile_shader_from_file("testdata/shader.hlsl", "mainPS", "ps_5_0", pixel_shader);
-
-                    if (!s1 || !s2)
-                    {
-                        CC_RUNTIME_ASSERT(false && "failed to load shaders");
-                    }
+                    material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
+                    make_srv(material, material_srv, 0);
                 }
 
-                shared_com_ptr<ID3D12RootSignature> root_sig;
-
-                {
-                    cc::array<CD3DX12_DESCRIPTOR_RANGE, 1> desc_range;
-                    desc_range[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-
-                    cc::array<CD3DX12_ROOT_PARAMETER, 2> params;
-                    params[0].InitAsConstants(16, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);                  // MVP matrix constant
-                    params[1].InitAsConstantBufferView(1);                                                // Custom CB
-                    params[2].InitAsDescriptorTable(1, desc_range.data(), D3D12_SHADER_VISIBILITY_PIXEL); // descriptor table
-
-                    CD3DX12_ROOT_SIGNATURE_DESC root_sig_desc = {};
-                    root_sig_desc.pParameters = params.data();
-                    root_sig_desc.NumParameters = params.size();
-                    root_sig_desc.pStaticSamplers = nullptr;
-                    root_sig_desc.NumStaticSamplers = 0;
-                    root_sig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE | D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-                                          | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
-                                          | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
-
-                    ID3DBlob* serialized_root_sig = nullptr;
-                    PR_D3D12_VERIFY(D3D12SerializeRootSignature(&root_sig_desc, D3D_ROOT_SIGNATURE_VERSION_1_0, &serialized_root_sig, nullptr));
-
-                    PR_D3D12_VERIFY(backend.mDevice.getDevice().CreateRootSignature(0, serialized_root_sig->GetBufferPointer(),
-                                                                                    serialized_root_sig->GetBufferSize(), PR_COM_WRITE(root_sig)));
-                    serialized_root_sig->Release();
-                }
-
-                shared_com_ptr<ID3D12PipelineState> pso;
-
-                {
-                    auto const input_layout = get_vertex_attributes<pr::backend::d3d12::simple_vertex>();
-
-                    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc = {}; // explicit init on purpose
-                    pso_desc.InputLayout = {input_layout.data(), UINT(input_layout.size())};
-                    pso_desc.pRootSignature = root_sig;
-                    pso_desc.VS = vertex_shader;
-                    pso_desc.PS = pixel_shader;
-
-                    pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-                    pso_desc.BlendState.RenderTarget[0] = D3D12_RENDER_TARGET_BLEND_DESC{
-                        false, FALSE, D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD, D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD, D3D12_LOGIC_OP_NOOP, D3D12_COLOR_WRITE_ENABLE_ALL};
-
-                    pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-                    pso_desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-
-                    pso_desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-                    pso_desc.DepthStencilState.DepthEnable = true;
-                    pso_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-
-                    pso_desc.SampleMask = UINT_MAX;
-                    pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-                    pso_desc.NumRenderTargets = 1;
-                    pso_desc.RTVFormats[0] = backend.mSwapchain.getBackbufferFormat();
-                    pso_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT; // TODO store this
-                    pso_desc.SampleDesc.Count = 1;
-                    pso_desc.NodeMask = 0;
-                    pso_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-
-                    PR_D3D12_VERIFY(backend.mDevice.getDevice().CreateGraphicsPipelineState(&pso_desc, PR_COM_WRITE(pso)));
-                }
-
+                resource mesh_vertices;
+                resource mesh_indices;
                 D3D12_VERTEX_BUFFER_VIEW mesh_vbv;
                 D3D12_INDEX_BUFFER_VIEW mesh_ibv;
                 unsigned mesh_num_indices = 0;
+
                 {
-                    auto simple_pm = load_polymesh("testdata/suzanne.obj");
-                    mesh_num_indices = unsigned(simple_pm.indices.size());
+                    auto const mesh_data = load_obj_mesh("testdata/apollo.obj");
+                    mesh_num_indices = unsigned(mesh_data.indices.size());
 
-                    staticBufferPool.allocIndexBuffer(mesh_num_indices, sizeof(int), simple_pm.indices.data(), &mesh_ibv);
-                    staticBufferPool.allocVertexBuffer(unsigned(simple_pm.vertices.size()), sizeof(simple_vertex), simple_pm.vertices.data(), &mesh_vbv);
+                    mesh_indices = create_buffer_from_data<int>(backend.mAllocator, uploadHeap, mesh_data.indices);
+                    mesh_vertices = create_buffer_from_data<simple_vertex>(backend.mAllocator, uploadHeap, mesh_data.vertices);
 
-                    {
-                        auto upload_cmd_list = commandListRing.acquireCommandList();
-                        staticBufferPool.uploadData(upload_cmd_list);
-                        upload_cmd_list->Close();
-
-                        ID3D12CommandList* submits[] = {upload_cmd_list};
-                        backend.mDirectQueue.getQueue().ExecuteCommandLists(1, submits);
-                        backend.flushGPU();
-                    }
+                    mesh_ibv = make_index_buffer_view(mesh_indices, sizeof(int));
+                    mesh_vbv = make_vertex_buffer_view(mesh_vertices, sizeof(simple_vertex));
                 }
 
-                D3D12_VIEWPORT viewport = {0.f, 0.f, 0.f, 0.f, 0.f, 1.f};
-                D3D12_RECT scissor_rect = {};
+                uploadHeap.flushAndFinish();
 
-                Texture depth_buffer;
-                RViewDSV depth_buffer_dsv;
-                resViewHeaps.allocDSV(1, depth_buffer_dsv);
+                shared_com_ptr<ID3D12RootSignature> root_sig = get_root_signature<instance_data>(backend.mDevice.getDevice());
+
+                auto const input_layout = get_vertex_attributes<pr::backend::d3d12::simple_vertex>();
+                shared_com_ptr<ID3D12PipelineState> pso
+                    = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig, pr::default_config);
+
+                resource depth_buffer;
+                resource_view depth_buffer_dsv = resViewAllocator.allocDSV(1);
+
+                resource color_buffer;
+                resource_view color_buffer_rtv = resViewAllocator.allocRTV(1);
 
                 auto const on_resize_func = [&](int w, int h) {
                     std::cout << "resize to " << w << "x" << h << std::endl;
 
-                    auto const depth_buffer_desc = CD3DX12_RESOURCE_DESC::Tex2D(
-                        DXGI_FORMAT_D32_FLOAT, UINT(w), UINT(h), 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE);
-                    depth_buffer.initDepthStencil(backend.mDevice.getDevice(), "depth buffer", depth_buffer_desc);
-                    depth_buffer.createDSV(0, depth_buffer_dsv);
+                    depth_buffer = create_depth_stencil(backend.mAllocator, w, h, DXGI_FORMAT_D32_FLOAT);
+                    make_dsv(depth_buffer, depth_buffer_dsv, 0);
+
+                    color_buffer = create_render_target(backend.mAllocator, w, h, DXGI_FORMAT_R16G16B16A16_FLOAT);
+                    make_rtv(color_buffer, color_buffer_rtv, 0);
 
                     backend.mSwapchain.onResize(w, h);
-
-                    viewport.Width = float(w);
-                    viewport.Height = float(h);
-
-                    scissor_rect.right = LONG(w);
-                    scissor_rect.bottom = LONG(h);
                 };
 
                 // Main loop
@@ -241,10 +215,12 @@ TEST("pr backend liveness")
                             auto* const current_backbuffer_resource = backend.mSwapchain.getCurrentBackbufferResource();
                             auto* const command_list = commandListRing.acquireCommandList();
 
+                            cc::array const desc_heaps = {resViewAllocator.getCBV_SRV_UAVHeap(), resViewAllocator.getSamplerHeap()};
+                            command_list->SetDescriptorHeaps(unsigned(desc_heaps.size()), desc_heaps.data());
+
                             command_list->SetPipelineState(pso);
                             command_list->SetGraphicsRootSignature(root_sig);
-                            command_list->RSSetViewports(1, &viewport);
-                            command_list->RSSetScissorRects(1, &scissor_rect);
+                            util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
 
                             {
                                 auto const barrier_desc = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -253,10 +229,11 @@ TEST("pr backend liveness")
                             }
 
                             auto& backbuffer_rtv = backend.mSwapchain.getCurrentBackbufferRTV();
-                            auto const depth_buffer_dsv_cpu = depth_buffer_dsv.getCPU();
+                            auto const depth_buffer_dsv_cpu = depth_buffer_dsv.get_cpu();
+                            auto const color_buffer_rtv_cpu = color_buffer_rtv.get_cpu();
                             command_list->OMSetRenderTargets(1, &backbuffer_rtv, 1, &depth_buffer_dsv_cpu);
 
-                            float constexpr clearColor[] = {0.1f, 0.1f, 0.1f, 1.0f};
+                            constexpr float clearColor[] = {0.1f, 0.1f, 0.1f, 1.0f};
                             command_list->ClearRenderTargetView(backbuffer_rtv, clearColor, 0, nullptr);
                             command_list->ClearDepthStencilView(depth_buffer_dsv_cpu, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
@@ -265,14 +242,6 @@ TEST("pr backend liveness")
                             command_list->IASetVertexBuffers(0, 1, &mesh_vbv);
                             command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-                            // Root constants
-                            {
-                                static float increasingValue = 0.f;
-                                increasingValue += 0.001f;
-                                auto model = tg::rotation_y(tg::radians(increasingValue));
-
-                                command_list->SetGraphicsRoot32BitConstants(0, 16, tg::data_ptr(model), 0);
-                            }
 
                             // Root CBV
                             {
@@ -285,20 +254,33 @@ TEST("pr backend liveness")
                                 D3D12_GPU_VIRTUAL_ADDRESS cb_gpu;
                                 dynamicBufferRing.allocConstantBuffer(cb_cpu, cb_gpu);
 
-                                cb_cpu->view_proj = tg::mat4::identity;
                                 {
                                     auto const proj = tg::perspective_directx(60_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
-
-                                    auto target = tg::pos3::zero;
-                                    auto camPos = tg::pos3(0.5f, .75f, 2.f) * 1.5f;
-                                    auto view = tg::look_at(camPos, camPos - target, tg::vec3(0, 1, 0));
+                                    auto target = tg::pos3(0, 1, 0);
+                                    auto camPos = tg::pos3(1, 1, 1) * 5.f;
+                                    auto view = tg::look_at_directx(camPos, target, tg::vec3(0, 1, 0));
                                     cb_cpu->view_proj = proj * view;
                                 }
 
                                 command_list->SetGraphicsRootConstantBufferView(1, cb_gpu);
                             }
 
-                            command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
+                            // Root descriptor table
+                            command_list->SetGraphicsRootDescriptorTable(2, material_srv.get_gpu());
+
+                            for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
+                            {
+                                // Root constants
+                                {
+                                    static float increasing_val = 0.f;
+                                    increasing_val += 0.0001f;
+                                    auto model = tg::translation(modelpos) * tg::rotation_y(tg::radians(increasing_val));
+
+                                    command_list->SetGraphicsRoot32BitConstants(0, 16, tg::data_ptr(model), 0);
+                                }
+
+                                command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
+                            }
 
                             {
                                 // transition backbuffer back to present state from render target state
