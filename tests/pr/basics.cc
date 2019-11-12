@@ -19,14 +19,9 @@
 #include <phantasm-renderer/backend/d3d12/resources/simple_vertex.hh>
 #include <phantasm-renderer/backend/d3d12/root_signature.hh>
 #include <phantasm-renderer/backend/d3d12/shader.hh>
-
-#include <phantasm-renderer/default_config.hh>
-
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
-
-
-#include <d3d12.h>
+#include <phantasm-renderer/default_config.hh>
 
 
 #ifdef PR_BACKEND_D3D12
@@ -35,11 +30,7 @@ using namespace pr::backend::d3d12;
 struct pass_data
 {
     wip::srv albedo_tex;
-
-    struct : wip::constant_buffer
-    {
-        tg::mat4 view_proj;
-    } cam_data;
+    tg::mat4 view_proj;
 };
 
 struct instance_data
@@ -47,14 +38,13 @@ struct instance_data
     struct : pr::immediate
     {
         tg::mat4 model;
-        tg::vec3 offset;
     } mesh_data;
 };
 
 template <class I>
 constexpr void introspect(I&& i, pass_data& v)
 {
-    i(v.cam_data, "cam_data");
+    i(v.view_proj, "view_proj");
     i(v.albedo_tex, "albedo_tex");
 }
 
@@ -108,17 +98,6 @@ TEST("pr backend liveness")
             CommandListRing commandListRing;
             commandListRing.initialize(backend, num_backbuffers, 8, backend.mDirectQueue.getQueue().GetDesc());
 
-            ResourceViewAllocator resViewAllocator;
-            {
-                auto const numCBVs = 2000;
-                auto const numSRVs = 2000;
-                auto const numUAVs = 10;
-                auto const numDSVs = 3;
-                auto const numRTVs = 60;
-                auto const numSamplers = 20;
-                resViewAllocator.initialize(backend.mDevice.getDevice(), numCBVs, numSRVs, numUAVs, numDSVs, numRTVs, numSamplers);
-            }
-
             DescriptorManager descManager;
             {
                 auto const numCBVs = 2000 + 2000 + 10;
@@ -159,10 +138,9 @@ TEST("pr backend liveness")
                 //
                 resource material;
                 cpu_cbv_srv_uav mat_srv = descManager.allocCBV_SRV_UAV();
-                resource_view material_srv = resViewAllocator.allocCBV_SRV_UAV(1);
                 {
                     material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
-                    make_srv(material, material_srv.get_cpu());
+                    make_srv(material, mat_srv.handle);
                 }
 
                 resource mesh_vertices;
@@ -184,8 +162,13 @@ TEST("pr backend liveness")
 
                 uploadHeap.flushAndFinish();
 
-                root_signature<pass_data, instance_data> root_sig;
-                root_sig.initialize(backend.mDevice.getDevice());
+                root_signature root_sig;
+
+                cc::capped_vector<root_sig_payload_size, 2> payload_sizes;
+                payload_sizes.push_back(get_payload_size<pass_data>());
+                payload_sizes.push_back(get_payload_size<instance_data>());
+
+                root_sig.initialize(backend.mDevice.getDevice(), payload_sizes);
 
                 auto const input_layout = get_vertex_attributes<pr::backend::d3d12::simple_vertex>();
                 shared_com_ptr<ID3D12PipelineState> pso
@@ -236,7 +219,7 @@ TEST("pr backend liveness")
                             auto* const current_backbuffer_resource = backend.mSwapchain.getCurrentBackbufferResource();
                             auto* const command_list = commandListRing.acquireCommandList();
 
-                            cc::array const desc_heaps = {resViewAllocator.getCBV_SRV_UAVHeap(), resViewAllocator.getSamplerHeap()};
+                            cc::array const desc_heaps = {descManager.getCBV_SRV_UAVHeap(), descManager.getSamplerHeap()};
                             command_list->SetDescriptorHeaps(unsigned(desc_heaps.size()), desc_heaps.data());
 
                             command_list->SetPipelineState(pso);
@@ -265,32 +248,36 @@ TEST("pr backend liveness")
 
                             {
                                 pass_data dpass;
-                                dpass.albedo_tex = {material_srv};
+                                dpass.albedo_tex = {mat_srv};
 
                                 {
                                     auto const proj = tg::perspective_directx(60_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
                                     auto target = tg::pos3(0, 1, 0);
                                     auto camPos = tg::pos3(1, 1, 1) * 5.f;
                                     auto view = tg::look_at_directx(camPos, target, tg::vec3(0, 1, 0));
-                                    dpass.cam_data.view_proj = proj * view;
+                                    dpass.view_proj = proj * view;
                                 }
 
-                                root_sig.bind(*command_list, dynamicBufferRing, dpass);
+                                auto constexpr payload_index = 0;
+                                auto payload = get_payload_data(dpass, payload_sizes[payload_index]);
+                                root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descManager, payload_index, payload);
+                                payload.free();
                             }
 
                             for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                             {
                                 instance_data dinst;
 
-                                dinst.mesh_data.offset = tg::vec3(1, 0, 0);
-
                                 {
                                     static float increasing_val = 0.f;
-                                    increasing_val += 0.0001f;
+                                    increasing_val += 0.01f;
                                     dinst.mesh_data.model = tg::translation(modelpos) * tg::rotation_y(tg::radians(increasing_val));
                                 }
 
-                                root_sig.bind(*command_list, dynamicBufferRing, dinst);
+                                auto constexpr payload_index = 1;
+                                auto payload = get_payload_data(dinst, payload_sizes[payload_index]);
+                                root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descManager, payload_index, payload);
+                                payload.free();
 
                                 command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
                             }
