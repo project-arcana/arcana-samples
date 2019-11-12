@@ -11,6 +11,7 @@
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
 #include <phantasm-renderer/backend/d3d12/common/util.hh>
 #include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
+#include <phantasm-renderer/backend/d3d12/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/d3d12/memory/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
@@ -193,6 +194,9 @@ TEST("pr backend liveness")
                 };
 
                 // Main loop
+                Timer timer;
+                double run_time = 0.0;
+
                 while (!window.isRequestingClose())
                 {
                     window.pollEvents();
@@ -205,6 +209,8 @@ TEST("pr backend liveness")
 
                     if (!window.isMinimized())
                     {
+                        auto const frametime = timer.getElapsedTime();
+                        timer.reset();
                         dynamicBufferRing.onBeginFrame();
                         descManager.onBeginFrame();
 
@@ -269,9 +275,8 @@ TEST("pr backend liveness")
                                 instance_data dinst;
 
                                 {
-                                    static float increasing_val = 0.f;
-                                    increasing_val += 0.01f;
-                                    dinst.mesh_data.model = tg::translation(modelpos) * tg::rotation_y(tg::radians(increasing_val));
+                                    run_time += frametime;
+                                    dinst.mesh_data.model = tg::translation(modelpos) * tg::rotation_y(tg::radians(float(run_time)));
                                 }
 
                                 auto constexpr payload_index = 1;
