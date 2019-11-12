@@ -1,17 +1,13 @@
-#include <nexus/test.hh>
-
 #include <array>
 #include <iostream>
-
-#include <typed-geometry/tg.hh>
-
+#include <nexus/test.hh>
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/CommandList.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
 #include <phantasm-renderer/backend/d3d12/common/util.hh>
-#include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
 #include <phantasm-renderer/backend/d3d12/device_tentative/timer.hh>
+#include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
 #include <phantasm-renderer/backend/d3d12/memory/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
@@ -23,6 +19,7 @@
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
 #include <phantasm-renderer/default_config.hh>
+#include <typed-geometry/tg.hh>
 
 
 #ifdef PR_BACKEND_D3D12
@@ -45,8 +42,8 @@ struct instance_data
 template <class I>
 constexpr void introspect(I&& i, pass_data& v)
 {
-    i(v.view_proj, "view_proj");
     i(v.albedo_tex, "albedo_tex");
+    i(v.view_proj, "view_proj");
 }
 
 template <class I>
@@ -97,27 +94,22 @@ TEST("pr backend liveness")
             auto const num_backbuffers = backend.mSwapchain.getNumBackbuffers();
 
             CommandListRing commandListRing;
-            commandListRing.initialize(backend, num_backbuffers, 8, backend.mDirectQueue.getQueue().GetDesc());
-
             DescriptorAllocator descManager;
+            DynamicBufferRing dynamicBufferRing;
+            UploadHeap uploadHeap;
             {
+                auto const num_command_lists = 8;
                 auto const numCBVs = 2000 + 2000 + 10;
                 auto const numDSVs = 3;
                 auto const numRTVs = 60;
                 auto const numSamplers = 20;
+                auto const dynamic_buffer_size = 20 * 1024 * 1024;
+                auto const upload_size = 1000 * 1024 * 1024;
+
+                commandListRing.initialize(backend, num_backbuffers, num_command_lists, D3D12_COMMAND_LIST_TYPE_DIRECT);
                 descManager.initialize(backend.mDevice.getDevice(), numCBVs, numDSVs, numRTVs, numSamplers, num_backbuffers);
-            }
-
-            DynamicBufferRing dynamicBufferRing;
-            {
-                auto const size = 20 * 1024 * 1024;
-                dynamicBufferRing.initialize(backend.mDevice.getDevice(), num_backbuffers, size);
-            }
-
-            UploadHeap uploadHeap;
-            {
-                auto const size = 1000 * 1024 * 1024;
-                uploadHeap.initialize(&backend, size);
+                dynamicBufferRing.initialize(backend.mDevice.getDevice(), num_backbuffers, dynamic_buffer_size);
+                uploadHeap.initialize(&backend, upload_size);
             }
 
 
@@ -213,12 +205,12 @@ TEST("pr backend liveness")
                         timer.reset();
                         dynamicBufferRing.onBeginFrame();
                         descManager.onBeginFrame();
+                        commandListRing.onBeginFrame();
 
 
                         // ... do something else ...
 
                         backend.mSwapchain.waitForSwapchain();
-                        commandListRing.onBeginFrame();
 
                         // ... render to swapchain ...
                         {
