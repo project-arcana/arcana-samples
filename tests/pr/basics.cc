@@ -98,7 +98,7 @@ TEST("pr backend liveness")
             CommandListRing commandListRing;
             commandListRing.initialize(backend, num_backbuffers, 8, backend.mDirectQueue.getQueue().GetDesc());
 
-            DescriptorManager descManager;
+            DescriptorAllocator descManager;
             {
                 auto const numCBVs = 2000 + 2000 + 10;
                 auto const numDSVs = 3;
