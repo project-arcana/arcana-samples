@@ -106,6 +106,8 @@ TEST("pr backend liveness", exclusive)
             {
                 material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
                 make_srv(material, mat_srv.handle);
+
+                util::transition_barrier(uploadHeap.getCommandList(), material.raw, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             }
 
             resource mesh_vertices;
@@ -123,6 +125,10 @@ TEST("pr backend liveness", exclusive)
 
                 mesh_ibv = make_index_buffer_view(mesh_indices, sizeof(int));
                 mesh_vbv = make_vertex_buffer_view(mesh_vertices, sizeof(simple_vertex));
+
+                util::transition_barrier(uploadHeap.getCommandList(), mesh_indices.raw, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+                util::transition_barrier(uploadHeap.getCommandList(), mesh_vertices.raw, D3D12_RESOURCE_STATE_COPY_DEST,
+                                         D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
             }
 
             uploadHeap.flushAndFinish();
@@ -181,6 +187,7 @@ TEST("pr backend liveness", exclusive)
                 if (!window.isMinimized())
                 {
                     auto const frametime = timer.getElapsedTime();
+                    run_time += frametime;
                     timer.reset();
                     dynamicBufferRing.onBeginFrame();
                     descManager.onBeginFrame();
@@ -211,7 +218,7 @@ TEST("pr backend liveness", exclusive)
                         auto& backbuffer_rtv = backend.mSwapchain.getCurrentBackbufferRTV();
                         command_list->OMSetRenderTargets(1, &backbuffer_rtv, false, &depth_buffer_dsv.handle);
 
-                        constexpr float clearColor[] = {0.05f, 0.05f, 0.05f, 1.0f};
+                        constexpr float clearColor[] = {0, 0, 0, 1};
                         command_list->ClearRenderTargetView(backbuffer_rtv, clearColor, 0, nullptr);
                         command_list->ClearDepthStencilView(depth_buffer_dsv.handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
@@ -241,11 +248,7 @@ TEST("pr backend liveness", exclusive)
                         for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                         {
                             instance_data dinst;
-
-                            {
-                                run_time += frametime;
-                                dinst.model = tg::translation(modelpos) * tg::rotation_y(tg::radians(-0.25f * float(run_time)));
-                            }
+                            dinst.model = tg::translation(modelpos) * tg::rotation_y(tg::radians(-1 * float(run_time)));
 
                             auto constexpr payload_index = 1;
                             auto payload = get_payload_data(dinst, payload_sizes[payload_index]);
@@ -292,6 +295,7 @@ TEST("pr adapter choice", exclusive)
     auto constexpr mute = false;
 
 #ifdef PR_BACKEND_D3D12
+    if (0)
     {
         // Adapter choice basics
         auto const candidates = get_adapter_candidates();
