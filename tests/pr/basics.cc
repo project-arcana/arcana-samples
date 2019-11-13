@@ -65,13 +65,12 @@ TEST("pr backend liveness", exclusive)
             backend.initialize(config, window.getHandle());
         }
 
-        auto const num_backbuffers = backend.mSwapchain.getNumBackbuffers();
-
         CommandListRing commandListRing;
         DescriptorAllocator descManager;
         DynamicBufferRing dynamicBufferRing;
         UploadHeap uploadHeap;
         {
+            auto const num_backbuffers = backend.mSwapchain.getNumBackbuffers();
             auto const num_command_lists = 8;
             auto const num_shader_resources = 2000 + 2000 + 10;
             auto const num_dsvs = 3;
@@ -85,7 +84,6 @@ TEST("pr backend liveness", exclusive)
             dynamicBufferRing.initialize(backend.mDevice.getDevice(), num_backbuffers, dynamic_buffer_size);
             uploadHeap.initialize(&backend, upload_size);
         }
-
 
         {
             // Shader compilation
@@ -107,7 +105,7 @@ TEST("pr backend liveness", exclusive)
                 material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
                 make_srv(material, mat_srv.handle);
 
-                util::transition_barrier(uploadHeap.getCommandList(), material.raw, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                uploadHeap.barrierResourceOnFlush(material.get_allocation(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             }
 
             resource mesh_vertices;
@@ -115,7 +113,6 @@ TEST("pr backend liveness", exclusive)
             D3D12_VERTEX_BUFFER_VIEW mesh_vbv;
             D3D12_INDEX_BUFFER_VIEW mesh_ibv;
             unsigned mesh_num_indices = 0;
-
             {
                 auto const mesh_data = load_obj_mesh("testdata/apollo.obj");
                 mesh_num_indices = unsigned(mesh_data.indices.size());
@@ -126,9 +123,8 @@ TEST("pr backend liveness", exclusive)
                 mesh_ibv = make_index_buffer_view(mesh_indices, sizeof(int));
                 mesh_vbv = make_vertex_buffer_view(mesh_vertices, sizeof(simple_vertex));
 
-                util::transition_barrier(uploadHeap.getCommandList(), mesh_indices.raw, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER);
-                util::transition_barrier(uploadHeap.getCommandList(), mesh_vertices.raw, D3D12_RESOURCE_STATE_COPY_DEST,
-                                         D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+                uploadHeap.barrierResourceOnFlush(mesh_indices.get_allocation(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER);
+                uploadHeap.barrierResourceOnFlush(mesh_vertices.get_allocation(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
             }
 
             uploadHeap.flushAndFinish();
@@ -196,33 +192,26 @@ TEST("pr backend liveness", exclusive)
 
                     // ... do something else ...
 
-                    backend.mSwapchain.waitForSwapchain();
+                    backend.mSwapchain.waitForBackbuffer();
 
                     // ... render to swapchain ...
                     {
-                        auto* const current_backbuffer_resource = backend.mSwapchain.getCurrentBackbufferResource();
-
                         auto* const command_list = commandListRing.acquireCommandList();
 
+                        util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
                         descManager.setHeaps(*command_list);
                         command_list->SetPipelineState(pso);
                         command_list->SetGraphicsRootSignature(root_sig.raw_root_sig);
-                        util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
 
-                        {
-                            auto const barrier_desc = CD3DX12_RESOURCE_BARRIER::Transition(current_backbuffer_resource, D3D12_RESOURCE_STATE_PRESENT,
-                                                                                           D3D12_RESOURCE_STATE_RENDER_TARGET);
-                            command_list->ResourceBarrier(1, &barrier_desc);
-                        }
+                        backend.mSwapchain.barrierToRenderTarget(command_list);
 
-                        auto& backbuffer_rtv = backend.mSwapchain.getCurrentBackbufferRTV();
+                        auto backbuffer_rtv = backend.mSwapchain.getCurrentBackbufferRTV();
                         command_list->OMSetRenderTargets(1, &backbuffer_rtv, false, &depth_buffer_dsv.handle);
 
                         constexpr float clearColor[] = {0, 0, 0, 1};
                         command_list->ClearRenderTargetView(backbuffer_rtv, clearColor, 0, nullptr);
                         command_list->ClearDepthStencilView(depth_buffer_dsv.handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-                        // Mesh binding
                         command_list->IASetIndexBuffer(&mesh_ibv);
                         command_list->IASetVertexBuffers(0, 1, &mesh_vbv);
                         command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -257,12 +246,7 @@ TEST("pr backend liveness", exclusive)
                             command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
                         }
 
-                        {
-                            // transition backbuffer back to present state from render target state
-                            auto const barrier_desc = CD3DX12_RESOURCE_BARRIER::Transition(
-                                current_backbuffer_resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-                            command_list->ResourceBarrier(1, &barrier_desc);
-                        }
+                        backend.mSwapchain.barrierToPresent(command_list);
 
                         command_list->Close();
 
