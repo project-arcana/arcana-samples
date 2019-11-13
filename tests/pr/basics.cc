@@ -105,7 +105,7 @@ TEST("pr backend liveness", exclusive)
                 material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
                 make_srv(material, mat_srv.handle);
 
-                uploadHeap.barrierResourceOnFlush(material.get_allocation(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                uploadHeap.barrierResourceOnFlush(material.get_allocation(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             }
 
             resource mesh_vertices;
@@ -123,8 +123,8 @@ TEST("pr backend liveness", exclusive)
                 mesh_ibv = make_index_buffer_view(mesh_indices, sizeof(int));
                 mesh_vbv = make_vertex_buffer_view(mesh_vertices, sizeof(simple_vertex));
 
-                uploadHeap.barrierResourceOnFlush(mesh_indices.get_allocation(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER);
-                uploadHeap.barrierResourceOnFlush(mesh_vertices.get_allocation(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+                uploadHeap.barrierResourceOnFlush(mesh_indices.get_allocation(), D3D12_RESOURCE_STATE_INDEX_BUFFER);
+                uploadHeap.barrierResourceOnFlush(mesh_vertices.get_allocation(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
             }
 
             uploadHeap.flushAndFinish();
