@@ -54,6 +54,7 @@ constexpr void introspect(I&& i, instance_data& v)
 TEST("pr backend liveness", exclusive)
 {
 #ifdef PR_BACKEND_D3D12
+    if constexpr (0)
     {
         Window window;
         window.initialize("Liveness test");
@@ -265,7 +266,6 @@ TEST("pr backend liveness", exclusive)
 #endif
 
 #ifdef PR_BACKEND_VULKAN
-    if constexpr (0)
     {
         pr::backend::vk::vulkan_config config;
         pr::backend::vk::BackendVulkan bv;
