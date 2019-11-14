@@ -1,6 +1,7 @@
 #include <nexus/test.hh>
 
 #include <array>
+#include <set>
 #include <typeindex>
 #include <typeinfo>
 
@@ -43,69 +44,62 @@ TEST("fixed cc::array")
 
 namespace
 {
-class AbstractDataType
-{
-public:
-    struct operation
-    {
-        cc::string name;
-        cc::unique_function<void()> fun;
-        bool is_supported = true;
-
-        operation& supported_if(bool v)
-        {
-            is_supported = v;
-            return *this;
-        }
-    };
-
-    // TODO: setSeed
-
-    virtual ~AbstractDataType() = default;
-
-    virtual void checkInvariants() {}
-
-    virtual void step() = 0;
-
-    template <class F>
-    operation& op(cc::string name, F&& f)
-    {
-        auto& op = mOperations.emplace_back();
-        op.name = cc::move(name);
-        op.fun = cc::forward<F>(f);
-        return op;
-    }
-
-private:
-    cc::vector<operation> mOperations;
-};
-
-template <class array_t>
-class ArrayTester : public AbstractDataType
-{
-    tg::rng rng;
-    array_t value;
-
-    auto random_value() { return uniform(rng, -10, 10); }
-
-    void step() override
-    {
-        op("set element", [this] { random_choice(rng, value) = random_value(); });
-
-        op("randomize", [this] {
-            for (auto& v : value)
-                v = random_value();
-        });
-
-        op("def ctor", [this] { value = {}; });
-    }
-};
-
 class MonteCarloTest
 {
 public:
+    struct value
+    {
+        using deleter_t = void (*)(void*);
+
+        void* ptr = nullptr;
+        deleter_t deleter = nullptr;
+        std::type_index type;
+
+        template <class T>
+        value(T* v) : ptr(v), deleter([](void* p) { delete static_cast<T*>(p); }), type(typeid(T))
+        {
+        }
+        value(value&& rhs) noexcept : type(rhs.type)
+        {
+            ptr = rhs.ptr;
+            deleter = rhs.deleter;
+            rhs.ptr = nullptr;
+            rhs.deleter = nullptr;
+        }
+        value& operator=(value&& rhs) noexcept
+        {
+            if (ptr)
+                deleter(ptr);
+
+            ptr = rhs.ptr;
+            deleter = rhs.deleter;
+            type = rhs.type;
+            rhs.ptr = nullptr;
+            rhs.deleter = nullptr;
+
+            return *this;
+        }
+        ~value()
+        {
+            if (ptr)
+                deleter(ptr);
+        }
+    };
+
+    struct constant
+    {
+        cc::string name;
+        value val;
+    };
+
+    struct machine
+    {
+    };
+
     struct function
     {
+        // TODO: logging/printing inputs -> outputs
+
         cc::string name;
         cc::unique_function<void()> execute;
         cc::vector<std::type_index> arg_types;
@@ -115,62 +109,74 @@ public:
         int arity() const { return arg_types.size(); }
 
         template <class F, class R, class... Args>
-        function(cc::string name, F&& f, R (F::*op)(Args...)) : name(cc::move(name)), return_type(typeid(R))
+        function(cc::string name, F&& f, R (F::*op)(Args...)) : name(cc::move(name)), return_type(typeid(std::decay_t<R>))
         {
-            (arg_types.emplace_back(typeid(Args)), ...);
+            (arg_types.emplace_back(typeid(std::decay_t<Args>)), ...);
+            // TODO: execute!
+        }
+
+        template <class F, class R, class... Args>
+        function(cc::string name, F&& f, R (F::*op)(Args...) const) : name(cc::move(name)), return_type(typeid(std::decay_t<R>))
+        {
+            (arg_types.emplace_back(typeid(std::decay_t<Args>)), ...);
             // TODO: execute!
         }
 
         template <class R, class... Args>
-        function(cc::string name, R (*f)(Args...)) : name(cc::move(name)), return_type(typeid(R))
+        function(cc::string name, R (*f)(Args...)) : name(cc::move(name)), return_type(typeid(std::decay_t<R>))
         {
-            (arg_types.emplace_back(typeid(Args)), ...);
+            (arg_types.emplace_back(typeid(std::decay_t<Args>)), ...);
             // TODO: execute!
         }
     };
 
     template <class R, class... Args>
-    function& add(cc::string name, R (*f)(Args...))
+    function& add_op(cc::string name, R (*f)(Args...))
     {
         mFunctions.emplace_back(cc::move(name), f);
         return mFunctions.back();
     }
     template <class F>
-    function& add(cc::string name, F&& f)
+    function& add_op(cc::string name, F&& f)
     {
-        mFunctions.emplace_back(cc::move(name), cc::forward<F>(f));
+        mFunctions.emplace_back(cc::move(name), cc::forward<F>(f), &F::operator());
         return mFunctions.back();
     }
 
-    template <class R, class... Args>
-    function& invariant(cc::string name, R (*f)(Args...))
-    {
-        auto& fun = add(name, f);
-        fun.is_invariant = true;
-        return fun;
-    }
     template <class F>
-    function& invariant(cc::string name, F&& f)
+    function& add_invariant(cc::string name, F&& f)
     {
-        auto& fun = add(name, cc::forward<F>(f));
+        auto& fun = add_op(name, cc::forward<F>(f));
         fun.is_invariant = true;
         return fun;
     }
 
+    template <class T>
+    void add_value(cc::string name, T&& v)
+    {
+        mConstants.push_back({cc::move(name), new T(cc::forward<T>(v))});
+    }
+    template <class T, class... Args>
+    void emplace_value(cc::string name, Args&&... args)
+    {
+        mConstants.push_back({cc::move(name), new T(cc::forward<Args>(args)...)});
+    }
+
+    // TODO: test_substitutability(...)
+
 private:
+    std::set<std::type_index> mHasDefaultCtor;
     cc::vector<function> mFunctions;
-    cc::vector<function> mInvariants;
+    cc::vector<constant> mConstants;
 };
 }
 
 TEST("array ADT test")
 {
-    ArrayTester<cc::array<int, 10>> a0;
-    ArrayTester<std::array<int, 10>> a1;
-
     MonteCarloTest mct;
-    mct.add("gen", [](tg::rng& rng) { return uniform(rng, -10, 10) * 2; });
-    mct.add("add", [](int a, int b) { return a + b; });
-    mct.add("sub", [](int a, int b) { return a - b; });
-    mct.invariant("mod 2", [](int i) { CHECK(i % 2 == 0); });
+    mct.add_value("rng", tg::rng());
+    mct.add_op("gen", [](tg::rng& rng) { return uniform(rng, -10, 10) * 2; });
+    mct.add_op("add", [](int a, int b) { return a + b; });
+    mct.add_op("sub", [](int a, int b) { return a - b; });
+    mct.add_invariant("mod 2", [](int i) { CHECK(i % 2 == 0); });
 }
