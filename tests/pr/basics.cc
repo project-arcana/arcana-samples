@@ -282,9 +282,7 @@ TEST("pr backend liveness", exclusive)
         pr::backend::vk::BackendVulkan bv;
         bv.initialize(config, window);
 
-        auto const on_resize_func = [&](int w, int h) {};
-
-        std::cout << "Init complete" << std::endl;
+        auto const on_resize_func = [&](int w, int h) { std::cout << "resize to " << w << "x" << h << std::endl; };
 
         while (!window.isRequestingClose())
         {
