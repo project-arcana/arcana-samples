@@ -1,7 +1,11 @@
+#include <nexus/test.hh>
+
 #include <array>
 #include <iostream>
-#include <nexus/test.hh>
+
 #include <typed-geometry/tg.hh>
+
+#include <clean-core/capped_vector.hh>
 
 #ifdef PR_BACKEND_D3D12
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
