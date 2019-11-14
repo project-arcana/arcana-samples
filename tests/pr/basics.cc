@@ -1,8 +1,6 @@
-#include <nexus/test.hh>
-
 #include <array>
 #include <iostream>
-
+#include <nexus/test.hh>
 #include <typed-geometry/tg.hh>
 
 #ifdef PR_BACKEND_D3D12
@@ -12,7 +10,6 @@
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
 #include <phantasm-renderer/backend/d3d12/common/util.hh>
 #include <phantasm-renderer/backend/d3d12/device_tentative/timer.hh>
-#include <phantasm-renderer/backend/d3d12/device_tentative/window.hh>
 #include <phantasm-renderer/backend/d3d12/memory/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
@@ -28,8 +25,8 @@
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
 #endif
 
+#include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
-
 
 
 #ifdef PR_BACKEND_D3D12
@@ -66,7 +63,7 @@ TEST("pr backend liveness", exclusive)
 #ifdef PR_BACKEND_D3D12
     if constexpr (0)
     {
-        Window window;
+        pr::backend::device::Window window;
         window.initialize("Liveness test");
 
         BackendD3D12 backend;
@@ -277,10 +274,34 @@ TEST("pr backend liveness", exclusive)
 
 #ifdef PR_BACKEND_VULKAN
     {
+        pr::backend::device::Window window;
+        window.initialize("Liveness test");
+
         pr::backend::vk::vulkan_config config;
         config.enable_validation = true;
         pr::backend::vk::BackendVulkan bv;
-        bv.initialize(config);
+        bv.initialize(config, window);
+
+        auto const on_resize_func = [&](int w, int h) {};
+
+        std::cout << "Init complete" << std::endl;
+
+        while (!window.isRequestingClose())
+        {
+            window.pollEvents();
+            if (window.isPendingResize())
+            {
+                if (!window.isMinimized())
+                {
+                    on_resize_func(window.getWidth(), window.getHeight());
+                }
+                window.clearPendingResize();
+            }
+
+            if (!window.isMinimized())
+            {
+            }
+        }
     }
 #endif
 }
