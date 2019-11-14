@@ -1,6 +1,11 @@
+#include <nexus/test.hh>
+
 #include <array>
 #include <iostream>
-#include <nexus/test.hh>
+
+#include <typed-geometry/tg.hh>
+
+#ifdef PR_BACKEND_D3D12
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/CommandList.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
@@ -16,10 +21,15 @@
 #include <phantasm-renderer/backend/d3d12/resources/simple_vertex.hh>
 #include <phantasm-renderer/backend/d3d12/root_signature.hh>
 #include <phantasm-renderer/backend/d3d12/shader.hh>
+#endif
+
+#ifdef PR_BACKEND_VULKAN
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 #include <phantasm-renderer/backend/vulkan/layer_extension_util.hh>
+#endif
+
 #include <phantasm-renderer/default_config.hh>
-#include <typed-geometry/tg.hh>
+
 
 
 #ifdef PR_BACKEND_D3D12
@@ -268,6 +278,7 @@ TEST("pr backend liveness", exclusive)
 #ifdef PR_BACKEND_VULKAN
     {
         pr::backend::vk::vulkan_config config;
+        config.enable_validation = true;
         pr::backend::vk::BackendVulkan bv;
         bv.initialize(config);
     }
@@ -276,9 +287,8 @@ TEST("pr backend liveness", exclusive)
 
 TEST("pr adapter choice", exclusive)
 {
-    auto constexpr mute = false;
-
 #ifdef PR_BACKEND_D3D12
+    auto constexpr mute = false;
     if (0)
     {
         // Adapter choice basics
