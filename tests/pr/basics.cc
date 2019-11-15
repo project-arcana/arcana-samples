@@ -19,7 +19,7 @@
 #include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
 #include <phantasm-renderer/backend/d3d12/pipeline_state.hh>
 #include <phantasm-renderer/backend/d3d12/resources/resource_creation.hh>
-#include <phantasm-renderer/backend/d3d12/resources/simple_vertex.hh>
+#include <phantasm-renderer/backend/d3d12/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/d3d12/root_signature.hh>
 #include <phantasm-renderer/backend/d3d12/shader.hh>
 #endif
@@ -33,6 +33,8 @@
 #include <phantasm-renderer/backend/vulkan/shader.hh>
 #endif
 
+#include <phantasm-renderer/backend/assets/image_loader.hh>
+#include <phantasm-renderer/backend/assets/mesh_loader.hh>
 #include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
 
@@ -69,7 +71,8 @@ constexpr void introspect(I&& i, instance_data& v)
 TEST("pr backend liveness", exclusive)
 {
 #ifdef PR_BACKEND_D3D12
-    if constexpr (0)
+    (void)0;
+    //    if constexpr (0)
     {
         using namespace pr::backend;
 
@@ -132,14 +135,14 @@ TEST("pr backend liveness", exclusive)
             D3D12_INDEX_BUFFER_VIEW mesh_ibv;
             unsigned mesh_num_indices = 0;
             {
-                auto const mesh_data = load_obj_mesh("testdata/apollo.obj");
+                auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
                 mesh_num_indices = unsigned(mesh_data.indices.size());
 
                 mesh_indices = create_buffer_from_data<int>(backend.mAllocator, uploadHeap, mesh_data.indices);
-                mesh_vertices = create_buffer_from_data<simple_vertex>(backend.mAllocator, uploadHeap, mesh_data.vertices);
+                mesh_vertices = create_buffer_from_data<assets::simple_vertex>(backend.mAllocator, uploadHeap, mesh_data.vertices);
 
                 mesh_ibv = make_index_buffer_view(mesh_indices, sizeof(int));
-                mesh_vbv = make_vertex_buffer_view(mesh_vertices, sizeof(simple_vertex));
+                mesh_vbv = make_vertex_buffer_view(mesh_vertices, sizeof(assets::simple_vertex));
 
                 uploadHeap.barrierResourceOnFlush(mesh_indices.get_allocation(), D3D12_RESOURCE_STATE_INDEX_BUFFER);
                 uploadHeap.barrierResourceOnFlush(mesh_vertices.get_allocation(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
@@ -168,7 +171,7 @@ TEST("pr backend liveness", exclusive)
                 framebuf.depth_target.push_back(DXGI_FORMAT_D32_FLOAT);
                 framebuf.render_targets.push_back(backend.mSwapchain.getBackbufferFormat());
 
-                auto const input_layout = get_vertex_attributes<pr::backend::d3d12::simple_vertex>();
+                auto const input_layout = get_vertex_attributes<assets::simple_vertex>();
                 pso = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig.raw_root_sig, pr::default_config, framebuf);
             }
 
