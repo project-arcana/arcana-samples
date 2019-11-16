@@ -86,9 +86,20 @@ namespace
 
 TEST("pr backend liveness", exclusive)
 {
+    auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
+
+    auto const get_view_matrix = []() -> tg::mat4 {
+        auto constexpr target = tg::pos3(0, 1, 0);
+        auto constexpr cam_pos = tg::pos3(1, 1, 1) * 5.f;
+        return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
+    };
+
+    auto const get_model_matrix
+        = [](tg::vec3 pos, double runtime) -> tg::mat4 { return tg::translation(pos) * tg::rotation_y(tg::radians(float(runtime))); };
+
 #ifdef PR_BACKEND_D3D12
     (void)0;
-    if (10)
+    if (0)
     {
         using namespace pr::backend;
         using namespace pr::backend::d3d12;
@@ -152,7 +163,7 @@ TEST("pr backend liveness", exclusive)
             D3D12_INDEX_BUFFER_VIEW mesh_ibv;
             unsigned mesh_num_indices = 0;
             {
-                auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj", true, true);
+                auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
                 mesh_num_indices = unsigned(mesh_data.indices.size());
 
                 mesh_indices = create_buffer_from_data<int>(backend.mAllocator, uploadHeap, mesh_data.indices);
@@ -261,11 +272,7 @@ TEST("pr backend liveness", exclusive)
                             dpass.albedo_tex = {mat_srv};
 
                             {
-                                auto const proj = tg::perspective_directx(60_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
-                                auto target = tg::pos3(0, 1, 0);
-                                auto camPos = tg::pos3(1, 1, 1) * 5.f;
-                                auto view = tg::look_at_directx(camPos, target, tg::vec3(0, 1, 0));
-                                dpass.view_proj = proj * view;
+                                dpass.view_proj = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
                             }
 
                             auto constexpr payload_index = 0;
@@ -276,7 +283,7 @@ TEST("pr backend liveness", exclusive)
                         for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                         {
                             instance_data dinst;
-                            dinst.model = tg::translation(modelpos) * tg::rotation_y(tg::radians(-1 * float(run_time)));
+                            dinst.model = get_model_matrix(modelpos, run_time);
 
                             auto constexpr payload_index = 1;
                             auto payload = get_payload_data(dinst, payload_sizes[payload_index]);
@@ -457,7 +464,9 @@ TEST("pr backend liveness", exclusive)
             framebuffer_format.render_targets.push_back(VK_FORMAT_R16G16B16A16_SFLOAT);
             framebuffer_format.depth_target.push_back(VK_FORMAT_D32_SFLOAT);
 
-            arcRenderPass = create_render_pass(bv.mDevice.getDevice(), framebuffer_format, pr::default_config);
+            auto arc_prim_config = pr::primitive_pipeline_config{};
+            arc_prim_config.cull = pr::cull_mode::none;
+            arcRenderPass = create_render_pass(bv.mDevice.getDevice(), framebuffer_format, arc_prim_config);
         }
 
         cc::capped_vector<shader, 6> arcShaders;
@@ -500,7 +509,7 @@ TEST("pr backend liveness", exclusive)
         unsigned num_indices;
 
         {
-            auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj", true, false);
+            auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
             num_indices = unsigned(mesh_data.indices.size());
 
             vert_buf = create_vertex_buffer_from_data<assets::simple_vertex>(bv.mAllocator, uploadHeap, mesh_data.vertices);
@@ -675,10 +684,8 @@ TEST("pr backend liveness", exclusive)
                             dynamicBufferRing.allocConstantBufferTyped(data, descriptor_upload_info);
 
                             {
-                                data->proj = tg::perspective_vulkan(60_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
-                                auto target = tg::pos3(0, 1, 0);
-                                auto camPos = tg::pos3(1, 1, 1) * 5.f;
-                                data->view = tg::look_at_opengl(camPos, target, tg::vec3(0, 1, 0));
+                                data->proj = get_projection_matrix(window.getWidth(), window.getHeight());
+                                data->view = get_view_matrix();
                             }
 
                             dynamicBufferRing.setDescriptorSet(0, sizeof(mvp_data), descriptor_set);
@@ -709,9 +716,8 @@ TEST("pr backend liveness", exclusive)
 
                     for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                     {
-                        auto const model_mat = tg::translation(modelpos) * tg::rotation_y(tg::radians(float(run_time)));
+                        auto const model_mat = get_model_matrix(modelpos, run_time);
                         vkCmdPushConstants(cmd_buf, arcPipelineLayout, to_shader_stage_flags(shader_domain::vertex), 0, sizeof(tg::mat4), tg::data_ptr(model_mat));
-
                         vkCmdDrawIndexed(cmd_buf, num_indices, 1, 0, 0, 0);
                     }
 
