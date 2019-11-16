@@ -747,13 +747,6 @@ TEST("pr backend liveness", exclusive)
                     vkCmdBeginRenderPass(command_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                     vkCmdBindPipeline(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
 
-                    VkBuffer vertex_buffers[] = {vert_buf.buffer};
-                    VkDeviceSize offsets[] = {0};
-
-                    vkCmdBindVertexBuffers(command_buf, 0, 1, vertex_buffers, offsets);
-                    vkCmdBindIndexBuffer(command_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
-
-
                     {
                         auto& descriptor_set = presentDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
                         VkDescriptorBufferInfo descriptor_upload_info;
@@ -781,7 +774,7 @@ TEST("pr backend liveness", exclusive)
                         vkCmdBindDescriptorSets(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipelineLayout, 0, 1, &descriptor_set, 0, nullptr);
                     }
 
-                    vkCmdDrawIndexed(command_buf, num_indices, 1, 0, 0, 0);
+                    vkCmdDraw(command_buf, 3, 1, 0, 0);
                     vkCmdEndRenderPass(command_buf);
                 }
 
