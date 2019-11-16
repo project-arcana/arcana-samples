@@ -13,7 +13,6 @@
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
 #include <phantasm-renderer/backend/d3d12/common/util.hh>
-#include <phantasm-renderer/backend/d3d12/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/d3d12/memory/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
@@ -31,14 +30,20 @@
 #include <phantasm-renderer/backend/vulkan/common/verify.hh>
 #include <phantasm-renderer/backend/vulkan/common/zero_struct.hh>
 #include <phantasm-renderer/backend/vulkan/memory/Allocator.hh>
+#include <phantasm-renderer/backend/vulkan/memory/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/vulkan/memory/UploadHeap.hh>
 #include <phantasm-renderer/backend/vulkan/memory/VMA.hh>
+#include <phantasm-renderer/backend/vulkan/pipeline_state.hh>
+#include <phantasm-renderer/backend/vulkan/resources/resource_creation.hh>
+#include <phantasm-renderer/backend/vulkan/resources/resource_state.hh>
+#include <phantasm-renderer/backend/vulkan/resources/resource_view.hh>
 #include <phantasm-renderer/backend/vulkan/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/vulkan/shader.hh>
 #endif
 
 #include <phantasm-renderer/backend/assets/image_loader.hh>
 #include <phantasm-renderer/backend/assets/mesh_loader.hh>
+#include <phantasm-renderer/backend/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
 
@@ -99,7 +104,7 @@ TEST("pr backend liveness", exclusive)
         }
 
         CommandListRing commandListRing;
-        DescriptorAllocator descManager;
+        DescriptorAllocator descAllocator;
         DynamicBufferRing dynamicBufferRing;
         UploadHeap uploadHeap;
         {
@@ -113,7 +118,7 @@ TEST("pr backend liveness", exclusive)
             auto const upload_size = 1000 * 1024 * 1024;
 
             commandListRing.initialize(backend, num_backbuffers, num_command_lists, D3D12_COMMAND_LIST_TYPE_DIRECT);
-            descManager.initialize(backend.mDevice.getDevice(), num_shader_resources, num_dsvs, num_rtvs, num_samplers, num_backbuffers);
+            descAllocator.initialize(backend.mDevice.getDevice(), num_shader_resources, num_dsvs, num_rtvs, num_samplers, num_backbuffers);
             dynamicBufferRing.initialize(backend.mDevice.getDevice(), num_backbuffers, dynamic_buffer_size);
             uploadHeap.initialize(&backend, upload_size);
         }
@@ -133,7 +138,7 @@ TEST("pr backend liveness", exclusive)
             // Resource setup
             //
             resource material;
-            cpu_cbv_srv_uav mat_srv = descManager.allocCBV_SRV_UAV();
+            cpu_cbv_srv_uav mat_srv = descAllocator.allocCBV_SRV_UAV();
             {
                 material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
                 make_srv(material, mat_srv.handle);
@@ -147,7 +152,7 @@ TEST("pr backend liveness", exclusive)
             D3D12_INDEX_BUFFER_VIEW mesh_ibv;
             unsigned mesh_num_indices = 0;
             {
-                auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
+                auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj", true, true);
                 mesh_num_indices = unsigned(mesh_data.indices.size());
 
                 mesh_indices = create_buffer_from_data<int>(backend.mAllocator, uploadHeap, mesh_data.indices);
@@ -172,10 +177,10 @@ TEST("pr backend liveness", exclusive)
             }
 
             resource depth_buffer;
-            cpu_dsv depth_buffer_dsv = descManager.allocDSV();
+            cpu_dsv depth_buffer_dsv = descAllocator.allocDSV();
 
             resource color_buffer;
-            cpu_rtv color_buffer_rtv = descManager.allocRTV();
+            cpu_rtv color_buffer_rtv = descAllocator.allocRTV();
 
             shared_com_ptr<ID3D12PipelineState> pso;
             {
@@ -200,7 +205,7 @@ TEST("pr backend liveness", exclusive)
             };
 
             // Main loop
-            Timer timer;
+            device::Timer timer;
             double run_time = 0.0;
 
             while (!window.isRequestingClose())
@@ -216,10 +221,11 @@ TEST("pr backend liveness", exclusive)
                 if (!window.isMinimized())
                 {
                     auto const frametime = timer.getElapsedTime();
-                    run_time += frametime;
                     timer.reset();
+                    run_time += frametime;
+
                     dynamicBufferRing.onBeginFrame();
-                    descManager.onBeginFrame();
+                    descAllocator.onBeginFrame();
                     commandListRing.onBeginFrame();
 
 
@@ -232,7 +238,7 @@ TEST("pr backend liveness", exclusive)
                         auto* const command_list = commandListRing.acquireCommandList();
 
                         util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
-                        descManager.setHeaps(*command_list);
+                        descAllocator.setHeaps(*command_list);
                         command_list->SetPipelineState(pso);
                         command_list->SetGraphicsRootSignature(root_sig.raw_root_sig);
 
@@ -264,7 +270,7 @@ TEST("pr backend liveness", exclusive)
 
                             auto constexpr payload_index = 0;
                             auto payload = get_payload_data(dpass, payload_sizes[payload_index]);
-                            root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descManager, payload_index, payload);
+                            root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descAllocator, payload_index, payload);
                         }
 
                         for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
@@ -274,7 +280,7 @@ TEST("pr backend liveness", exclusive)
 
                             auto constexpr payload_index = 1;
                             auto payload = get_payload_data(dinst, payload_sizes[payload_index]);
-                            root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descManager, payload_index, payload);
+                            root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descAllocator, payload_index, payload);
 
                             command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
                         }
@@ -313,221 +319,297 @@ TEST("pr backend liveness", exclusive)
         }
 
         CommandBufferRing commandBufferRing;
+        DynamicBufferRing dynamicBufferRing;
         UploadHeap uploadHeap;
+        DescriptorAllocator descAllocator;
         {
+            auto const num_backbuffers = bv.mSwapchain.getNumBackbuffers();
             auto const num_command_lists = 8;
+            auto const num_cbvs = 2000;
+            auto const num_srvs = 2000;
+            auto const num_uavs = 20;
+            //            auto const num_dsvs = 3;
+            //            auto const num_rtvs = 60;
+            auto const num_samplers = 20;
+            auto const dynamic_buffer_size = 20 * 1024 * 1024;
             auto const upload_size = 1000 * 1024 * 1024;
 
-            commandBufferRing.initialize(bv.mDevice, bv.mSwapchain.getNumBackbuffers(), num_command_lists, bv.mDevice.getQueueFamilyGraphics());
+            commandBufferRing.initialize(bv.mDevice, num_backbuffers, num_command_lists, bv.mDevice.getQueueFamilyGraphics());
+            dynamicBufferRing.initialize(&bv.mDevice, &bv.mAllocator, num_backbuffers, dynamic_buffer_size);
             uploadHeap.initialize(&bv.mDevice, upload_size);
+            descAllocator.initialize(&bv.mDevice, num_cbvs, num_srvs, num_uavs, num_samplers);
         }
 
-        VkPipelineLayout pipelineLayout;
+
+        VkDescriptorSetLayout arcDescriptorSetLayout;
+        {
+            cc::capped_vector<VkDescriptorSetLayoutBinding, 8> bindings;
+            {
+                VkDescriptorSetLayoutBinding& binding = bindings.emplace_back();
+                binding = {};
+                binding.binding = uint32_t(bindings.size() - 1);
+                binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                binding.descriptorCount = 1;
+                binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+                binding.pImmutableSamplers = nullptr; // Optional
+            }
+            {
+                VkDescriptorSetLayoutBinding& binding = bindings.emplace_back();
+                binding = {};
+                binding.binding = uint32_t(bindings.size() - 1);
+                binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                binding.descriptorCount = 1;
+                binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+                binding.pImmutableSamplers = nullptr; // Optional
+            }
+
+            VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+            layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            layoutInfo.bindingCount = uint32_t(bindings.size());
+            layoutInfo.pBindings = bindings.data();
+
+
+            PR_VK_VERIFY_SUCCESS(vkCreateDescriptorSetLayout(bv.mDevice.getDevice(), &layoutInfo, nullptr, &arcDescriptorSetLayout));
+        }
+
+        VkDescriptorSetLayout presentDescriptorSetLayout;
+        {
+            cc::capped_vector<VkDescriptorSetLayoutBinding, 8> bindings;
+            {
+                VkDescriptorSetLayoutBinding& binding = bindings.emplace_back();
+                binding = {};
+                binding.binding = uint32_t(bindings.size() - 1);
+                binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                binding.descriptorCount = 1;
+                binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+                binding.pImmutableSamplers = nullptr; // Optional
+            }
+
+            VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+            layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            layoutInfo.bindingCount = uint32_t(bindings.size());
+            layoutInfo.pBindings = bindings.data();
+
+            PR_VK_VERIFY_SUCCESS(vkCreateDescriptorSetLayout(bv.mDevice.getDevice(), &layoutInfo, nullptr, &presentDescriptorSetLayout));
+        }
+
+        VkPipelineLayout arcPipelineLayout;
         {
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
             pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            pipelineLayoutInfo.setLayoutCount = 0;            // Optional
-            pipelineLayoutInfo.pSetLayouts = nullptr;         // Optional
-            pipelineLayoutInfo.pushConstantRangeCount = 0;    // Optional
-            pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+            pipelineLayoutInfo.setLayoutCount = 1;                    // Optional
+            pipelineLayoutInfo.pSetLayouts = &arcDescriptorSetLayout; // Optional
+            pipelineLayoutInfo.pushConstantRangeCount = 0;            // Optional
+            pipelineLayoutInfo.pPushConstantRanges = nullptr;         // Optional
 
-            PR_VK_VERIFY_SUCCESS(vkCreatePipelineLayout(bv.mDevice.getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
+            PR_VK_VERIFY_SUCCESS(vkCreatePipelineLayout(bv.mDevice.getDevice(), &pipelineLayoutInfo, nullptr, &arcPipelineLayout));
         }
 
-        VkRenderPass renderPass;
+        VkPipelineLayout presentPipelineLayout;
         {
-            VkAttachmentDescription colorAttachment = {};
-            colorAttachment.format = bv.mSwapchain.getBackbufferFormat();
-            colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-            colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+            pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            pipelineLayoutInfo.setLayoutCount = 1;                        // Optional
+            pipelineLayoutInfo.pSetLayouts = &presentDescriptorSetLayout; // Optional
+            pipelineLayoutInfo.pushConstantRangeCount = 0;                // Optional
+            pipelineLayoutInfo.pPushConstantRanges = nullptr;             // Optional
 
-            VkAttachmentReference colorAttachmentRef = {};
-            colorAttachmentRef.attachment = 0;
-            colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-            VkSubpassDescription subpass = {};
-            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-            subpass.colorAttachmentCount = 1;
-            subpass.pColorAttachments = &colorAttachmentRef;
-
-            VkSubpassDependency dependency = {};
-            dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-            dependency.dstSubpass = 0;
-            dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.srcAccessMask = 0;
-            dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            VkRenderPassCreateInfo renderPassInfo = {};
-            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-            renderPassInfo.attachmentCount = 1;
-            renderPassInfo.pAttachments = &colorAttachment;
-            renderPassInfo.subpassCount = 1;
-            renderPassInfo.pSubpasses = &subpass;
-            renderPassInfo.dependencyCount = 1;
-            renderPassInfo.pDependencies = &dependency;
-
-            PR_VK_VERIFY_SUCCESS(vkCreateRenderPass(bv.mDevice.getDevice(), &renderPassInfo, nullptr, &renderPass));
+            PR_VK_VERIFY_SUCCESS(vkCreatePipelineLayout(bv.mDevice.getDevice(), &pipelineLayoutInfo, nullptr, &presentPipelineLayout));
         }
 
-        auto shader_pixel = create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/frag.spv", shader_domain::pixel);
-        auto shader_vertex = create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/vert.spv", shader_domain::vertex);
-
-        VkPipeline graphicsPipeline;
+        image depth_image;
+        image color_rt_image;
+        VkImageView depth_view;
+        VkImageView color_rt_view;
+        VkSampler color_rt_sampler;
         {
-            cc::capped_vector<VkPipelineShaderStageCreateInfo, 4> stages;
-            stages.push_back(shader_pixel.get_create_info());
-            stages.push_back(shader_vertex.get_create_info());
+            depth_image = create_depth_stencil(bv.mAllocator, 15u, 15u, VK_FORMAT_D32_SFLOAT);
+            depth_view = make_image_view(bv.mDevice.getDevice(), depth_image, VK_FORMAT_D32_SFLOAT);
 
-            auto const bindingDescription = get_vertex_binding<assets::simple_vertex>();
-            auto const attributeDescriptions = get_vertex_attributes<assets::simple_vertex>();
+            color_rt_image = create_render_target(bv.mAllocator, 15u, 15u, VK_FORMAT_R16G16B16A16_SFLOAT);
+            color_rt_view = make_image_view(bv.mDevice.getDevice(), color_rt_image, VK_FORMAT_R16G16B16A16_SFLOAT);
 
-            VkPipelineVertexInputStateCreateInfo vertex_input;
-            zero_info_struct(vertex_input, VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
-            vertex_input.vertexBindingDescriptionCount = 1;
-            vertex_input.pVertexBindingDescriptions = &bindingDescription;
-            vertex_input.vertexAttributeDescriptionCount = unsigned(attributeDescriptions.size());
-            vertex_input.pVertexAttributeDescriptions = attributeDescriptions.data(); // Optional
+            {
+                VkSamplerCreateInfo info = {};
+                info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+                info.magFilter = VK_FILTER_LINEAR;
+                info.minFilter = VK_FILTER_LINEAR;
+                info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+                info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                info.minLod = -1000;
+                info.maxLod = 1000;
+                info.maxAnisotropy = 1.0f;
+                vkCreateSampler(bv.mDevice.getDevice(), &info, nullptr, &color_rt_sampler);
+            }
+        }
 
-            VkPipelineInputAssemblyStateCreateInfo input_assembly;
-            zero_info_struct(input_assembly, VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO);
-            input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-            input_assembly.primitiveRestartEnable = VK_FALSE;
+        VkRenderPass arcRenderPass;
+        {
+            wip::framebuffer_format framebuffer_format;
+            framebuffer_format.render_targets.push_back(VK_FORMAT_R16G16B16A16_SFLOAT);
+            framebuffer_format.depth_target.push_back(VK_FORMAT_D32_SFLOAT);
 
-            auto const backbufferExtent = bv.mSwapchain.getBackbufferExtent();
+            arcRenderPass = create_render_pass(bv.mDevice.getDevice(), framebuffer_format, pr::default_config);
+        }
 
-            VkViewport viewport = {};
-            viewport.x = 0.0f;
-            viewport.y = 0.0f;
-            viewport.width = float(backbufferExtent.width);
-            viewport.height = float(backbufferExtent.height);
-            viewport.minDepth = 0.0f;
-            viewport.maxDepth = 1.0f;
+        cc::capped_vector<shader, 6> arcShaders;
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/frag.spv", shader_domain::pixel));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/vert.spv", shader_domain::vertex));
 
-            VkRect2D scissor = {};
-            scissor.offset = {0, 0};
-            scissor.extent = backbufferExtent;
+        VkPipeline arcPipeline;
+        VkFramebuffer arcFramebuffer;
+        {
+            auto const vert_attribs = get_vertex_attributes<assets::simple_vertex>();
+            arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arcPipelineLayout, arcShaders, pr::default_config, vert_attribs,
+                                          sizeof(assets::simple_vertex));
 
-            VkPipelineViewportStateCreateInfo viewportState;
-            zero_info_struct(viewportState, VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO);
-            viewportState.viewportCount = 1;
-            viewportState.pViewports = &viewport;
-            viewportState.scissorCount = 1;
-            viewportState.pScissors = &scissor;
+            {
+                cc::array const attachments = {color_rt_view, depth_view};
+                VkFramebufferCreateInfo fb_info;
+                zero_info_struct(fb_info, VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);
+                fb_info.pNext = nullptr;
+                fb_info.renderPass = arcRenderPass;
+                fb_info.attachmentCount = unsigned(attachments.size());
+                fb_info.pAttachments = attachments.data();
+                fb_info.width = unsigned(15);
+                fb_info.height = unsigned(15);
+                fb_info.layers = 1;
+                PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &arcFramebuffer));
+            }
+        }
 
-            VkPipelineRasterizationStateCreateInfo rasterizer = {};
-            rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-            rasterizer.depthClampEnable = VK_FALSE;
-            rasterizer.rasterizerDiscardEnable = VK_FALSE;
-            rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-            rasterizer.lineWidth = 1.0f;
-            rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-            rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-            rasterizer.depthBiasEnable = VK_FALSE;
-            rasterizer.depthBiasConstantFactor = 0.0f; // Optional
-            rasterizer.depthBiasClamp = 0.0f;          // Optional
-            rasterizer.depthBiasSlopeFactor = 0.0f;    // Optional
+        cc::capped_vector<shader, 6> presentShaders;
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/fs_blit_frag.spv", shader_domain::pixel));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/fs_vert.spv", shader_domain::vertex));
 
-            VkPipelineMultisampleStateCreateInfo multisampling = {};
-            multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-            multisampling.sampleShadingEnable = VK_FALSE;
-            multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-            multisampling.minSampleShading = 1.0f;          // Optional
-            multisampling.pSampleMask = nullptr;            // Optional
-            multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
-            multisampling.alphaToOneEnable = VK_FALSE;      // Optional
-
-            VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-            colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-            colorBlendAttachment.blendEnable = VK_FALSE;
-            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;  // Optional
-            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-            colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;             // Optional
-            colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;  // Optional
-            colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-            colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;             // Optional
-
-            VkPipelineColorBlendStateCreateInfo colorBlending = {};
-            colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-            colorBlending.logicOpEnable = VK_FALSE;
-            colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional
-            colorBlending.attachmentCount = 1;
-            colorBlending.pAttachments = &colorBlendAttachment;
-            colorBlending.blendConstants[0] = 0.0f; // Optional
-            colorBlending.blendConstants[1] = 0.0f; // Optional
-            colorBlending.blendConstants[2] = 0.0f; // Optional
-            colorBlending.blendConstants[3] = 0.0f; // Optional
-
-            cc::array constexpr dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-
-            VkPipelineDynamicStateCreateInfo dynamicState = {};
-            dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-            dynamicState.dynamicStateCount = dynamicStates.size();
-            dynamicState.pDynamicStates = dynamicStates.data();
-
-            VkGraphicsPipelineCreateInfo pipelineInfo = {};
-            pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-            pipelineInfo.stageCount = stages.size();
-            pipelineInfo.pStages = stages.data();
-            pipelineInfo.pVertexInputState = &vertex_input;
-            pipelineInfo.pInputAssemblyState = &input_assembly;
-            pipelineInfo.pViewportState = &viewportState;
-            pipelineInfo.pRasterizationState = &rasterizer;
-            pipelineInfo.pMultisampleState = &multisampling;
-            pipelineInfo.pDepthStencilState = nullptr; // Optional
-            pipelineInfo.pColorBlendState = &colorBlending;
-            pipelineInfo.pDynamicState = &dynamicState;
-            pipelineInfo.layout = pipelineLayout;
-            pipelineInfo.renderPass = renderPass;
-            pipelineInfo.subpass = 0;
-            pipelineInfo.basePipelineHandle = nullptr; // Optional
-            pipelineInfo.basePipelineIndex = -1;       // Optional
-
-            PR_VK_VERIFY_SUCCESS(vkCreateGraphicsPipelines(bv.mDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
+        VkPipeline presentPipeline;
+        {
+            presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), presentPipelineLayout, presentShaders);
         }
 
         buffer vert_buf;
         buffer ind_buf;
-
         unsigned num_indices;
+
         {
-            auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
-            num_indices = mesh_data.indices.size();
+            auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj", true, false);
+            num_indices = unsigned(mesh_data.indices.size());
 
-            {
-                auto const vert_size = mesh_data.get_vertex_size_bytes();
-
-                vert_buf = bv.mAllocator.allocBuffer(vert_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
-                auto* const vert_upload = uploadHeap.suballocateAllowRetry(vert_size, 512);
-                CC_RUNTIME_ASSERT(vert_upload != nullptr);
-                std::memcpy(vert_upload, mesh_data.vertices.data(), vert_size);
-                uploadHeap.copyAllocationToBuffer(vert_buf.buffer, vert_upload, vert_size);
-            }
-            {
-                auto const ind_size = mesh_data.get_index_size_bytes();
-
-                ind_buf = bv.mAllocator.allocBuffer(ind_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
-                auto* const ind_upload = uploadHeap.suballocateAllowRetry(ind_size, 512);
-                CC_RUNTIME_ASSERT(ind_upload != nullptr);
-                std::memcpy(ind_upload, mesh_data.indices.data(), ind_size);
-                uploadHeap.copyAllocationToBuffer(ind_buf.buffer, ind_upload, ind_size);
-            }
-
-            uploadHeap.flushAndFinish();
+            vert_buf = create_vertex_buffer_from_data<assets::simple_vertex>(bv.mAllocator, uploadHeap, mesh_data.vertices);
+            ind_buf = create_index_buffer_from_data<int>(bv.mAllocator, uploadHeap, mesh_data.indices);
         }
 
+        image albedo_image;
+        VkImageView albedo_view;
+        VkSampler albedo_sampler;
+        {
+            albedo_image = create_texture_from_file(bv.mAllocator, uploadHeap, "testdata/uv_checker.png");
+            albedo_view = make_image_view(bv.mDevice.getDevice(), albedo_image, VK_FORMAT_R8G8B8A8_UNORM);
+
+            {
+                VkSamplerCreateInfo info = {};
+                info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+                info.magFilter = VK_FILTER_LINEAR;
+                info.minFilter = VK_FILTER_LINEAR;
+                info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+                info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                info.minLod = -1000;
+                info.maxLod = 1000;
+                info.maxAnisotropy = 1.0f;
+                vkCreateSampler(bv.mDevice.getDevice(), &info, nullptr, &albedo_sampler);
+            }
+        }
+
+        uploadHeap.flushAndFinish();
+
+        cc::capped_array<VkDescriptorSet, 6> arcDescriptorSets;
+        {
+            arcDescriptorSets.emplace(bv.mSwapchain.getNumBackbuffers());
+            for (auto& set : arcDescriptorSets)
+            {
+                descAllocator.allocDescriptor(arcDescriptorSetLayout, set);
+            }
+        }
+
+        cc::capped_array<VkDescriptorSet, 6> presentDescriptorSets;
+        {
+            presentDescriptorSets.emplace(bv.mSwapchain.getNumBackbuffers());
+            for (auto& set : presentDescriptorSets)
+            {
+                descAllocator.allocDescriptor(presentDescriptorSetLayout, set);
+            }
+        }
 
         auto const on_resize_func = [&](int w, int h) {
             bv.mSwapchain.onResize(w, h);
+
+            // recreate depth buffer
+            bv.mAllocator.free(depth_image);
+            depth_image = create_depth_stencil(bv.mAllocator, unsigned(w), unsigned(h), VK_FORMAT_D32_SFLOAT);
+            vkDestroyImageView(bv.mDevice.getDevice(), depth_view, nullptr);
+            depth_view = make_image_view(bv.mDevice.getDevice(), depth_image, VK_FORMAT_D32_SFLOAT);
+
+            // recreate color rt buffer
+            bv.mAllocator.free(color_rt_image);
+            color_rt_image = create_render_target(bv.mAllocator, unsigned(w), unsigned(h), VK_FORMAT_R16G16B16A16_SFLOAT);
+            vkDestroyImageView(bv.mDevice.getDevice(), color_rt_view, nullptr);
+            color_rt_view = make_image_view(bv.mDevice.getDevice(), color_rt_image, VK_FORMAT_R16G16B16A16_SFLOAT);
+
+            // transition RTs
+            {
+                auto const cmd_buf = commandBufferRing.acquireCommandBuffer();
+
+                // transition color_rt to render target
+                auto const barrier = get_image_memory_barrier(color_rt_image.image, resource_state::undefined, resource_state::shader_resource);
+                vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+                // transition depth_rt to render target
+                auto const barrier2 = get_image_memory_barrier(depth_image.image, resource_state::undefined, resource_state::depth_write, true);
+                vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2);
+
+                vkEndCommandBuffer(cmd_buf);
+
+                VkPipelineStageFlags submitWaitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+                VkSubmitInfo submit_info;
+                zero_info_struct(submit_info, VK_STRUCTURE_TYPE_SUBMIT_INFO);
+                submit_info.pNext = nullptr;
+                submit_info.pWaitDstStageMask = &submitWaitStage;
+                submit_info.commandBufferCount = 1;
+                submit_info.pCommandBuffers = &cmd_buf;
+
+                PR_VK_VERIFY_SUCCESS(vkQueueSubmit(bv.mDevice.getQueueGraphics(), 1, &submit_info, nullptr));
+            }
+
+            // recreate arc framebuffer
+            {
+                vkDestroyFramebuffer(bv.mDevice.getDevice(), arcFramebuffer, nullptr);
+                cc::array const attachments = {color_rt_view, depth_view};
+                VkFramebufferCreateInfo fb_info = {};
+                fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+                fb_info.pNext = nullptr;
+                fb_info.renderPass = arcRenderPass;
+                fb_info.attachmentCount = unsigned(attachments.size());
+                fb_info.pAttachments = attachments.data();
+                fb_info.width = unsigned(w);
+                fb_info.height = unsigned(h);
+                fb_info.layers = 1;
+                PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &arcFramebuffer));
+            }
+
+            // flush again
+            vkDeviceWaitIdle(bv.mDevice.getDevice());
+
+
             std::cout << "resize to " << w << "x" << h << std::endl;
         };
+
+        device::Timer timer;
+        double run_time = 0.0;
 
         while (!window.isRequestingClose())
         {
@@ -543,35 +625,165 @@ TEST("pr backend liveness", exclusive)
 
             if (!window.isMinimized())
             {
+                auto const frametime = timer.getElapsedTime();
+                timer.reset();
+                run_time += frametime;
+
                 bv.mSwapchain.waitForBackbuffer();
                 commandBufferRing.onBeginFrame();
+                dynamicBufferRing.onBeginFrame();
 
                 auto const command_buf = commandBufferRing.acquireCommandBuffer();
 
-                VkRenderPassBeginInfo renderPassInfo = {};
-                renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                renderPassInfo.renderPass = bv.mSwapchain.getRenderPass();
-                renderPassInfo.framebuffer = bv.mSwapchain.getCurrentFramebuffer();
-                renderPassInfo.renderArea.offset = {0, 0};
-                renderPassInfo.renderArea.extent = bv.mSwapchain.getBackbufferExtent();
+                {
+                    // transition color_rt to render target
+                    auto const barrier = get_image_memory_barrier(color_rt_image.image, resource_state::shader_resource, resource_state::render_target);
+                    vkCmdPipelineBarrier(command_buf, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                                         nullptr, 0, nullptr, 1, &barrier);
+                }
 
-                VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-                renderPassInfo.clearValueCount = 1;
-                renderPassInfo.pClearValues = &clearColor;
+                // Arc render pass
+                {
+                    VkRenderPassBeginInfo renderPassInfo = {};
+                    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+                    renderPassInfo.renderPass = arcRenderPass;
+                    renderPassInfo.framebuffer = arcFramebuffer;
+                    renderPassInfo.renderArea.offset = {0, 0};
+                    renderPassInfo.renderArea.extent = bv.mSwapchain.getBackbufferExtent();
 
-                pr::backend::vk::util::set_viewport(command_buf, bv.mSwapchain.getBackbufferExtent());
-                vkCmdBeginRenderPass(command_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-                vkCmdBindPipeline(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+                    cc::array<VkClearValue, 2> clear_values;
+                    clear_values[0] = {0.f, 0.f, 0.f, 1.f};
+                    clear_values[1] = {1.f, 0};
 
-                VkBuffer vertex_buffers[] = {vert_buf.buffer};
-                VkDeviceSize offsets[] = {0};
+                    renderPassInfo.clearValueCount = clear_values.size();
+                    renderPassInfo.pClearValues = clear_values.data();
 
-                vkCmdBindVertexBuffers(command_buf, 0, 1, vertex_buffers, offsets);
-                vkCmdBindIndexBuffer(command_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
+                    pr::backend::vk::util::set_viewport(command_buf, bv.mSwapchain.getBackbufferExtent());
+                    vkCmdBeginRenderPass(command_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                    vkCmdBindPipeline(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipeline);
 
-                // vkCmdDraw(command_buf, num_indices, 1, 0, 0);
-                vkCmdDrawIndexed(command_buf, num_indices, 1, 0, 0, 0);
-                vkCmdEndRenderPass(command_buf);
+                    VkBuffer vertex_buffers[] = {vert_buf.buffer};
+                    VkDeviceSize offsets[] = {0};
+
+                    vkCmdBindVertexBuffers(command_buf, 0, 1, vertex_buffers, offsets);
+                    vkCmdBindIndexBuffer(command_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+
+                    {
+                        auto& descriptor_set = arcDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
+                        VkDescriptorBufferInfo descriptor_upload_info;
+                        {
+                            struct mvp_data
+                            {
+                                tg::mat4 model;
+                                tg::mat4 view;
+                                tg::mat4 proj;
+                            };
+
+                            mvp_data* data;
+                            dynamicBufferRing.allocConstantBufferTyped(data, descriptor_upload_info);
+
+                            {
+                                data->proj = tg::perspective_vulkan(60_deg, window.getWidth() / float(window.getHeight()), 0.1f, 100.f);
+                                auto target = tg::pos3(0, 1, 0);
+                                auto camPos = tg::pos3(1, 1, 1) * 5.f;
+                                data->view = tg::look_at_opengl(camPos, target, tg::vec3(0, 1, 0));
+                                data->model = tg::rotation_y(tg::radians(-1 * float(run_time)));
+                            }
+
+                            dynamicBufferRing.setDescriptorSet(0, sizeof(mvp_data), descriptor_set);
+
+                            // update descriptor set, image and sample part
+                            VkDescriptorImageInfo desc_image[1] = {};
+                            desc_image[0].sampler = albedo_sampler;
+                            desc_image[0].imageView = albedo_view;
+                            desc_image[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+                            VkWriteDescriptorSet writes[1];
+                            writes[0] = {};
+                            writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                            writes[0].pNext = nullptr;
+                            writes[0].dstSet = descriptor_set;
+                            writes[0].descriptorCount = 1;
+                            writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                            writes[0].pImageInfo = desc_image;
+                            writes[0].dstArrayElement = 0;
+                            writes[0].dstBinding = 1;
+
+                            vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
+                        }
+                        cc::array const uniform_offsets = {uint32_t(descriptor_upload_info.offset)};
+                        vkCmdBindDescriptorSets(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipelineLayout, 0, 1, &descriptor_set,
+                                                uint32_t(uniform_offsets.size()), uniform_offsets.data());
+                    }
+
+                    vkCmdDrawIndexed(command_buf, num_indices, 1, 0, 0, 0);
+                    vkCmdEndRenderPass(command_buf);
+                }
+
+                {
+                    // transition color_rt to shader resource
+                    auto const barrier = get_image_memory_barrier(color_rt_image.image, resource_state::render_target, resource_state::shader_resource);
+                    vkCmdPipelineBarrier(command_buf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                                         nullptr, 0, nullptr, 1, &barrier);
+                }
+
+                // Present render pass
+                {
+                    VkRenderPassBeginInfo renderPassInfo = {};
+                    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+                    renderPassInfo.renderPass = bv.mSwapchain.getRenderPass();
+                    renderPassInfo.framebuffer = bv.mSwapchain.getCurrentFramebuffer();
+                    renderPassInfo.renderArea.offset = {0, 0};
+                    renderPassInfo.renderArea.extent = bv.mSwapchain.getBackbufferExtent();
+
+                    cc::array<VkClearValue, 1> clear_values;
+                    clear_values[0] = {0.f, 0.f, 0.f, 1.f};
+
+                    renderPassInfo.clearValueCount = clear_values.size();
+                    renderPassInfo.pClearValues = clear_values.data();
+
+                    pr::backend::vk::util::set_viewport(command_buf, bv.mSwapchain.getBackbufferExtent());
+                    vkCmdBeginRenderPass(command_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                    vkCmdBindPipeline(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
+
+                    VkBuffer vertex_buffers[] = {vert_buf.buffer};
+                    VkDeviceSize offsets[] = {0};
+
+                    vkCmdBindVertexBuffers(command_buf, 0, 1, vertex_buffers, offsets);
+                    vkCmdBindIndexBuffer(command_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+
+                    {
+                        auto& descriptor_set = presentDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
+                        VkDescriptorBufferInfo descriptor_upload_info;
+
+
+                        // update descriptor set, image and sample part
+                        VkDescriptorImageInfo desc_image[1] = {};
+                        desc_image[0].sampler = color_rt_sampler;
+                        desc_image[0].imageView = color_rt_view;
+                        desc_image[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+                        VkWriteDescriptorSet writes[1];
+                        writes[0] = {};
+                        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                        writes[0].pNext = nullptr;
+                        writes[0].dstSet = descriptor_set;
+                        writes[0].descriptorCount = 1;
+                        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                        writes[0].pImageInfo = desc_image;
+                        writes[0].dstArrayElement = 0;
+                        writes[0].dstBinding = 0;
+
+                        vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
+
+                        vkCmdBindDescriptorSets(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipelineLayout, 0, 1, &descriptor_set, 0, nullptr);
+                    }
+
+                    vkCmdDrawIndexed(command_buf, num_indices, 1, 0, 0, 0);
+                    vkCmdEndRenderPass(command_buf);
+                }
 
                 PR_VK_VERIFY_SUCCESS(vkEndCommandBuffer(command_buf));
 
@@ -579,20 +791,48 @@ TEST("pr backend liveness", exclusive)
                 bv.mSwapchain.present();
             }
         }
+
         {
             auto const& device = bv.mDevice.getDevice();
 
             vkDeviceWaitIdle(device);
 
+            for (auto& set : arcDescriptorSets)
+                descAllocator.free(set);
+
+            for (auto& set : presentDescriptorSets)
+                descAllocator.free(set);
+
             bv.mAllocator.free(vert_buf);
             bv.mAllocator.free(ind_buf);
 
-            vkDestroyPipeline(device, graphicsPipeline, nullptr);
-            vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-            vkDestroyRenderPass(device, renderPass, nullptr);
+            bv.mAllocator.free(albedo_image);
+            vkDestroySampler(device, albedo_sampler, nullptr);
+            vkDestroyImageView(device, albedo_view, nullptr);
 
-            shader_pixel.free(device);
-            shader_vertex.free(device);
+            bv.mAllocator.free(depth_image);
+            vkDestroyImageView(device, depth_view, nullptr);
+
+            bv.mAllocator.free(color_rt_image);
+            vkDestroyImageView(device, color_rt_view, nullptr);
+            vkDestroySampler(device, color_rt_sampler, nullptr);
+
+
+            vkDestroyDescriptorSetLayout(device, arcDescriptorSetLayout, nullptr);
+            vkDestroyFramebuffer(device, arcFramebuffer, nullptr);
+            vkDestroyPipeline(device, arcPipeline, nullptr);
+            vkDestroyRenderPass(device, arcRenderPass, nullptr);
+            vkDestroyPipelineLayout(device, arcPipelineLayout, nullptr);
+
+            vkDestroyDescriptorSetLayout(device, presentDescriptorSetLayout, nullptr);
+            vkDestroyPipeline(device, presentPipeline, nullptr);
+            vkDestroyPipelineLayout(device, presentPipelineLayout, nullptr);
+
+            for (auto& shader : arcShaders)
+                shader.free(device);
+
+            for (auto& shader : presentShaders)
+                shader.free(device);
         }
     }
 #endif
