@@ -30,6 +30,10 @@
 #include <phantasm-renderer/backend/vulkan/common/util.hh>
 #include <phantasm-renderer/backend/vulkan/common/verify.hh>
 #include <phantasm-renderer/backend/vulkan/common/zero_struct.hh>
+#include <phantasm-renderer/backend/vulkan/memory/Allocator.hh>
+#include <phantasm-renderer/backend/vulkan/memory/UploadHeap.hh>
+#include <phantasm-renderer/backend/vulkan/memory/VMA.hh>
+#include <phantasm-renderer/backend/vulkan/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/vulkan/shader.hh>
 #endif
 
@@ -40,11 +44,11 @@
 
 
 #ifdef PR_BACKEND_D3D12
-using namespace pr::backend::d3d12;
-
+namespace
+{
 struct pass_data
 {
-    wip::srv albedo_tex;
+    pr::backend::d3d12::wip::srv albedo_tex;
     tg::mat4 view_proj;
 };
 
@@ -65,6 +69,13 @@ constexpr void introspect(I&& i, instance_data& v)
 {
     i(v.model, "model");
 }
+}
+#endif
+
+#ifdef PR_BACKEND_VULKAN
+namespace
+{
+}
 #endif
 
 
@@ -72,12 +83,13 @@ TEST("pr backend liveness", exclusive)
 {
 #ifdef PR_BACKEND_D3D12
     (void)0;
-    //    if constexpr (0)
+    if (0)
     {
         using namespace pr::backend;
+        using namespace pr::backend::d3d12;
 
         pr::backend::device::Window window;
-        window.initialize("Liveness test");
+        window.initialize("Liveness test | D3D12");
 
         BackendD3D12 backend;
         {
@@ -291,7 +303,7 @@ TEST("pr backend liveness", exclusive)
         using namespace pr::backend::vk;
 
         device::Window window;
-        window.initialize("Liveness test");
+        window.initialize("Liveness test | Vulkan");
 
         BackendVulkan bv;
         {
@@ -301,9 +313,13 @@ TEST("pr backend liveness", exclusive)
         }
 
         CommandBufferRing commandBufferRing;
+        UploadHeap uploadHeap;
         {
             auto const num_command_lists = 8;
+            auto const upload_size = 1000 * 1024 * 1024;
+
             commandBufferRing.initialize(bv.mDevice, bv.mSwapchain.getNumBackbuffers(), num_command_lists, bv.mDevice.getQueueFamilyGraphics());
+            uploadHeap.initialize(&bv.mDevice, upload_size);
         }
 
         VkPipelineLayout pipelineLayout;
@@ -368,12 +384,15 @@ TEST("pr backend liveness", exclusive)
             stages.push_back(shader_pixel.get_create_info());
             stages.push_back(shader_vertex.get_create_info());
 
+            auto const bindingDescription = get_vertex_binding<assets::simple_vertex>();
+            auto const attributeDescriptions = get_vertex_attributes<assets::simple_vertex>();
+
             VkPipelineVertexInputStateCreateInfo vertex_input;
             zero_info_struct(vertex_input, VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
-            vertex_input.vertexBindingDescriptionCount = 0;
-            vertex_input.pVertexBindingDescriptions = nullptr; // Optional
-            vertex_input.vertexAttributeDescriptionCount = 0;
-            vertex_input.pVertexAttributeDescriptions = nullptr; // Optional
+            vertex_input.vertexBindingDescriptionCount = 1;
+            vertex_input.pVertexBindingDescriptions = &bindingDescription;
+            vertex_input.vertexAttributeDescriptionCount = unsigned(attributeDescriptions.size());
+            vertex_input.pVertexAttributeDescriptions = attributeDescriptions.data(); // Optional
 
             VkPipelineInputAssemblyStateCreateInfo input_assembly;
             zero_info_struct(input_assembly, VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO);
@@ -472,6 +491,38 @@ TEST("pr backend liveness", exclusive)
             PR_VK_VERIFY_SUCCESS(vkCreateGraphicsPipelines(bv.mDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
         }
 
+        buffer vert_buf;
+        buffer ind_buf;
+
+        unsigned num_indices;
+        {
+            auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
+            num_indices = mesh_data.indices.size();
+
+            {
+                auto const vert_size = mesh_data.get_vertex_size_bytes();
+
+                vert_buf = bv.mAllocator.allocBuffer(vert_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+                auto* const vert_upload = uploadHeap.suballocateAllowRetry(vert_size, 512);
+                CC_RUNTIME_ASSERT(vert_upload != nullptr);
+                std::memcpy(vert_upload, mesh_data.vertices.data(), vert_size);
+                uploadHeap.copyAllocationToBuffer(vert_buf.buffer, vert_upload, vert_size);
+            }
+            {
+                auto const ind_size = mesh_data.get_index_size_bytes();
+
+                ind_buf = bv.mAllocator.allocBuffer(ind_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+                auto* const ind_upload = uploadHeap.suballocateAllowRetry(ind_size, 512);
+                CC_RUNTIME_ASSERT(ind_upload != nullptr);
+                std::memcpy(ind_upload, mesh_data.indices.data(), ind_size);
+                uploadHeap.copyAllocationToBuffer(ind_buf.buffer, ind_upload, ind_size);
+            }
+
+            uploadHeap.flushAndFinish();
+        }
+
 
         auto const on_resize_func = [&](int w, int h) {
             bv.mSwapchain.onResize(w, h);
@@ -511,7 +562,15 @@ TEST("pr backend liveness", exclusive)
                 pr::backend::vk::util::set_viewport(command_buf, bv.mSwapchain.getBackbufferExtent());
                 vkCmdBeginRenderPass(command_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                 vkCmdBindPipeline(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-                vkCmdDraw(command_buf, 3, 1, 0, 0);
+
+                VkBuffer vertex_buffers[] = {vert_buf.buffer};
+                VkDeviceSize offsets[] = {0};
+
+                vkCmdBindVertexBuffers(command_buf, 0, 1, vertex_buffers, offsets);
+                vkCmdBindIndexBuffer(command_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+                // vkCmdDraw(command_buf, num_indices, 1, 0, 0);
+                vkCmdDrawIndexed(command_buf, num_indices, 1, 0, 0, 0);
                 vkCmdEndRenderPass(command_buf);
 
                 PR_VK_VERIFY_SUCCESS(vkEndCommandBuffer(command_buf));
@@ -524,6 +583,9 @@ TEST("pr backend liveness", exclusive)
             auto const& device = bv.mDevice.getDevice();
 
             vkDeviceWaitIdle(device);
+
+            bv.mAllocator.free(vert_buf);
+            bv.mAllocator.free(ind_buf);
 
             vkDestroyPipeline(device, graphicsPipeline, nullptr);
             vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
@@ -542,6 +604,8 @@ TEST("pr adapter choice", exclusive)
     auto constexpr mute = false;
     if (0)
     {
+        using namespace pr::backend::d3d12;
+
         // Adapter choice basics
         auto const candidates = get_adapter_candidates();
 
