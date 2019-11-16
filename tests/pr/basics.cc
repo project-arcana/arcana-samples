@@ -88,7 +88,7 @@ TEST("pr backend liveness", exclusive)
 {
 #ifdef PR_BACKEND_D3D12
     (void)0;
-    if (0)
+    if (10)
     {
         using namespace pr::backend;
         using namespace pr::backend::d3d12;
@@ -390,17 +390,23 @@ TEST("pr backend liveness", exclusive)
             layoutInfo.bindingCount = uint32_t(bindings.size());
             layoutInfo.pBindings = bindings.data();
 
+
             PR_VK_VERIFY_SUCCESS(vkCreateDescriptorSetLayout(bv.mDevice.getDevice(), &layoutInfo, nullptr, &presentDescriptorSetLayout));
         }
 
         VkPipelineLayout arcPipelineLayout;
         {
+            VkPushConstantRange pushConstantRange = {};
+            pushConstantRange.size = sizeof(tg::mat4);
+            pushConstantRange.offset = 0;
+            pushConstantRange.stageFlags = to_shader_stage_flags(shader_domain::vertex);
+
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
             pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            pipelineLayoutInfo.setLayoutCount = 1;                    // Optional
-            pipelineLayoutInfo.pSetLayouts = &arcDescriptorSetLayout; // Optional
-            pipelineLayoutInfo.pushConstantRangeCount = 0;            // Optional
-            pipelineLayoutInfo.pPushConstantRanges = nullptr;         // Optional
+            pipelineLayoutInfo.setLayoutCount = 1;                       // Optional
+            pipelineLayoutInfo.pSetLayouts = &arcDescriptorSetLayout;    // Optional
+            pipelineLayoutInfo.pushConstantRangeCount = 1;               // Optional
+            pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
 
             PR_VK_VERIFY_SUCCESS(vkCreatePipelineLayout(bv.mDevice.getDevice(), &pipelineLayoutInfo, nullptr, &arcPipelineLayout));
         }
@@ -432,9 +438,9 @@ TEST("pr backend liveness", exclusive)
             {
                 VkSamplerCreateInfo info = {};
                 info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-                info.magFilter = VK_FILTER_LINEAR;
-                info.minFilter = VK_FILTER_LINEAR;
-                info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+                info.magFilter = VK_FILTER_NEAREST;
+                info.minFilter = VK_FILTER_NEAREST;
+                info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
                 info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
                 info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
                 info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -563,26 +569,11 @@ TEST("pr backend liveness", exclusive)
             {
                 auto const cmd_buf = commandBufferRing.acquireCommandBuffer();
 
-                // transition color_rt to render target
-                auto const barrier = get_image_memory_barrier(color_rt_image.image, resource_state::undefined, resource_state::shader_resource);
-                vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-                // transition depth_rt to render target
-                auto const barrier2 = get_image_memory_barrier(depth_image.image, resource_state::undefined, resource_state::depth_write, true);
-                vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2);
-
-                vkEndCommandBuffer(cmd_buf);
-
-                VkPipelineStageFlags submitWaitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-                VkSubmitInfo submit_info;
-                zero_info_struct(submit_info, VK_STRUCTURE_TYPE_SUBMIT_INFO);
-                submit_info.pNext = nullptr;
-                submit_info.pWaitDstStageMask = &submitWaitStage;
-                submit_info.commandBufferCount = 1;
-                submit_info.pCommandBuffers = &cmd_buf;
-
-                PR_VK_VERIFY_SUCCESS(vkQueueSubmit(bv.mDevice.getQueueGraphics(), 1, &submit_info, nullptr));
+                barrier_bundle<2> barrier_dispatch;
+                barrier_dispatch.add_image_barrier(color_rt_image.image,
+                                                   state_change{resource_state::undefined, resource_state::shader_resource, shader_domain::pixel});
+                barrier_dispatch.add_image_barrier(depth_image.image, state_change{resource_state::undefined, resource_state::depth_write}, true);
+                barrier_dispatch.submit(cmd_buf, bv.mDevice.getQueueGraphics());
             }
 
             // recreate arc framebuffer
@@ -633,13 +624,14 @@ TEST("pr backend liveness", exclusive)
                 commandBufferRing.onBeginFrame();
                 dynamicBufferRing.onBeginFrame();
 
-                auto const command_buf = commandBufferRing.acquireCommandBuffer();
+                auto const cmd_buf = commandBufferRing.acquireCommandBuffer();
 
                 {
                     // transition color_rt to render target
-                    auto const barrier = get_image_memory_barrier(color_rt_image.image, resource_state::shader_resource, resource_state::render_target);
-                    vkCmdPipelineBarrier(command_buf, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                                         nullptr, 0, nullptr, 1, &barrier);
+                    barrier_bundle<1> barrier;
+                    barrier.add_image_barrier(color_rt_image.image,
+                                              state_change{resource_state::shader_resource, shader_domain::pixel, resource_state::render_target});
+                    barrier.record(cmd_buf);
                 }
 
                 // Arc render pass
@@ -658,15 +650,15 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.clearValueCount = clear_values.size();
                     renderPassInfo.pClearValues = clear_values.data();
 
-                    pr::backend::vk::util::set_viewport(command_buf, bv.mSwapchain.getBackbufferExtent());
-                    vkCmdBeginRenderPass(command_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-                    vkCmdBindPipeline(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipeline);
+                    pr::backend::vk::util::set_viewport(cmd_buf, bv.mSwapchain.getBackbufferExtent());
+                    vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipeline);
 
                     VkBuffer vertex_buffers[] = {vert_buf.buffer};
                     VkDeviceSize offsets[] = {0};
 
-                    vkCmdBindVertexBuffers(command_buf, 0, 1, vertex_buffers, offsets);
-                    vkCmdBindIndexBuffer(command_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
+                    vkCmdBindVertexBuffers(cmd_buf, 0, 1, vertex_buffers, offsets);
+                    vkCmdBindIndexBuffer(cmd_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
 
 
                     {
@@ -675,7 +667,6 @@ TEST("pr backend liveness", exclusive)
                         {
                             struct mvp_data
                             {
-                                tg::mat4 model;
                                 tg::mat4 view;
                                 tg::mat4 proj;
                             };
@@ -688,7 +679,6 @@ TEST("pr backend liveness", exclusive)
                                 auto target = tg::pos3(0, 1, 0);
                                 auto camPos = tg::pos3(1, 1, 1) * 5.f;
                                 data->view = tg::look_at_opengl(camPos, target, tg::vec3(0, 1, 0));
-                                data->model = tg::rotation_y(tg::radians(-1 * float(run_time)));
                             }
 
                             dynamicBufferRing.setDescriptorSet(0, sizeof(mvp_data), descriptor_set);
@@ -713,19 +703,28 @@ TEST("pr backend liveness", exclusive)
                             vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
                         }
                         cc::array const uniform_offsets = {uint32_t(descriptor_upload_info.offset)};
-                        vkCmdBindDescriptorSets(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipelineLayout, 0, 1, &descriptor_set,
+                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipelineLayout, 0, 1, &descriptor_set,
                                                 uint32_t(uniform_offsets.size()), uniform_offsets.data());
                     }
 
-                    vkCmdDrawIndexed(command_buf, num_indices, 1, 0, 0, 0);
-                    vkCmdEndRenderPass(command_buf);
+                    for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
+                    {
+                        auto const model_mat = tg::translation(modelpos) * tg::rotation_y(tg::radians(float(run_time)));
+                        vkCmdPushConstants(cmd_buf, arcPipelineLayout, to_shader_stage_flags(shader_domain::vertex), 0, sizeof(tg::mat4), tg::data_ptr(model_mat));
+
+                        vkCmdDrawIndexed(cmd_buf, num_indices, 1, 0, 0, 0);
+                    }
+
+
+                    vkCmdEndRenderPass(cmd_buf);
                 }
 
                 {
                     // transition color_rt to shader resource
-                    auto const barrier = get_image_memory_barrier(color_rt_image.image, resource_state::render_target, resource_state::shader_resource);
-                    vkCmdPipelineBarrier(command_buf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
-                                         nullptr, 0, nullptr, 1, &barrier);
+                    barrier_bundle<1> barrier;
+                    barrier.add_image_barrier(color_rt_image.image,
+                                              state_change{resource_state::render_target, resource_state::shader_resource, shader_domain::pixel});
+                    barrier.record(cmd_buf);
                 }
 
                 // Present render pass
@@ -743,14 +742,12 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.clearValueCount = clear_values.size();
                     renderPassInfo.pClearValues = clear_values.data();
 
-                    pr::backend::vk::util::set_viewport(command_buf, bv.mSwapchain.getBackbufferExtent());
-                    vkCmdBeginRenderPass(command_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-                    vkCmdBindPipeline(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
+                    pr::backend::vk::util::set_viewport(cmd_buf, bv.mSwapchain.getBackbufferExtent());
+                    vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
 
                     {
                         auto& descriptor_set = presentDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
-                        VkDescriptorBufferInfo descriptor_upload_info;
-
 
                         // update descriptor set, image and sample part
                         VkDescriptorImageInfo desc_image[1] = {};
@@ -771,16 +768,17 @@ TEST("pr backend liveness", exclusive)
 
                         vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
 
-                        vkCmdBindDescriptorSets(command_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipelineLayout, 0, 1, &descriptor_set, 0, nullptr);
+
+                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipelineLayout, 0, 1, &descriptor_set, 0, nullptr);
                     }
 
-                    vkCmdDraw(command_buf, 3, 1, 0, 0);
-                    vkCmdEndRenderPass(command_buf);
+                    vkCmdDraw(cmd_buf, 3, 1, 0, 0);
+                    vkCmdEndRenderPass(cmd_buf);
                 }
 
-                PR_VK_VERIFY_SUCCESS(vkEndCommandBuffer(command_buf));
+                PR_VK_VERIFY_SUCCESS(vkEndCommandBuffer(cmd_buf));
 
-                bv.mSwapchain.performPresentSubmit(command_buf);
+                bv.mSwapchain.performPresentSubmit(cmd_buf);
                 bv.mSwapchain.present();
             }
         }
