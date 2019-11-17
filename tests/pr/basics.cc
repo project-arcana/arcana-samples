@@ -39,6 +39,7 @@
 #include <phantasm-renderer/backend/vulkan/resources/resource_view.hh>
 #include <phantasm-renderer/backend/vulkan/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/vulkan/shader.hh>
+#include <phantasm-renderer/backend/vulkan/shader_arguments.hh>
 #endif
 
 #include <phantasm-renderer/backend/assets/image_loader.hh>
@@ -372,87 +373,45 @@ TEST("pr backend liveness", exclusive)
             descAllocator.initialize(&bv.mDevice, num_cbvs, num_srvs, num_uavs, num_samplers);
         }
 
-
-        VkDescriptorSetLayout arcDescriptorSetLayout;
+        pipeline_layout arc_pipeline_layout;
         {
-            cc::capped_vector<VkDescriptorSetLayoutBinding, 8> bindings;
+            shader_payload_shape payload_shape;
+
+            // Argument 0, camera CBV
             {
-                VkDescriptorSetLayoutBinding& binding = bindings.emplace_back();
-                binding = {};
-                binding.binding = uint32_t(bindings.size() - 1);
-                binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                binding.descriptorCount = 1;
-                binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-                binding.pImmutableSamplers = nullptr; // Optional
-            }
-            {
-                VkDescriptorSetLayoutBinding& binding = bindings.emplace_back();
-                binding = {};
-                binding.binding = uint32_t(bindings.size() - 1);
-                binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                binding.descriptorCount = 1;
-                binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-                binding.pImmutableSamplers = nullptr; // Optional
+                shader_payload_shape::shader_argument_shape arg_shape;
+                arg_shape.has_cb = true;
+                arg_shape.num_srvs = 0;
+                arg_shape.num_uavs = 0;
+                payload_shape.shader_arguments.push_back(arg_shape);
             }
 
-            VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-            layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            layoutInfo.bindingCount = uint32_t(bindings.size());
-            layoutInfo.pBindings = bindings.data();
-
-
-            PR_VK_VERIFY_SUCCESS(vkCreateDescriptorSetLayout(bv.mDevice.getDevice(), &layoutInfo, nullptr, &arcDescriptorSetLayout));
-        }
-
-        VkDescriptorSetLayout presentDescriptorSetLayout;
-        {
-            cc::capped_vector<VkDescriptorSetLayoutBinding, 8> bindings;
+            // Argument 1, pixel shader SRV and model matrix CBV
             {
-                VkDescriptorSetLayoutBinding& binding = bindings.emplace_back();
-                binding = {};
-                binding.binding = uint32_t(bindings.size() - 1);
-                binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                binding.descriptorCount = 1;
-                binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-                binding.pImmutableSamplers = nullptr; // Optional
+                shader_payload_shape::shader_argument_shape arg_shape;
+                arg_shape.has_cb = true;
+                arg_shape.num_srvs = 1;
+                arg_shape.num_uavs = 0;
+                payload_shape.shader_arguments.push_back(arg_shape);
             }
 
-            VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-            layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            layoutInfo.bindingCount = uint32_t(bindings.size());
-            layoutInfo.pBindings = bindings.data();
-
-
-            PR_VK_VERIFY_SUCCESS(vkCreateDescriptorSetLayout(bv.mDevice.getDevice(), &layoutInfo, nullptr, &presentDescriptorSetLayout));
+            arc_pipeline_layout.initialize(bv.mDevice.getDevice(), payload_shape);
         }
 
-        VkPipelineLayout arcPipelineLayout;
+        pipeline_layout present_pipeline_layout;
         {
-            VkPushConstantRange pushConstantRange = {};
-            pushConstantRange.size = sizeof(tg::mat4);
-            pushConstantRange.offset = 0;
-            pushConstantRange.stageFlags = to_shader_stage_flags(shader_domain::vertex);
+            shader_payload_shape payload_shape;
 
-            VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-            pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            pipelineLayoutInfo.setLayoutCount = 1;                       // Optional
-            pipelineLayoutInfo.pSetLayouts = &arcDescriptorSetLayout;    // Optional
-            pipelineLayoutInfo.pushConstantRangeCount = 1;               // Optional
-            pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange; // Optional
+            // Argument 0, color target SRV
+            {
+                shader_payload_shape::shader_argument_shape arg_shape;
+                arg_shape.has_cb = false;
+                arg_shape.num_srvs = 1;
+                arg_shape.num_uavs = 0;
+                payload_shape.shader_arguments.push_back(arg_shape);
+            }
 
-            PR_VK_VERIFY_SUCCESS(vkCreatePipelineLayout(bv.mDevice.getDevice(), &pipelineLayoutInfo, nullptr, &arcPipelineLayout));
-        }
-
-        VkPipelineLayout presentPipelineLayout;
-        {
-            VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-            pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-            pipelineLayoutInfo.setLayoutCount = 1;                        // Optional
-            pipelineLayoutInfo.pSetLayouts = &presentDescriptorSetLayout; // Optional
-            pipelineLayoutInfo.pushConstantRangeCount = 0;                // Optional
-            pipelineLayoutInfo.pPushConstantRanges = nullptr;             // Optional
-
-            PR_VK_VERIFY_SUCCESS(vkCreatePipelineLayout(bv.mDevice.getDevice(), &pipelineLayoutInfo, nullptr, &presentPipelineLayout));
+            present_pipeline_layout.initialize(bv.mDevice.getDevice(), payload_shape);
         }
 
         image depth_image;
@@ -495,15 +454,15 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> arcShaders;
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/frag.spv", shader_domain::pixel, "main"));
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/vert.spv", shader_domain::vertex, "main"));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/pixel.spv", shader_domain::pixel));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/vertex.spv", shader_domain::vertex));
 
         VkPipeline arcPipeline;
         VkFramebuffer arcFramebuffer;
         {
             auto const vert_attribs = get_vertex_attributes<assets::simple_vertex>();
-            arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arcPipelineLayout, arcShaders, pr::default_config, vert_attribs,
-                                          sizeof(assets::simple_vertex));
+            arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.pipeline_layout, arcShaders, pr::default_config,
+                                          vert_attribs, sizeof(assets::simple_vertex));
 
             {
                 cc::array const attachments = {color_rt_view, depth_view};
@@ -526,7 +485,8 @@ TEST("pr backend liveness", exclusive)
 
         VkPipeline presentPipeline;
         {
-            presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), presentPipelineLayout, presentShaders);
+            presentPipeline
+                = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.pipeline_layout, presentShaders);
         }
 
         buffer vert_buf;
@@ -566,41 +526,18 @@ TEST("pr backend liveness", exclusive)
 
         uploadHeap.flushAndFinish();
 
-        cc::capped_array<VkDescriptorSet, 6> arcDescriptorSets;
+        cc::capped_array<descriptor_set_bundle, 6> arcDescriptorSets;
         {
             arcDescriptorSets.emplace(bv.mSwapchain.getNumBackbuffers());
             for (auto& set : arcDescriptorSets)
-            {
-                descAllocator.allocDescriptor(arcDescriptorSetLayout, set);
-
-                // update descriptor set, image and sample part
-                VkDescriptorImageInfo desc_image[1] = {};
-                desc_image[0].sampler = albedo_sampler;
-                desc_image[0].imageView = albedo_view;
-                desc_image[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-                VkWriteDescriptorSet writes[1];
-                writes[0] = {};
-                writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                writes[0].pNext = nullptr;
-                writes[0].dstSet = set;
-                writes[0].descriptorCount = 1;
-                writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                writes[0].pImageInfo = desc_image;
-                writes[0].dstArrayElement = 0;
-                writes[0].dstBinding = 1;
-
-                vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
-            }
+                set.initialize(descAllocator, arc_pipeline_layout);
         }
 
-        cc::capped_array<VkDescriptorSet, 6> presentDescriptorSets;
+        cc::capped_array<descriptor_set_bundle, 6> presentDescriptorSets;
         {
             presentDescriptorSets.emplace(bv.mSwapchain.getNumBackbuffers());
             for (auto& set : presentDescriptorSets)
-            {
-                descAllocator.allocDescriptor(presentDescriptorSetLayout, set);
-            }
+                set.initialize(descAllocator, present_pipeline_layout);
         }
 
         auto const on_resize_func = [&](int w, int h) {
@@ -717,8 +654,8 @@ TEST("pr backend liveness", exclusive)
                     vkCmdBindIndexBuffer(cmd_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
 
 
+                    auto& descriptor_set = arcDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
                     {
-                        auto& descriptor_set = arcDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
                         VkDescriptorBufferInfo descriptor_upload_info;
                         {
                             struct mvp_data
@@ -732,19 +669,51 @@ TEST("pr backend liveness", exclusive)
                                 data->vp = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
                             }
 
-                            dynamicBufferRing.setDescriptorSet(0, sizeof(mvp_data), descriptor_set);
+                            shader_argument shader_arg_zero;
+                            shader_arg_zero.cbv = dynamicBufferRing.getBuffer();
+                            shader_arg_zero.cbv_view_offset = 0;
+                            shader_arg_zero.cbv_view_size = sizeof(mvp_data);
+
+                            descriptor_set.update(bv.mDevice.getDevice(), 0, shader_arg_zero);
                         }
 
                         cc::array const uniform_offsets = {uint32_t(descriptor_upload_info.offset)};
-                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipelineLayout, 0, 1, &descriptor_set,
-                                                uint32_t(uniform_offsets.size()), uniform_offsets.data());
+                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arc_pipeline_layout.pipeline_layout, 0, 1,
+                                                &descriptor_set.descriptor_sets[0], uint32_t(uniform_offsets.size()), uniform_offsets.data());
                     }
 
-                    for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                     {
-                        auto const model_mat = get_model_matrix(modelpos, run_time);
-                        vkCmdPushConstants(cmd_buf, arcPipelineLayout, to_shader_stage_flags(shader_domain::vertex), 0, sizeof(tg::mat4), tg::data_ptr(model_mat));
-                        vkCmdDrawIndexed(cmd_buf, num_indices, 1, 0, 0, 0);
+                        shader_argument shader_arg_one;
+                        shader_arg_one.srvs.push_back(albedo_view);
+
+                        model_matrix_data* vert_cb_data;
+                        VkDescriptorBufferInfo descriptor_upload_info;
+                        dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, descriptor_upload_info);
+
+                        // record model matrices
+                        auto index = 0u;
+                        for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
+                        {
+                            vert_cb_data->model_matrices[index++].model_mat = get_model_matrix(modelpos, run_time);
+                        }
+
+                        {
+                            shader_arg_one.cbv = dynamicBufferRing.getBuffer();
+                            shader_arg_one.cbv_view_offset = 0;
+                            shader_arg_one.cbv_view_size = sizeof(tg::mat4);
+
+                            descriptor_set.update(bv.mDevice.getDevice(), 1, shader_arg_one);
+                        }
+
+                        for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
+                        {
+                            auto const dynamic_offset = uint32_t(i * sizeof(vert_cb_data->model_matrices[0]));
+                            auto const combined_offset = uint32_t(descriptor_upload_info.offset) + dynamic_offset;
+
+                            vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arc_pipeline_layout.pipeline_layout, 1, 1,
+                                                    &descriptor_set.descriptor_sets[1], 1, &combined_offset);
+                            vkCmdDrawIndexed(cmd_buf, num_indices, 1, 0, 0, 0);
+                        }
                     }
 
 
@@ -782,27 +751,13 @@ TEST("pr backend liveness", exclusive)
                     {
                         auto& descriptor_set = presentDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
 
-                        // update srv and sampler
-                        VkDescriptorImageInfo desc_image[1] = {};
-                        desc_image[0].sampler = color_rt_sampler;
-                        desc_image[0].imageView = color_rt_view;
-                        desc_image[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                        shader_argument arg_zero;
+                        arg_zero.srvs.push_back(color_rt_view);
 
-                        VkWriteDescriptorSet writes[1];
-                        writes[0] = {};
-                        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                        writes[0].pNext = nullptr;
-                        writes[0].dstSet = descriptor_set;
-                        writes[0].descriptorCount = 1;
-                        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                        writes[0].pImageInfo = desc_image;
-                        writes[0].dstArrayElement = 0;
-                        writes[0].dstBinding = 0;
+                        descriptor_set.update(bv.mDevice.getDevice(), 0, arg_zero);
 
-                        vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
-
-
-                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipelineLayout, 0, 1, &descriptor_set, 0, nullptr);
+                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, present_pipeline_layout.pipeline_layout, 0, 1,
+                                                &descriptor_set.descriptor_sets[0], 0, nullptr);
                     }
 
                     vkCmdDraw(cmd_buf, 3, 1, 0, 0);
@@ -821,12 +776,6 @@ TEST("pr backend liveness", exclusive)
 
             vkDeviceWaitIdle(device);
 
-            for (auto& set : arcDescriptorSets)
-                descAllocator.free(set);
-
-            for (auto& set : presentDescriptorSets)
-                descAllocator.free(set);
-
             bv.mAllocator.free(vert_buf);
             bv.mAllocator.free(ind_buf);
 
@@ -841,16 +790,20 @@ TEST("pr backend liveness", exclusive)
             vkDestroyImageView(device, color_rt_view, nullptr);
             vkDestroySampler(device, color_rt_sampler, nullptr);
 
-
-            vkDestroyDescriptorSetLayout(device, arcDescriptorSetLayout, nullptr);
             vkDestroyFramebuffer(device, arcFramebuffer, nullptr);
             vkDestroyPipeline(device, arcPipeline, nullptr);
             vkDestroyRenderPass(device, arcRenderPass, nullptr);
-            vkDestroyPipelineLayout(device, arcPipelineLayout, nullptr);
 
-            vkDestroyDescriptorSetLayout(device, presentDescriptorSetLayout, nullptr);
             vkDestroyPipeline(device, presentPipeline, nullptr);
-            vkDestroyPipelineLayout(device, presentPipelineLayout, nullptr);
+
+            arc_pipeline_layout.free(device);
+            present_pipeline_layout.free(device);
+
+            for (auto& desc : arcDescriptorSets)
+                desc.free(descAllocator);
+
+            for (auto& desc : presentDescriptorSets)
+                desc.free(descAllocator);
 
             for (auto& shader : arcShaders)
                 shader.free(device);
