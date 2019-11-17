@@ -61,7 +61,7 @@ auto const get_view_matrix = []() -> tg::mat4 {
 
 auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
     constexpr auto model_scale = 1.25f;
-    return tg::translation(pos) * tg::rotation_y(tg::radians(float(runtime) * (index % 2 == 0 ? -1 : 1))) * tg::scaling(model_scale, model_scale, model_scale);
+    return tg::translation(pos) * tg::rotation_y(tg::radians((float(runtime) + float(index) * 0.5f * tg::pi_scalar<float>) * (index % 2 == 0 ? -1 : 1))) * tg::scaling(model_scale, model_scale, model_scale);
 };
 
 constexpr auto sample_mesh_path = "testdata/mesh/apollo.obj";
@@ -91,7 +91,6 @@ static_assert(sizeof(model_matrix_data) == sizeof(model_matrix_data::padded_inst
 TEST("pr backend liveness", exclusive)
 {
 #ifdef PR_BACKEND_D3D12
-    (void)0;
     if (10)
     {
         using namespace pr::backend;
@@ -441,8 +440,8 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> arcShaders;
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/pixel.spv", shader_domain::pixel));
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/vertex.spv", shader_domain::vertex));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/pixel.spv", shader_domain::pixel));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/vertex.spv", shader_domain::vertex));
 
         VkPipeline arcPipeline;
         VkFramebuffer arcFramebuffer;
@@ -467,8 +466,8 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> presentShaders;
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/pixel_blit.spv", shader_domain::pixel));
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/vertex_blit.spv", shader_domain::vertex));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/pixel_blit.spv", shader_domain::pixel));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/vertex_blit.spv", shader_domain::vertex));
 
         VkPipeline presentPipeline;
         {
@@ -640,7 +639,7 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.clearValueCount = clear_values.size();
                     renderPassInfo.pClearValues = clear_values.data();
 
-                    pr::backend::vk::util::set_viewport(cmd_buf, backbuffer_size);
+                    util::set_viewport(cmd_buf, backbuffer_size);
                     vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                     vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipeline);
 
@@ -721,7 +720,7 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.clearValueCount = clear_values.size();
                     renderPassInfo.pClearValues = clear_values.data();
 
-                    pr::backend::vk::util::set_viewport(cmd_buf, backbuffer_size);
+                    util::set_viewport(cmd_buf, backbuffer_size);
                     vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                     vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
 
