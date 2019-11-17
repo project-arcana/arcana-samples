@@ -48,55 +48,45 @@
 #include <phantasm-renderer/default_config.hh>
 
 
+namespace
+{
+auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
+
+auto const get_view_matrix = []() -> tg::mat4 {
+    constexpr auto target = tg::pos3(0, 1, 0);
+    constexpr auto cam_pos = tg::pos3(1, 1, 1) * 5.f;
+    return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
+};
+
+auto const get_model_matrix
+    = [](tg::vec3 pos, double runtime) -> tg::mat4 { return tg::translation(pos) * tg::rotation_y(tg::radians(float(runtime))); };
+
+constexpr auto sample_mesh_path = "testdata/mesh/apollo.obj";
+constexpr auto sample_texture_path = "testdata/texture/uv_checker.png";
+}
+
 #ifdef PR_BACKEND_D3D12
 namespace
 {
-struct pass_data
+struct model_matrix_data
 {
-    pr::backend::d3d12::wip::srv albedo_tex;
-    tg::mat4 view_proj;
+    static constexpr auto num_instances = 4;
+
+    struct padded_instance
+    {
+        tg::mat4 model_mat;
+        char padding[256 - sizeof(tg::mat4)];
+    };
+    static_assert(sizeof(padded_instance) == 256);
+
+    cc::array<padded_instance, num_instances> model_matrices;
 };
-
-struct instance_data : pr::immediate
-{
-    tg::mat4 model;
-};
-
-template <class I>
-constexpr void introspect(I&& i, pass_data& v)
-{
-    i(v.albedo_tex, "albedo_tex");
-    i(v.view_proj, "view_proj");
-}
-
-template <class I>
-constexpr void introspect(I&& i, instance_data& v)
-{
-    i(v.model, "model");
-}
+static_assert(sizeof(model_matrix_data) == sizeof(model_matrix_data::padded_instance) * model_matrix_data::num_instances);
 }
 #endif
-
-#ifdef PR_BACKEND_VULKAN
-namespace
-{
-}
-#endif
-
 
 TEST("pr backend liveness", exclusive)
 {
-    auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
-
-    auto const get_view_matrix = []() -> tg::mat4 {
-        auto constexpr target = tg::pos3(0, 1, 0);
-        auto constexpr cam_pos = tg::pos3(1, 1, 1) * 5.f;
-        return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
-    };
-
-    auto const get_model_matrix
-        = [](tg::vec3 pos, double runtime) -> tg::mat4 { return tg::translation(pos) * tg::rotation_y(tg::radians(float(runtime))); };
-
 #ifdef PR_BACKEND_D3D12
     (void)0;
     if (0)
@@ -139,8 +129,8 @@ TEST("pr backend liveness", exclusive)
             //
             cc::capped_vector<shader, 6> shaders;
             {
-                shaders.push_back(compile_shader_from_file("testdata/shader.hlsl", shader_domain::vertex));
-                shaders.push_back(compile_shader_from_file("testdata/shader.hlsl", shader_domain::pixel));
+                shaders.push_back(load_binary_shader_from_file("testdata/shader/dxil/vertex.dxil", shader_domain::vertex));
+                shaders.push_back(load_binary_shader_from_file("testdata/shader/dxil/pixel.dxil", shader_domain::pixel));
 
                 for (auto const& s : shaders)
                     CC_RUNTIME_ASSERT(s.is_valid() && "failed to load shaders");
@@ -151,7 +141,7 @@ TEST("pr backend liveness", exclusive)
             resource material;
             cpu_cbv_srv_uav mat_srv = descAllocator.allocCBV_SRV_UAV();
             {
-                material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, "testdata/uv_checker.png");
+                material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, sample_texture_path);
                 make_srv(material, mat_srv.handle);
 
                 uploadHeap.barrierResourceOnFlush(material.get_allocation(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -163,7 +153,7 @@ TEST("pr backend liveness", exclusive)
             D3D12_INDEX_BUFFER_VIEW mesh_ibv;
             unsigned mesh_num_indices = 0;
             {
-                auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
+                auto const mesh_data = assets::load_obj_mesh(sample_mesh_path);
                 mesh_num_indices = unsigned(mesh_data.indices.size());
 
                 mesh_indices = create_buffer_from_data<int>(backend.mAllocator, uploadHeap, mesh_data.indices);
@@ -179,12 +169,28 @@ TEST("pr backend liveness", exclusive)
             uploadHeap.flushAndFinish();
 
             root_signature root_sig;
-            cc::capped_vector<root_sig_payload_size, 2> payload_sizes;
             {
-                payload_sizes.push_back(get_payload_size<pass_data>());
-                payload_sizes.push_back(get_payload_size<instance_data>());
+                shader_payload_shape payload_shape;
 
-                root_sig.initialize(backend.mDevice.getDevice(), payload_sizes);
+                // Argument 0, camera CBV
+                {
+                    shader_payload_shape::shader_argument_shape arg_shape;
+                    arg_shape.has_cb = true;
+                    arg_shape.num_srvs = 0;
+                    arg_shape.num_uavs = 0;
+                    payload_shape.shader_arguments.push_back(arg_shape);
+                }
+
+                // Argument 1, pixel shader SRV and model matrix CBV
+                {
+                    shader_payload_shape::shader_argument_shape arg_shape;
+                    arg_shape.has_cb = true;
+                    arg_shape.num_srvs = 1;
+                    arg_shape.num_uavs = 0;
+                    payload_shape.shader_arguments.push_back(arg_shape);
+                }
+
+                root_sig.initialize(backend.mDevice.getDevice(), payload_shape);
             }
 
             resource depth_buffer;
@@ -268,28 +274,46 @@ TEST("pr backend liveness", exclusive)
 
 
                         {
-                            pass_data dpass;
-                            dpass.albedo_tex = {mat_srv};
-
+                            struct vert_cb
                             {
-                                dpass.view_proj = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
-                            }
+                                tg::mat4 view_proj;
+                            };
 
-                            auto constexpr payload_index = 0;
-                            auto payload = get_payload_data(dpass, payload_sizes[payload_index]);
-                            root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descAllocator, payload_index, payload);
+                            vert_cb* vert_cb_data;
+                            D3D12_GPU_VIRTUAL_ADDRESS vert_cb_va;
+                            dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, vert_cb_va);
+
+                            vert_cb_data->view_proj = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
+
+                            shader_argument arg_zero;
+                            arg_zero.cbv_view_offset = 0;
+                            arg_zero.cbv_va = vert_cb_va;
+
+                            root_sig.bind(backend.mDevice.getDevice(), *command_list, descAllocator, 0, arg_zero);
                         }
 
-                        for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                         {
-                            instance_data dinst;
-                            dinst.model = get_model_matrix(modelpos, run_time);
+                            model_matrix_data* vert_cb_data;
+                            D3D12_GPU_VIRTUAL_ADDRESS vert_cb_va;
+                            dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, vert_cb_va);
 
-                            auto constexpr payload_index = 1;
-                            auto payload = get_payload_data(dinst, payload_sizes[payload_index]);
-                            root_sig.bind(backend.mDevice.getDevice(), *command_list, dynamicBufferRing, descAllocator, payload_index, payload);
+                            // record model matrices
+                            auto index = 0u;
+                            for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
+                            {
+                                vert_cb_data->model_matrices[index++].model_mat = get_model_matrix(modelpos, run_time);
+                            }
 
-                            command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
+                            for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
+                            {
+                                shader_argument arg_one;
+                                arg_one.cbv_view_offset = i * sizeof(vert_cb_data->model_matrices[0]);
+                                arg_one.cbv_va = vert_cb_va;
+                                arg_one.srvs.push_back(mat_srv);
+
+                                root_sig.bind(backend.mDevice.getDevice(), *command_list, descAllocator, 1, arg_one);
+                                command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
+                            }
                         }
 
                         backend.mSwapchain.barrierToPresent(command_list);
@@ -311,6 +335,7 @@ TEST("pr backend liveness", exclusive)
 #endif
 
 #ifdef PR_BACKEND_VULKAN
+    if (10)
     {
         using namespace pr::backend;
         using namespace pr::backend::vk;
@@ -470,8 +495,8 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> arcShaders;
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/frag.spv", shader_domain::pixel));
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/vert.spv", shader_domain::vertex));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/frag.spv", shader_domain::pixel, "main"));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/vert.spv", shader_domain::vertex, "main"));
 
         VkPipeline arcPipeline;
         VkFramebuffer arcFramebuffer;
@@ -496,8 +521,8 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> presentShaders;
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/fs_blit_frag.spv", shader_domain::pixel));
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/fs_vert.spv", shader_domain::vertex));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/fs_blit_frag.spv", shader_domain::pixel, "main"));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/fs_vert.spv", shader_domain::vertex, "main"));
 
         VkPipeline presentPipeline;
         {
@@ -509,7 +534,7 @@ TEST("pr backend liveness", exclusive)
         unsigned num_indices;
 
         {
-            auto const mesh_data = assets::load_obj_mesh("testdata/apollo.obj");
+            auto const mesh_data = assets::load_obj_mesh(sample_mesh_path);
             num_indices = unsigned(mesh_data.indices.size());
 
             vert_buf = create_vertex_buffer_from_data<assets::simple_vertex>(bv.mAllocator, uploadHeap, mesh_data.vertices);
@@ -520,7 +545,7 @@ TEST("pr backend liveness", exclusive)
         VkImageView albedo_view;
         VkSampler albedo_sampler;
         {
-            albedo_image = create_texture_from_file(bv.mAllocator, uploadHeap, "testdata/uv_checker.png");
+            albedo_image = create_texture_from_file(bv.mAllocator, uploadHeap, sample_texture_path);
             albedo_view = make_image_view(bv.mDevice.getDevice(), albedo_image, VK_FORMAT_R8G8B8A8_UNORM);
 
             {
@@ -547,6 +572,25 @@ TEST("pr backend liveness", exclusive)
             for (auto& set : arcDescriptorSets)
             {
                 descAllocator.allocDescriptor(arcDescriptorSetLayout, set);
+
+                // update descriptor set, image and sample part
+                VkDescriptorImageInfo desc_image[1] = {};
+                desc_image[0].sampler = albedo_sampler;
+                desc_image[0].imageView = albedo_view;
+                desc_image[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+                VkWriteDescriptorSet writes[1];
+                writes[0] = {};
+                writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                writes[0].pNext = nullptr;
+                writes[0].dstSet = set;
+                writes[0].descriptorCount = 1;
+                writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                writes[0].pImageInfo = desc_image;
+                writes[0].dstArrayElement = 0;
+                writes[0].dstBinding = 1;
+
+                vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
             }
         }
 
@@ -601,7 +645,7 @@ TEST("pr backend liveness", exclusive)
                 PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &arcFramebuffer));
             }
 
-            // flush again
+            // flush
             vkDeviceWaitIdle(bv.mDevice.getDevice());
 
 
@@ -633,6 +677,8 @@ TEST("pr backend liveness", exclusive)
                 commandBufferRing.onBeginFrame();
                 dynamicBufferRing.onBeginFrame();
 
+                auto const backbuffer_size = bv.mSwapchain.getBackbufferSize();
+
                 auto const cmd_buf = commandBufferRing.acquireCommandBuffer();
 
                 {
@@ -650,7 +696,8 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.renderPass = arcRenderPass;
                     renderPassInfo.framebuffer = arcFramebuffer;
                     renderPassInfo.renderArea.offset = {0, 0};
-                    renderPassInfo.renderArea.extent = bv.mSwapchain.getBackbufferExtent();
+                    renderPassInfo.renderArea.extent.width = backbuffer_size.x;
+                    renderPassInfo.renderArea.extent.height = backbuffer_size.y;
 
                     cc::array<VkClearValue, 2> clear_values;
                     clear_values[0] = {0.f, 0.f, 0.f, 1.f};
@@ -659,7 +706,7 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.clearValueCount = clear_values.size();
                     renderPassInfo.pClearValues = clear_values.data();
 
-                    pr::backend::vk::util::set_viewport(cmd_buf, bv.mSwapchain.getBackbufferExtent());
+                    pr::backend::vk::util::set_viewport(cmd_buf, backbuffer_size);
                     vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                     vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipeline);
 
@@ -676,39 +723,18 @@ TEST("pr backend liveness", exclusive)
                         {
                             struct mvp_data
                             {
-                                tg::mat4 view;
-                                tg::mat4 proj;
+                                tg::mat4 vp;
                             };
 
-                            mvp_data* data;
-                            dynamicBufferRing.allocConstantBufferTyped(data, descriptor_upload_info);
-
                             {
-                                data->proj = get_projection_matrix(window.getWidth(), window.getHeight());
-                                data->view = get_view_matrix();
+                                mvp_data* data;
+                                dynamicBufferRing.allocConstantBufferTyped(data, descriptor_upload_info);
+                                data->vp = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
                             }
 
                             dynamicBufferRing.setDescriptorSet(0, sizeof(mvp_data), descriptor_set);
-
-                            // update descriptor set, image and sample part
-                            VkDescriptorImageInfo desc_image[1] = {};
-                            desc_image[0].sampler = albedo_sampler;
-                            desc_image[0].imageView = albedo_view;
-                            desc_image[0].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-                            VkWriteDescriptorSet writes[1];
-                            writes[0] = {};
-                            writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                            writes[0].pNext = nullptr;
-                            writes[0].dstSet = descriptor_set;
-                            writes[0].descriptorCount = 1;
-                            writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                            writes[0].pImageInfo = desc_image;
-                            writes[0].dstArrayElement = 0;
-                            writes[0].dstBinding = 1;
-
-                            vkUpdateDescriptorSets(bv.mDevice.getDevice(), 1, writes, 0, nullptr);
                         }
+
                         cc::array const uniform_offsets = {uint32_t(descriptor_upload_info.offset)};
                         vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipelineLayout, 0, 1, &descriptor_set,
                                                 uint32_t(uniform_offsets.size()), uniform_offsets.data());
@@ -740,7 +766,8 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.renderPass = bv.mSwapchain.getRenderPass();
                     renderPassInfo.framebuffer = bv.mSwapchain.getCurrentFramebuffer();
                     renderPassInfo.renderArea.offset = {0, 0};
-                    renderPassInfo.renderArea.extent = bv.mSwapchain.getBackbufferExtent();
+                    renderPassInfo.renderArea.extent.width = backbuffer_size.x;
+                    renderPassInfo.renderArea.extent.height = backbuffer_size.y;
 
                     cc::array<VkClearValue, 1> clear_values;
                     clear_values[0] = {0.f, 0.f, 0.f, 1.f};
@@ -748,14 +775,14 @@ TEST("pr backend liveness", exclusive)
                     renderPassInfo.clearValueCount = clear_values.size();
                     renderPassInfo.pClearValues = clear_values.data();
 
-                    pr::backend::vk::util::set_viewport(cmd_buf, bv.mSwapchain.getBackbufferExtent());
+                    pr::backend::vk::util::set_viewport(cmd_buf, backbuffer_size);
                     vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                     vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
 
                     {
                         auto& descriptor_set = presentDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
 
-                        // update descriptor set, image and sample part
+                        // update srv and sampler
                         VkDescriptorImageInfo desc_image[1] = {};
                         desc_image[0].sampler = color_rt_sampler;
                         desc_image[0].imageView = color_rt_view;
