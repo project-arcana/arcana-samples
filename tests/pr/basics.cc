@@ -54,13 +54,15 @@ namespace
 auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
 
 auto const get_view_matrix = []() -> tg::mat4 {
-    constexpr auto target = tg::pos3(0, 1, 0);
-    constexpr auto cam_pos = tg::pos3(1, 1, 1) * 5.f;
+    constexpr auto target = tg::pos3(0, 1.45f, 0);
+    constexpr auto cam_pos = tg::pos3(1, 1.5f, 1) * 5.f;
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
 };
 
-auto const get_model_matrix
-    = [](tg::vec3 pos, double runtime) -> tg::mat4 { return tg::translation(pos) * tg::rotation_y(tg::radians(float(runtime))); };
+auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
+    constexpr auto model_scale = 1.25f;
+    return tg::translation(pos) * tg::rotation_y(tg::radians(float(runtime) * (index % 2 == 0 ? -1 : 1))) * tg::scaling(model_scale, model_scale, model_scale);
+};
 
 constexpr auto sample_mesh_path = "testdata/mesh/apollo.obj";
 constexpr auto sample_texture_path = "testdata/texture/uv_checker.png";
@@ -90,7 +92,7 @@ TEST("pr backend liveness", exclusive)
 {
 #ifdef PR_BACKEND_D3D12
     (void)0;
-    if (0)
+    if (10)
     {
         using namespace pr::backend;
         using namespace pr::backend::d3d12;
@@ -302,7 +304,8 @@ TEST("pr backend liveness", exclusive)
                             auto index = 0u;
                             for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                             {
-                                vert_cb_data->model_matrices[index++].model_mat = get_model_matrix(modelpos, run_time);
+                                vert_cb_data->model_matrices[index].model_mat = get_model_matrix(modelpos, run_time, index);
+                                ++index;
                             }
 
                             for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
@@ -418,28 +421,12 @@ TEST("pr backend liveness", exclusive)
         image color_rt_image;
         VkImageView depth_view;
         VkImageView color_rt_view;
-        VkSampler color_rt_sampler;
         {
             depth_image = create_depth_stencil(bv.mAllocator, 15u, 15u, VK_FORMAT_D32_SFLOAT);
             depth_view = make_image_view(bv.mDevice.getDevice(), depth_image, VK_FORMAT_D32_SFLOAT);
 
             color_rt_image = create_render_target(bv.mAllocator, 15u, 15u, VK_FORMAT_R16G16B16A16_SFLOAT);
             color_rt_view = make_image_view(bv.mDevice.getDevice(), color_rt_image, VK_FORMAT_R16G16B16A16_SFLOAT);
-
-            {
-                VkSamplerCreateInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-                info.magFilter = VK_FILTER_NEAREST;
-                info.minFilter = VK_FILTER_NEAREST;
-                info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-                info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-                info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-                info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-                info.minLod = -1000;
-                info.maxLod = 1000;
-                info.maxAnisotropy = 1.0f;
-                vkCreateSampler(bv.mDevice.getDevice(), &info, nullptr, &color_rt_sampler);
-            }
         }
 
         VkRenderPass arcRenderPass;
@@ -472,8 +459,8 @@ TEST("pr backend liveness", exclusive)
                 fb_info.renderPass = arcRenderPass;
                 fb_info.attachmentCount = unsigned(attachments.size());
                 fb_info.pAttachments = attachments.data();
-                fb_info.width = unsigned(15);
-                fb_info.height = unsigned(15);
+                fb_info.width = 15;
+                fb_info.height = 15;
                 fb_info.layers = 1;
                 PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &arcFramebuffer));
             }
@@ -503,25 +490,9 @@ TEST("pr backend liveness", exclusive)
 
         image albedo_image;
         VkImageView albedo_view;
-        VkSampler albedo_sampler;
         {
             albedo_image = create_texture_from_file(bv.mAllocator, uploadHeap, sample_texture_path);
             albedo_view = make_image_view(bv.mDevice.getDevice(), albedo_image, VK_FORMAT_R8G8B8A8_UNORM);
-
-            {
-                VkSamplerCreateInfo info = {};
-                info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-                info.magFilter = VK_FILTER_LINEAR;
-                info.minFilter = VK_FILTER_LINEAR;
-                info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-                info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-                info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-                info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-                info.minLod = -1000;
-                info.maxLod = 1000;
-                info.maxAnisotropy = 1.0f;
-                vkCreateSampler(bv.mDevice.getDevice(), &info, nullptr, &albedo_sampler);
-            }
         }
 
         uploadHeap.flushAndFinish();
@@ -709,7 +680,8 @@ TEST("pr backend liveness", exclusive)
                         auto index = 0u;
                         for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                         {
-                            vert_cb_data->model_matrices[index++].model_mat = get_model_matrix(modelpos, run_time);
+                            vert_cb_data->model_matrices[index].model_mat = get_model_matrix(modelpos, run_time, index);
+                            ++index;
                         }
 
                         for (auto i = 0u; i < vert_cb_data->model_matrices.size(); ++i)
@@ -775,7 +747,6 @@ TEST("pr backend liveness", exclusive)
             bv.mAllocator.free(ind_buf);
 
             bv.mAllocator.free(albedo_image);
-            vkDestroySampler(device, albedo_sampler, nullptr);
             vkDestroyImageView(device, albedo_view, nullptr);
 
             bv.mAllocator.free(depth_image);
@@ -783,7 +754,6 @@ TEST("pr backend liveness", exclusive)
 
             bv.mAllocator.free(color_rt_image);
             vkDestroyImageView(device, color_rt_view, nullptr);
-            vkDestroySampler(device, color_rt_sampler, nullptr);
 
             vkDestroyFramebuffer(device, arcFramebuffer, nullptr);
             vkDestroyPipeline(device, arcPipeline, nullptr);
