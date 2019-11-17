@@ -67,11 +67,8 @@ auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -
 
 constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/apollo.obj";
 constexpr auto sample_texture_path = "res/pr/liveness_sample/texture/uv_checker.png";
-}
 
-#ifdef PR_BACKEND_D3D12
-namespace
-{
+
 struct model_matrix_data
 {
     static constexpr auto num_instances = 4;
@@ -87,7 +84,6 @@ struct model_matrix_data
 };
 static_assert(sizeof(model_matrix_data) == sizeof(model_matrix_data::padded_instance) * model_matrix_data::num_instances);
 }
-#endif
 
 TEST("pr backend liveness", exclusive)
 {
