@@ -61,11 +61,12 @@ auto const get_view_matrix = []() -> tg::mat4 {
 
 auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
     constexpr auto model_scale = 1.25f;
-    return tg::translation(pos) * tg::rotation_y(tg::radians((float(runtime) + float(index) * 0.5f * tg::pi_scalar<float>) * (index % 2 == 0 ? -1 : 1))) * tg::scaling(model_scale, model_scale, model_scale);
+    return tg::translation(pos) * tg::rotation_y(tg::radians((float(runtime) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
+           * tg::scaling(model_scale, model_scale, model_scale);
 };
 
-constexpr auto sample_mesh_path = "testdata/mesh/apollo.obj";
-constexpr auto sample_texture_path = "testdata/texture/uv_checker.png";
+constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/apollo.obj";
+constexpr auto sample_texture_path = "res/pr/liveness_sample/texture/uv_checker.png";
 }
 
 #ifdef PR_BACKEND_D3D12
@@ -131,8 +132,8 @@ TEST("pr backend liveness", exclusive)
             //
             cc::capped_vector<shader, 6> shaders;
             {
-                shaders.push_back(load_binary_shader_from_file("testdata/shader/dxil/vertex.dxil", shader_domain::vertex));
-                shaders.push_back(load_binary_shader_from_file("testdata/shader/dxil/pixel.dxil", shader_domain::pixel));
+                shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/vertex.dxil", shader_domain::vertex));
+                shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/pixel.dxil", shader_domain::pixel));
 
                 for (auto const& s : shaders)
                     CC_RUNTIME_ASSERT(s.is_valid() && "failed to load shaders");
@@ -440,8 +441,8 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> arcShaders;
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/pixel.spv", shader_domain::pixel));
-        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/vertex.spv", shader_domain::vertex));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/pixel.spv", shader_domain::pixel));
+        arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/vertex.spv", shader_domain::vertex));
 
         VkPipeline arcPipeline;
         VkFramebuffer arcFramebuffer;
@@ -466,8 +467,9 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> presentShaders;
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/pixel_blit.spv", shader_domain::pixel));
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/vertex_blit.spv", shader_domain::vertex));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/pixel_blit.spv", shader_domain::pixel));
+        presentShaders.push_back(
+            create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/vertex_blit.spv", shader_domain::vertex));
 
         VkPipeline presentPipeline;
         {
