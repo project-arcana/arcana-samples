@@ -526,18 +526,37 @@ TEST("pr backend liveness", exclusive)
 
         uploadHeap.flushAndFinish();
 
-        cc::capped_array<descriptor_set_bundle, 6> arcDescriptorSets;
+        descriptor_set_bundle arc_desc_set;
         {
-            arcDescriptorSets.emplace(bv.mSwapchain.getNumBackbuffers());
-            for (auto& set : arcDescriptorSets)
-                set.initialize(descAllocator, arc_pipeline_layout);
+            // we just need a single one of these, since we do not update it during dispatch
+            // we just re-bind at different offsets
+
+            arc_desc_set.initialize(descAllocator, arc_pipeline_layout);
+
+            shader_argument shader_arg_zero;
+            shader_arg_zero.cbv = dynamicBufferRing.getBuffer();
+            shader_arg_zero.cbv_view_offset = 0;
+            shader_arg_zero.cbv_view_size = sizeof(tg::mat4);
+
+            arc_desc_set.update_argument(bv.mDevice.getDevice(), 0, shader_arg_zero);
+
+            shader_argument shader_arg_one;
+            shader_arg_one.srvs.push_back(albedo_view);
+            shader_arg_one.cbv = dynamicBufferRing.getBuffer();
+            shader_arg_one.cbv_view_offset = 0;
+            shader_arg_one.cbv_view_size = sizeof(tg::mat4);
+
+            arc_desc_set.update_argument(bv.mDevice.getDevice(), 1, shader_arg_one);
         }
 
-        cc::capped_array<descriptor_set_bundle, 6> presentDescriptorSets;
+
+        descriptor_set_bundle present_desc_set;
         {
-            presentDescriptorSets.emplace(bv.mSwapchain.getNumBackbuffers());
-            for (auto& set : presentDescriptorSets)
-                set.initialize(descAllocator, present_pipeline_layout);
+            present_desc_set.initialize(descAllocator, present_pipeline_layout);
+
+            shader_argument arg_zero;
+            arg_zero.srvs.push_back(color_rt_view);
+            present_desc_set.update_argument(bv.mDevice.getDevice(), 0, arg_zero);
         }
 
         auto const on_resize_func = [&](int w, int h) {
@@ -554,6 +573,13 @@ TEST("pr backend liveness", exclusive)
             color_rt_image = create_render_target(bv.mAllocator, unsigned(w), unsigned(h), VK_FORMAT_R16G16B16A16_SFLOAT);
             vkDestroyImageView(bv.mDevice.getDevice(), color_rt_view, nullptr);
             color_rt_view = make_image_view(bv.mDevice.getDevice(), color_rt_image, VK_FORMAT_R16G16B16A16_SFLOAT);
+
+            // update RT-dependent descriptor sets
+            {
+                shader_argument arg_zero;
+                arg_zero.srvs.push_back(color_rt_view);
+                present_desc_set.update_argument(bv.mDevice.getDevice(), 0, arg_zero);
+            }
 
             // transition RTs
             {
@@ -654,9 +680,8 @@ TEST("pr backend liveness", exclusive)
                     vkCmdBindIndexBuffer(cmd_buf, ind_buf.buffer, 0, VK_INDEX_TYPE_UINT32);
 
 
-                    auto& descriptor_set = arcDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
                     {
-                        VkDescriptorBufferInfo descriptor_upload_info;
+                        VkDescriptorBufferInfo cb_upload_info;
                         {
                             struct mvp_data
                             {
@@ -665,30 +690,20 @@ TEST("pr backend liveness", exclusive)
 
                             {
                                 mvp_data* data;
-                                dynamicBufferRing.allocConstantBufferTyped(data, descriptor_upload_info);
+                                dynamicBufferRing.allocConstantBufferTyped(data, cb_upload_info);
                                 data->vp = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
                             }
-
-                            shader_argument shader_arg_zero;
-                            shader_arg_zero.cbv = dynamicBufferRing.getBuffer();
-                            shader_arg_zero.cbv_view_offset = 0;
-                            shader_arg_zero.cbv_view_size = sizeof(mvp_data);
-
-                            descriptor_set.update(bv.mDevice.getDevice(), 0, shader_arg_zero);
                         }
 
-                        cc::array const uniform_offsets = {uint32_t(descriptor_upload_info.offset)};
-                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arc_pipeline_layout.pipeline_layout, 0, 1,
-                                                &descriptor_set.descriptor_sets[0], uint32_t(uniform_offsets.size()), uniform_offsets.data());
+                        auto const dynamic_offset = uint32_t(cb_upload_info.offset);
+
+                        arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.pipeline_layout, 0, dynamic_offset);
                     }
 
                     {
-                        shader_argument shader_arg_one;
-                        shader_arg_one.srvs.push_back(albedo_view);
-
                         model_matrix_data* vert_cb_data;
-                        VkDescriptorBufferInfo descriptor_upload_info;
-                        dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, descriptor_upload_info);
+                        VkDescriptorBufferInfo cb_upload_info;
+                        dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, cb_upload_info);
 
                         // record model matrices
                         auto index = 0u;
@@ -697,25 +712,15 @@ TEST("pr backend liveness", exclusive)
                             vert_cb_data->model_matrices[index++].model_mat = get_model_matrix(modelpos, run_time);
                         }
 
-                        {
-                            shader_arg_one.cbv = dynamicBufferRing.getBuffer();
-                            shader_arg_one.cbv_view_offset = 0;
-                            shader_arg_one.cbv_view_size = sizeof(tg::mat4);
-
-                            descriptor_set.update(bv.mDevice.getDevice(), 1, shader_arg_one);
-                        }
-
-                        for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
+                        for (auto i = 0u; i < vert_cb_data->model_matrices.size(); ++i)
                         {
                             auto const dynamic_offset = uint32_t(i * sizeof(vert_cb_data->model_matrices[0]));
-                            auto const combined_offset = uint32_t(descriptor_upload_info.offset) + dynamic_offset;
+                            auto const combined_offset = uint32_t(cb_upload_info.offset) + dynamic_offset;
 
-                            vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arc_pipeline_layout.pipeline_layout, 1, 1,
-                                                    &descriptor_set.descriptor_sets[1], 1, &combined_offset);
+                            arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.pipeline_layout, 1, combined_offset);
                             vkCmdDrawIndexed(cmd_buf, num_indices, 1, 0, 0, 0);
                         }
                     }
-
 
                     vkCmdEndRenderPass(cmd_buf);
                 }
@@ -748,17 +753,7 @@ TEST("pr backend liveness", exclusive)
                     vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                     vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
 
-                    {
-                        auto& descriptor_set = presentDescriptorSets[bv.mSwapchain.getCurrentBackbufferIndex()];
-
-                        shader_argument arg_zero;
-                        arg_zero.srvs.push_back(color_rt_view);
-
-                        descriptor_set.update(bv.mDevice.getDevice(), 0, arg_zero);
-
-                        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, present_pipeline_layout.pipeline_layout, 0, 1,
-                                                &descriptor_set.descriptor_sets[0], 0, nullptr);
-                    }
+                    present_desc_set.bind_argument(cmd_buf, present_pipeline_layout.pipeline_layout, 0);
 
                     vkCmdDraw(cmd_buf, 3, 1, 0, 0);
                     vkCmdEndRenderPass(cmd_buf);
@@ -799,11 +794,8 @@ TEST("pr backend liveness", exclusive)
             arc_pipeline_layout.free(device);
             present_pipeline_layout.free(device);
 
-            for (auto& desc : arcDescriptorSets)
-                desc.free(descAllocator);
-
-            for (auto& desc : presentDescriptorSets)
-                desc.free(descAllocator);
+            arc_desc_set.free(descAllocator);
+            present_desc_set.free(descAllocator);
 
             for (auto& shader : arcShaders)
                 shader.free(device);
