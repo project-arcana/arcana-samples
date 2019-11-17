@@ -44,6 +44,7 @@
 
 #include <phantasm-renderer/backend/assets/image_loader.hh>
 #include <phantasm-renderer/backend/assets/mesh_loader.hh>
+#include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
 #include <phantasm-renderer/backend/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
@@ -204,7 +205,9 @@ TEST("pr backend liveness", exclusive)
                 framebuf.depth_target.push_back(DXGI_FORMAT_D32_FLOAT);
                 framebuf.render_targets.push_back(backend.mSwapchain.getBackbufferFormat());
 
-                auto const input_layout = get_vertex_attributes<assets::simple_vertex>();
+                auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
+                auto const input_layout = get_input_description(attrib_info);
+
                 pso = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig.raw_root_sig, pr::default_config, framebuf);
             }
 
@@ -443,9 +446,10 @@ TEST("pr backend liveness", exclusive)
         VkPipeline arcPipeline;
         VkFramebuffer arcFramebuffer;
         {
-            auto const vert_attribs = get_vertex_attributes<assets::simple_vertex>();
+            auto const vert_attribs = assets::get_vertex_attributes<assets::simple_vertex>();
+            auto const input_layout = get_input_description(vert_attribs);
             arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.pipeline_layout, arcShaders, pr::default_config,
-                                          vert_attribs, sizeof(assets::simple_vertex));
+                                          input_layout, sizeof(assets::simple_vertex));
 
             {
                 cc::array const attachments = {color_rt_view, depth_view};
@@ -464,8 +468,7 @@ TEST("pr backend liveness", exclusive)
 
         cc::capped_vector<shader, 6> presentShaders;
         presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/pixel_blit.spv", shader_domain::pixel));
-        presentShaders.push_back(
-            create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/vertex_blit.spv", shader_domain::vertex));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/vertex_blit.spv", shader_domain::vertex));
 
         VkPipeline presentPipeline;
         {
