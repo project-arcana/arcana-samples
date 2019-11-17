@@ -480,8 +480,8 @@ TEST("pr backend liveness", exclusive)
         }
 
         cc::capped_vector<shader, 6> presentShaders;
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/fs_blit_frag.spv", shader_domain::pixel, "main"));
-        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv/fs_vert.spv", shader_domain::vertex, "main"));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/pixel_blit.spv", shader_domain::pixel));
+        presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "testdata/shader/spirv_cross/vertex_blit.spv", shader_domain::vertex));
 
         VkPipeline presentPipeline;
         {
