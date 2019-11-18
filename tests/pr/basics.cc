@@ -606,7 +606,6 @@ TEST("pr backend liveness", exclusive)
                 auto const frametime = timer.elapsedSecondsD();
                 timer.restart();
                 run_time += frametime;
-                std::cout << "frametime: " << frametime << std::endl;
 
                 if (!bv.mSwapchain.waitForBackbuffer())
                 {
