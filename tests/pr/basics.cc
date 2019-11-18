@@ -530,18 +530,20 @@ TEST("pr backend liveness", exclusive)
             present_desc_set.update_argument(bv.mDevice.getDevice(), 0, arg_zero);
         }
 
-        auto const on_resize_func = [&](int w, int h) {
-            bv.mSwapchain.onResize(w, h);
+        auto const on_resize_func = [&](int width, int height) {
+            bv.mSwapchain.onResize(width, height);
+
+            auto const backbuffer_size = bv.mSwapchain.getBackbufferSize();
 
             // recreate depth buffer
             bv.mAllocator.free(depth_image);
-            depth_image = create_depth_stencil(bv.mAllocator, unsigned(w), unsigned(h), VK_FORMAT_D32_SFLOAT);
+            depth_image = create_depth_stencil(bv.mAllocator, unsigned(backbuffer_size.x), unsigned(backbuffer_size.y), VK_FORMAT_D32_SFLOAT);
             vkDestroyImageView(bv.mDevice.getDevice(), depth_view, nullptr);
             depth_view = make_image_view(bv.mDevice.getDevice(), depth_image, VK_FORMAT_D32_SFLOAT);
 
             // recreate color rt buffer
             bv.mAllocator.free(color_rt_image);
-            color_rt_image = create_render_target(bv.mAllocator, unsigned(w), unsigned(h), VK_FORMAT_R16G16B16A16_SFLOAT);
+            color_rt_image = create_render_target(bv.mAllocator, unsigned(backbuffer_size.x), unsigned(backbuffer_size.y), VK_FORMAT_R16G16B16A16_SFLOAT);
             vkDestroyImageView(bv.mDevice.getDevice(), color_rt_view, nullptr);
             color_rt_view = make_image_view(bv.mDevice.getDevice(), color_rt_image, VK_FORMAT_R16G16B16A16_SFLOAT);
 
@@ -573,8 +575,8 @@ TEST("pr backend liveness", exclusive)
                 fb_info.renderPass = arcRenderPass;
                 fb_info.attachmentCount = unsigned(attachments.size());
                 fb_info.pAttachments = attachments.data();
-                fb_info.width = unsigned(w);
-                fb_info.height = unsigned(h);
+                fb_info.width = unsigned(backbuffer_size.x);
+                fb_info.height = unsigned(backbuffer_size.y);
                 fb_info.layers = 1;
                 PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &arcFramebuffer));
             }
@@ -583,7 +585,7 @@ TEST("pr backend liveness", exclusive)
             vkDeviceWaitIdle(bv.mDevice.getDevice());
 
 
-            std::cout << "resize to " << w << "x" << h << std::endl;
+            std::cout << "resize to " << width << "x" << height << " (backbuffer: " << backbuffer_size.x << "x" << backbuffer_size.y << ")" << std::endl;
         };
 
         device::Timer timer;
