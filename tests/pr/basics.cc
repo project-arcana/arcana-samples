@@ -1,11 +1,8 @@
-#include <nexus/test.hh>
-
 #include <array>
-#include <iostream>
-
-#include <typed-geometry/tg.hh>
-
 #include <clean-core/capped_vector.hh>
+#include <iostream>
+#include <nexus/test.hh>
+#include <typed-geometry/tg.hh>
 
 #ifdef PR_BACKEND_D3D12
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
@@ -88,6 +85,9 @@ static_assert(sizeof(model_matrix_data) == sizeof(model_matrix_data::padded_inst
 
 TEST("pr backend liveness", exclusive)
 {
+    pr::backend::backend_config config;
+    config.validation = pr::backend::validation_level::on_extended;
+
 #ifdef PR_BACKEND_D3D12
     if (10)
     {
@@ -98,11 +98,7 @@ TEST("pr backend liveness", exclusive)
         window.initialize("Liveness test | D3D12");
 
         BackendD3D12 backend;
-        {
-            d3d12_config config;
-            config.enable_validation_extended = true;
-            backend.initialize(config, window.getHandle());
-        }
+        backend.initialize(config, window.getHandle());
 
         CommandListRing commandListRing;
         DescriptorAllocator descAllocator;
@@ -347,11 +343,7 @@ TEST("pr backend liveness", exclusive)
         window.initialize("Liveness test | Vulkan");
 
         BackendVulkan bv;
-        {
-            vulkan_config config;
-            config.enable_validation = true;
-            bv.initialize(config, window);
-        }
+        bv.initialize(config, window);
 
         CommandBufferRing commandBufferRing;
         DynamicBufferRing dynamicBufferRing;
@@ -796,6 +788,7 @@ TEST("pr adapter choice", exclusive)
     auto constexpr mute = false;
     if (0)
     {
+        using namespace pr::backend;
         using namespace pr::backend::d3d12;
 
         // Adapter choice basics
