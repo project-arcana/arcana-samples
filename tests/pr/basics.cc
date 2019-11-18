@@ -87,6 +87,7 @@ TEST("pr backend liveness", exclusive)
 {
     pr::backend::backend_config config;
     config.validation = pr::backend::validation_level::on_extended;
+    config.adapter_preference = pr::backend::adapter_preference::highest_vram;
 
 #ifdef PR_BACKEND_D3D12
     if (10)
