@@ -139,7 +139,7 @@ TEST("pr backend liveness", exclusive)
             cpu_cbv_srv_uav mat_srv = descAllocator.allocCBV_SRV_UAV();
             {
                 material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, sample_texture_path);
-                make_srv(material, mat_srv.handle);
+                make_srv(material.raw, mat_srv.handle);
 
                 uploadHeap.barrierResourceOnFlush(material.get_allocation(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             }
@@ -212,10 +212,10 @@ TEST("pr backend liveness", exclusive)
                 std::cout << "resize to " << w << "x" << h << std::endl;
 
                 depth_buffer = create_depth_stencil(backend.mAllocator, w, h, DXGI_FORMAT_D32_FLOAT);
-                make_dsv(depth_buffer, depth_buffer_dsv.handle);
+                make_dsv(depth_buffer.raw, depth_buffer_dsv.handle);
 
                 color_buffer = create_render_target(backend.mAllocator, w, h, DXGI_FORMAT_R16G16B16A16_FLOAT);
-                make_rtv(color_buffer, color_buffer_rtv.handle);
+                make_rtv(color_buffer.raw, color_buffer_rtv.handle);
 
                 backend.mSwapchain.onResize(w, h);
             };
