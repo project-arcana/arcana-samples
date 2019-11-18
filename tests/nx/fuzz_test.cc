@@ -1,6 +1,6 @@
 #include <nexus/fuzz_test.hh>
 
-FUZZ_TEST("nexus fuzz test")(tg::rng& rng)
+FUZZ_TEST("fuzz test")(tg::rng& rng)
 {
     CHECK(tg::abs(uniform(rng, -10.f, 10.f)) >= 0);
 

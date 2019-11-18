@@ -32,6 +32,8 @@ MONTE_CARLO_TEST("mct basic")
     addOp("sub", [](int a, int b) { return a - b; });
     addOp("tri", [](int a, int b, int c) { return a * b - c; });
     addOp("inc 2", [](int& a) { a += 2; });
+    addOp("div", [](int a) { return a / 2; }).when([](int a) { return a % 4 == 0; });
+
     addInvariant("mod 2", [](int i) { CHECK(i % 2 == 0); });
 
     // testSubstitutability([](int a, long long b) { CHECK(a == b); });
@@ -46,6 +48,7 @@ MONTE_CARLO_TEST("mct api")
     addOp("get v", &api_struct::v);
     addOp("inc", &api_struct::inc);
     addOp("dec", &api_struct::dec).when(&api_struct::can_dec);
+
     addInvariant(">= 4", &api_struct::test_invariant);
     addInvariant(">= 4", [](int i) { return i >= 4; });
 }
@@ -55,6 +58,7 @@ MONTE_CARLO_TEST("mct precondition")
     addOp("gen", [](tg::rng& rng) { return uniform(rng, 0, 10); });
     addOp("add", [](int i) { return i + 3; });
     addOp("sub", [](int i) { return i - 5; }).when([](int i) { return i >= 5; });
+
     addInvariant("pos", [](int a) { CHECK(a >= 0); });
 }
 
