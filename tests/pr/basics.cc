@@ -236,8 +236,8 @@ TEST("pr backend liveness", exclusive)
 
                 if (!window.isMinimized())
                 {
-                    auto const frametime = timer.getElapsedTime();
-                    timer.reset();
+                    auto const frametime = timer.elapsedSecondsD();
+                    timer.restart();
                     run_time += frametime;
 
                     dynamicBufferRing.onBeginFrame();
@@ -603,9 +603,10 @@ TEST("pr backend liveness", exclusive)
                     bv.mSwapchain.clearBackbufferResizeFlag();
                 }
 
-                auto const frametime = timer.getElapsedTime();
-                timer.reset();
+                auto const frametime = timer.elapsedSecondsD();
+                timer.restart();
                 run_time += frametime;
+                std::cout << "frametime: " << frametime << std::endl;
 
                 if (!bv.mSwapchain.waitForBackbuffer())
                 {
