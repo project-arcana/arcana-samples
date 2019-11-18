@@ -1,6 +1,7 @@
 #include <nexus/monte_carlo_test.hh>
 
-#include <clean-core/capped_vector.hh>
+#include <vector>
+
 #include <clean-core/vector.hh>
 
 #include <clean-core/unique_ptr.hh>
@@ -35,8 +36,6 @@ MONTE_CARLO_TEST("mct basic")
     addOp("div", [](int a) { return a / 2; }).when([](int a) { return a % 4 == 0; });
 
     addInvariant("mod 2", [](int i) { CHECK(i % 2 == 0); });
-
-    // testSubstitutability([](int a, long long b) { CHECK(a == b); });
 }
 
 MONTE_CARLO_TEST("mct api")
@@ -62,19 +61,29 @@ MONTE_CARLO_TEST("mct precondition")
     addInvariant("pos", [](int a) { CHECK(a >= 0); });
 }
 
-/*
 MONTE_CARLO_TEST("nexus mct substitute")
 {
-    auto add_ops = [](auto container)
-    {
+    addOp("gen int", [](tg::rng& rng) { return uniform(rng, -10, 10); });
+
+    auto add_ops = [&](auto container) {
         using container_t = decltype(container);
 
-        addOp("")
+        addOp("def ctor", [] { return container_t(); });
+        addOp("clear", [](container_t& c) { c.clear(); });
+        addOp("push_back", [](container_t& c, int v) { c.push_back(v); });
+        addOp("pop_back", [](container_t& c) { c.pop_back(); }).when([](container_t const& c) { return !c.empty(); });
     };
 
-    std::list
+    add_ops(std::vector<int>());
+    add_ops(cc::vector<int>());
+
+    testEquivalence<std::vector<int>, cc::vector<int>>([](auto const& a, auto const& b) {
+        CHECK(a.size() == b.size());
+        auto s = a.size();
+        for (size_t i = 0; i < s; ++i)
+            CHECK(a[i] == b[i]);
+    });
 }
-*/
 
 // TODO: proper move-only impl
 #if 0
