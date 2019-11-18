@@ -1,7 +1,10 @@
-#include <array>
-#include <clean-core/capped_vector.hh>
-#include <iostream>
 #include <nexus/test.hh>
+
+#include <array>
+#include <iostream>
+
+#include <clean-core/capped_vector.hh>
+
 #include <typed-geometry/tg.hh>
 
 #ifdef PR_BACKEND_D3D12
@@ -76,11 +79,9 @@ struct model_matrix_data
         tg::mat4 model_mat;
         char padding[256 - sizeof(tg::mat4)];
     };
-    static_assert(sizeof(padded_instance) == 256);
 
     cc::array<padded_instance, num_instances> model_matrices;
 };
-static_assert(sizeof(model_matrix_data) == sizeof(model_matrix_data::padded_instance) * model_matrix_data::num_instances);
 }
 
 TEST("pr backend liveness", exclusive)
@@ -90,7 +91,6 @@ TEST("pr backend liveness", exclusive)
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
 
 #ifdef PR_BACKEND_D3D12
-    if (10)
     {
         using namespace pr::backend;
         using namespace pr::backend::d3d12;
@@ -335,7 +335,6 @@ TEST("pr backend liveness", exclusive)
 #endif
 
 #ifdef PR_BACKEND_VULKAN
-    if (10)
     {
         using namespace pr::backend;
         using namespace pr::backend::vk;
