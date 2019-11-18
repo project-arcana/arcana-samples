@@ -148,7 +148,7 @@ TEST("td API - compilation", exclusive)
                 td::submit_n(s1, [](auto i) { gSink += i; }, 50);
 
                 std::array<int, 50> values;
-                td::submit_each_ref(s1, [](int& val) { ++val; }, cc::span(values.data(), values.size()));
+                td::submit_each_ref<int>(s1, [](int& val) { ++val; }, values);
 
                 td::submit_batched(s1,
                                    [](auto begin, auto end) {
@@ -165,7 +165,7 @@ TEST("td API - compilation", exclusive)
                 auto s1 = td::submit_n([](auto i) { gSink += i; }, 50);
 
                 std::array<int, 50> values;
-                auto s2 = td::submit_each_ref([](int& val) { ++val; }, cc::span(values.data(), values.size()));
+                auto s2 = td::submit_each_ref<int>([](int& val) { ++val; }, values);
 
                 auto s3 = td::submit_batched(
                     [](auto begin, auto end) {
@@ -309,8 +309,7 @@ TEST("td API - consistency", exclusive)
             for (auto v : values)
                 CHECK(v == 0);
 
-            // TODO: cc:span from containers (deduction guide currently missing)
-            auto s = td::submit_each_ref([](int& v) { v = 1; }, cc::span{values.data(), values.size()});
+            auto s = td::submit_each_ref<int>([](int& v) { v = 1; }, values);
 
             td::wait_for(s);
 
