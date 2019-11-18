@@ -530,11 +530,7 @@ TEST("pr backend liveness", exclusive)
             present_desc_set.update_argument(bv.mDevice.getDevice(), 0, arg_zero);
         }
 
-        auto const on_resize_func = [&](int width, int height) {
-            bv.mSwapchain.onResize(width, height);
-
-            auto const backbuffer_size = bv.mSwapchain.getBackbufferSize();
-
+        auto const on_swapchain_resize_func = [&](tg::ivec2 backbuffer_size) {
             // recreate depth buffer
             bv.mAllocator.free(depth_image);
             depth_image = create_depth_stencil(bv.mAllocator, unsigned(backbuffer_size.x), unsigned(backbuffer_size.y), VK_FORMAT_D32_SFLOAT);
@@ -583,9 +579,12 @@ TEST("pr backend liveness", exclusive)
 
             // flush
             vkDeviceWaitIdle(bv.mDevice.getDevice());
+            std::cout << "resized swapchain to: " << backbuffer_size.x << "x" << backbuffer_size.y << std::endl;
+        };
 
-
-            std::cout << "resize to " << width << "x" << height << " (backbuffer: " << backbuffer_size.x << "x" << backbuffer_size.y << ")" << std::endl;
+        auto const on_window_resize_func = [&](int width, int height) {
+            bv.mSwapchain.onResize(width, height);
+            std::cout << "resized window to " << width << "x" << height << std::endl;
         };
 
         device::Timer timer;
@@ -598,18 +597,30 @@ TEST("pr backend liveness", exclusive)
             {
                 if (!window.isMinimized())
                 {
-                    on_resize_func(window.getWidth(), window.getHeight());
+                    on_window_resize_func(window.getWidth(), window.getHeight());
                 }
                 window.clearPendingResize();
             }
 
             if (!window.isMinimized())
             {
+                if (bv.mSwapchain.hasBackbufferResized())
+                {
+                    // The swapchain has resized, recreate depending resources
+                    on_swapchain_resize_func(bv.mSwapchain.getBackbufferSize());
+                    bv.mSwapchain.clearBackbufferResizeFlag();
+                }
+
                 auto const frametime = timer.getElapsedTime();
                 timer.reset();
                 run_time += frametime;
 
-                bv.mSwapchain.waitForBackbuffer();
+                if (!bv.mSwapchain.waitForBackbuffer())
+                {
+                    // The swapchain was out of date and has resized, discard this frame
+                    continue;
+                }
+
                 commandBufferRing.onBeginFrame();
                 dynamicBufferRing.onBeginFrame();
 
