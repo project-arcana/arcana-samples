@@ -1,5 +1,6 @@
 #include <nexus/monte_carlo_test.hh>
 
+#include <sstream>
 #include <vector>
 
 #include <clean-core/vector.hh>
@@ -71,7 +72,20 @@ MONTE_CARLO_TEST("nexus mct substitute")
         addOp("def ctor", [] { return container_t(); });
         addOp("clear", [](container_t& c) { c.clear(); });
         addOp("push_back", [](container_t& c, int v) { c.push_back(v); });
-        addOp("pop_back", [](container_t& c) { c.pop_back(); }).when([](container_t const& c) { return !c.empty(); });
+        addOp("pop_back", &container_t::pop_back).when([](container_t const& c) { return !c.empty(); });
+
+        setPrinter<container_t>([](container_t const& c) -> cc::string {
+            std::stringstream ss;
+            ss << "[";
+            for (auto i = 0u; i < c.size(); ++i)
+            {
+                if (i > 0)
+                    ss << ", ";
+                ss << c[i];
+            }
+            ss << "]";
+            return ss.str().c_str();
+        });
     };
 
     add_ops(std::vector<int>());
