@@ -10,7 +10,7 @@ MONTE_CARLO_TEST("cc::string mct")
 
     addOp("gen char", make_char);
 
-    auto const addType = [&](auto obj) {
+    auto const addType = [&](auto obj, bool is_cc) {
         using string_t = decltype(obj);
 
         addOp("default ctor", [] { return string_t(); });
@@ -40,6 +40,9 @@ MONTE_CARLO_TEST("cc::string mct")
         addOp("op[]", [](tg::rng& rng, string_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, string_t const& s) {
             return s.size() > 0;
         });
+        addOp("data[]", [](tg::rng& rng, string_t const& s) { return s.data()[uniform(rng, 0, int(s.size()) - 1)]; }).when([](tg::rng&, string_t const& s) {
+            return s.size() > 0;
+        });
 
         addOp("fill", [](string_t& s, char v) {
             for (auto& c : s)
@@ -49,11 +52,24 @@ MONTE_CARLO_TEST("cc::string mct")
         addOp("shrink_to_fit", &string_t::shrink_to_fit);
         addOp("clear", &string_t::clear);
 
-        // TODO: replace all from prev test
+        addOp("size", &string_t::size);
+        addOp("front", [](string_t const& s) { return s.front(); }).when_not(&string_t::empty);
+        addOp("back", [](string_t const& s) { return s.back(); }).when_not(&string_t::empty);
+
+        addOp("+= char", [](string_t& s, char c) { s += c; });
+        addOp("+= string", [](string_t& s, string_t const& rhs) { s += rhs; });
+        addOp("+= lit", [](string_t& s) { s += "hello"; });
+
+        addOp("s + s", [](string_t const& a, string_t const& b) { return a + b; });
+        addOp("s + c", [](string_t const& a, char b) { return a + b; });
+        addOp("s + lit", [](string_t const& a) { return a + "test"; });
+
+        if (is_cc)
+            addInvariant("cap", [](string_t& s) { REQUIRE(s.capacity() >= 15); });
     };
 
-    addType(std::string());
-    addType(cc::string());
+    addType(std::string(), false);
+    addType(cc::string(), true);
 
     testEquivalence<std::string, cc::string>();
 }
