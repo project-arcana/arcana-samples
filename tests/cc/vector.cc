@@ -1,4 +1,4 @@
-#include <nexus/test.hh>
+#include <nexus/fuzz_test.hh>
 
 #include <vector>
 
@@ -6,6 +6,7 @@
 #include <clean-core/vector.hh>
 
 #include <typed-geometry/feature/random.hh>
+#include <typed-geometry/tg.hh>
 
 #include "special_types.hh"
 
@@ -174,4 +175,21 @@ TEST("vector basics")
     type_test(move_only_type(0));
 
     // TODO: count constructions!
+}
+
+FUZZ_TEST("vector fuzz")(tg::rng& rng)
+{
+    auto cnt = uniform(rng, 1, 10);
+
+    std::vector<int> v0;
+    cc::vector<int> v1;
+
+    for (auto i = 0; i < cnt; ++i)
+    {
+        auto v = uniform(rng, -10, 10);
+        v0.push_back(v);
+        v1.push_back(v);
+    }
+
+    CHECK(tg::sum(v0) == tg::sum(v1));
 }

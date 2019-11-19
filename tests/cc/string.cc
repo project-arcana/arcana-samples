@@ -1,134 +1,75 @@
-#include <nexus/test.hh>
+#include <nexus/monte_carlo_test.hh>
 
 #include <string>
 
 #include <clean-core/string.hh>
 
-#include <iostream>
-
-#include <typed-geometry/feature/random.hh>
-
-namespace
+MONTE_CARLO_TEST("cc::string mct")
 {
-template <class string_t>
-struct string_tester
-{
-    using T = std::decay_t<decltype(std::declval<string_t>()[0])>;
+    auto const make_char = [](tg::rng& rng) { return uniform(rng, 'A', 'z'); };
 
-    tg::rng rng;
-    string_t v;
+    addOp("gen char", make_char);
 
-    auto make_obj() { return uniform(rng, 'A', 'z'); }
-    string_t make_str()
-    {
-        string_t v;
-        auto s = uniform(rng, 0, 40);
-        for (auto i = 0; i < s; ++i)
-            v.push_back(make_obj());
-        return v;
-    }
+    auto const addType = [&](auto obj, bool is_cc) {
+        using string_t = decltype(obj);
 
-    void step()
-    {
-        auto const nr = uniform(rng, 0, 13);
-        switch (nr)
-        {
-        case 0:
-            v.clear();
-            break;
-        case 1:
-            if (!v.empty())
-                v.pop_back();
-            break;
-        case 2:
-            if (v.size() < 20)
-                v.push_back(make_obj());
-            break;
-        case 3:
-            break;
-        case 4:
-            v = make_str(); // move
-            break;
-        case 5:
-        {
-            auto v2 = make_str();
-            v = v2; // copy
-        }
-        break;
-        case 6:
-            v.resize(size_t(uniform(rng, 0, 5)));
-            break;
-        case 7:
-            v.resize(size_t(uniform(rng, 0, 5)), make_obj());
-            break;
-        case 8:
-            v.reserve(size_t(uniform(rng, 0, 10)));
-            break;
-        case 9:
-            v.shrink_to_fit();
-            break;
-        case 10:
-            break;
-        case 11:
-            v = string_t(make_str()); // move ctor
-            break;
-        case 12:
-        {
-            auto v2 = make_str();
-            v = string_t(v2); // copy ctor
-        }
-        break;
-        case 13:
-            if (!v.empty())
-                v[uniform(rng, size_t(0), v.size() - 1)] = make_obj();
-            break;
-        default:
-            break;
-        }
-    }
+        addOp("default ctor", [] { return string_t(); });
+        addOp("copy ctor", [](string_t const& s) { return string_t(s); });
+        addOp("move ctor", [](string_t const& s) { return cc::move(string_t(s)); });
+        addOp("copy assignment", [](string_t& a, string_t const& b) { a = b; });
+        addOp("move assignment", [](string_t& a, string_t const& b) { a = string_t(b); });
 
-    template <class other_string_t>
-    void check_equal(other_string_t const& rhs) const
-    {
-        auto const& v0 = v;
-        auto const& v1 = rhs.v;
+        addOp("randomize", [&](tg::rng& rng, string_t& s) {
+            auto cnt = uniform(rng, 0, 30);
+            s.resize(cnt);
+            for (auto i = 0; i < cnt; ++i)
+                s[i] = make_char(rng);
+            return s;
+        });
 
-        REQUIRE(v0.size() == v1.size());
-        CHECK(v0.empty() == v1.empty());
-        for (auto i = 0u; i < v0.size(); ++i)
-            REQUIRE(v0[i] == v1[i]);
-        CHECK(v0 == v0);
-        CHECK(v1 == v1);
-    }
-};
-}
+        addOp("reserve", [](tg::rng& rng, string_t& s) { s.reserve(uniform(rng, 0, 30)); });
+        addOp("resize", [](tg::rng& rng, string_t& s) { s.resize(uniform(rng, 0, 30)); });
+        addOp("resize + char", [](tg::rng& rng, string_t& s, char c) { s.resize(uniform(rng, 0, 30), c); });
 
-enum class testId : uint64_t {};
+        addOp("random replace", [&](tg::rng& rng, string_t& s) { random_choice(rng, s) = make_char(rng); }).when([](tg::rng&, string_t const& s) {
+            return s.size() > 0;
+        });
 
-TEST("string basics")
-{
-    tg::rng rng;
+        addOp("push_back", [](string_t& s, char c) { s.push_back(c); });
 
-    auto const test = [&](auto&& v0, auto&& v1) {
-        //
-        auto s = rng();
-        v0.rng.seed(s);
-        v1.rng.seed(s);
+        addOp("op[]", [](tg::rng& rng, string_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, string_t const& s) {
+            return s.size() > 0;
+        });
+        addOp("data[]", [](tg::rng& rng, string_t const& s) { return s.data()[uniform(rng, 0, int(s.size()) - 1)]; }).when([](tg::rng&, string_t const& s) {
+            return s.size() > 0;
+        });
 
-        for (auto i = 0; i < 100; ++i)
-        {
-            v1.check_equal(v0);
+        addOp("fill", [](string_t& s, char v) {
+            for (auto& c : s)
+                c = v;
+        });
 
-            v0.step();
-            v1.step();
+        addOp("shrink_to_fit", &string_t::shrink_to_fit);
+        addOp("clear", &string_t::clear);
 
-            v0.check_equal(v1);
-        }
+        addOp("size", &string_t::size);
+        addOp("front", [](string_t const& s) { return s.front(); }).when_not(&string_t::empty);
+        addOp("back", [](string_t const& s) { return s.back(); }).when_not(&string_t::empty);
+
+        addOp("+= char", [](string_t& s, char c) { s += c; });
+        addOp("+= string", [](string_t& s, string_t const& rhs) { s += rhs; });
+        addOp("+= lit", [](string_t& s) { s += "hello"; });
+
+        addOp("s + s", [](string_t const& a, string_t const& b) { return a + b; });
+        addOp("s + c", [](string_t const& a, char b) { return a + b; });
+        addOp("s + lit", [](string_t const& a) { return a + "test"; });
+
+        if (is_cc)
+            addInvariant("cap", [](string_t& s) { REQUIRE(s.capacity() >= 15); });
     };
 
-    // test new string and string-like types
-    for (auto i = 0; i < 10; ++i)
-    {
-        test(string_tester<std::string>(), string_tester<cc::string>());
-    }
+    addType(std::string(), false);
+    addType(cc::string(), true);
+
+    testEquivalence<std::string, cc::string>();
 }
