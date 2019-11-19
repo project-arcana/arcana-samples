@@ -255,8 +255,8 @@ TEST("pr backend liveness", exclusive)
 
                         util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
                         descAllocator.setHeaps(*command_list);
-                        command_list->SetPipelineState(pso);
                         command_list->SetGraphicsRootSignature(root_sig.raw_root_sig);
+                        command_list->SetPipelineState(pso);
 
                         backend.mSwapchain.barrierToRenderTarget(command_list);
 
@@ -427,7 +427,6 @@ TEST("pr backend liveness", exclusive)
             framebuffer_format.depth_target.push_back(VK_FORMAT_D32_SFLOAT);
 
             auto arc_prim_config = pr::primitive_pipeline_config{};
-            arc_prim_config.cull = pr::cull_mode::none;
             arcRenderPass = create_render_pass(bv.mDevice.getDevice(), framebuffer_format, arc_prim_config);
         }
 

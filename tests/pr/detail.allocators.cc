@@ -59,7 +59,7 @@ TEST("pr backend detail - linked pool")
 
     CHECK(n1.x == 5);
     pool.release(i1);
-    CHECK(n1.x != 5);
+    CHECK(n1.x != 5); // NOTE: this read is UB
 
     auto const i3 = pool.acquire();
     CHECK(i3 == 0);
