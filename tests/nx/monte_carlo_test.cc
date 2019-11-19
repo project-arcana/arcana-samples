@@ -62,7 +62,7 @@ MONTE_CARLO_TEST("mct precondition")
     addInvariant("pos", [](int a) { CHECK(a >= 0); });
 }
 
-MONTE_CARLO_TEST("nexus mct substitute")
+MONTE_CARLO_TEST("nexus mct equivalence")
 {
     addOp("gen int", [](tg::rng& rng) { return uniform(rng, -10, 10); });
 
@@ -70,9 +70,9 @@ MONTE_CARLO_TEST("nexus mct substitute")
         using container_t = decltype(container);
 
         addOp("def ctor", [] { return container_t(); });
-        addOp("clear", [](container_t& c) { c.clear(); });
+        addOp("clear", &container_t::clear);
         addOp("push_back", [](container_t& c, int v) { c.push_back(v); });
-        addOp("pop_back", &container_t::pop_back).when([](container_t const& c) { return !c.empty(); });
+        addOp("pop_back", &container_t::pop_back).when_not(&container_t::empty);
 
         setPrinter<container_t>([](container_t const& c) -> cc::string {
             std::stringstream ss;
@@ -91,7 +91,7 @@ MONTE_CARLO_TEST("nexus mct substitute")
     add_ops(std::vector<int>());
     add_ops(cc::vector<int>());
 
-    testEquivalence<std::vector<int>, cc::vector<int>>([](auto const& a, auto const& b) {
+    testEquivalence([](std::vector<int> const& a, cc::vector<int> const& b) {
         CHECK(a.size() == b.size());
         auto s = a.size();
         for (size_t i = 0; i < s; ++i)
