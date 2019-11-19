@@ -5,9 +5,11 @@
 
 #include <clean-core/vector.hh>
 
+#include <typed-geometry/tg.hh>
+
+#include <phantasm-renderer/backend/detail/linked_pool.hh>
 #include <phantasm-renderer/backend/detail/page_allocator.hh>
 
-#include <typed-geometry/tg.hh>
 
 TEST("pr backend detail - page allocator")
 {
@@ -34,6 +36,33 @@ TEST("pr backend detail - page allocator")
     CHECK(alloc6 == 8);
     auto const alloc7 = allocator.allocate(3);
     CHECK(alloc7 == 1);
+}
+
+TEST("pr backend detail - linked pool")
+{
+    struct node
+    {
+        int x;
+        int y;
+    };
+
+    pr::backend::detail::linked_pool<node> pool;
+    pool.initialize(50);
+
+    auto const i1 = pool.acquire();
+    CHECK(i1 == 0);
+    node& n1 = pool.get(i1);
+    n1 = { 5, 7 };
+
+    auto const i2 = pool.acquire();
+    CHECK(i2 == 1);
+
+    CHECK(n1.x == 5);
+    pool.release(i1);
+    CHECK(n1.x != 5);
+
+    auto const i3 = pool.acquire();
+    CHECK(i3 == 0);
 }
 
 TEST("pr backend detail - page allocator random")
