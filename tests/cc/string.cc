@@ -1,4 +1,4 @@
-#include <nexus/test.hh>
+#include <nexus/monte_carlo_test.hh>
 
 #include <string>
 
@@ -103,7 +103,48 @@ struct string_tester
 };
 }
 
-enum class testId : uint64_t {};
+MONTE_CARLO_TEST("cc::string mct")
+{
+    auto const make_char = [](tg::rng& rng) { return uniform(rng, 'A', 'z'); };
+
+    addOp("gen char", make_char);
+
+    auto const addType = [&](auto obj) {
+        using string_t = decltype(obj);
+
+        addOp("default ctor", [] { return string_t(); });
+
+        addOp("randomize", [&](tg::rng& rng, string_t& s) {
+            auto cnt = uniform(rng, 0, 30);
+            s.resize(cnt);
+            for (auto i = 0; i < cnt; ++i)
+                s[i] = make_char(rng);
+            return s;
+        });
+
+        addOp("random replace", [&](tg::rng& rng, string_t& s) { random_choice(rng, s) = make_char(rng); }).when([](tg::rng&, string_t const& s) {
+            return s.size() > 0;
+        });
+
+        addOp("op[]", [](tg::rng& rng, string_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, string_t const& s) {
+            return s.size() > 0;
+        });
+
+        addOp("fill", [](string_t& s, char v) {
+            for (auto& c : s)
+                c = v;
+        });
+
+        addOp("shrink_to_fit", [](string_t& s) { s.shrink_to_fit(); });
+
+        // TODO: replace all from prev test
+    };
+
+    addType(std::string());
+    addType(cc::string());
+
+    testEquivalence<std::string, cc::string>();
+}
 
 TEST("string basics")
 {
