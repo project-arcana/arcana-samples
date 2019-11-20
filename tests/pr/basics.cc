@@ -17,6 +17,7 @@
 #include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
 #include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
 #include <phantasm-renderer/backend/d3d12/pipeline_state.hh>
+#include <phantasm-renderer/backend/d3d12/pools/cmd_list_pool.hh>
 #include <phantasm-renderer/backend/d3d12/resources/resource_creation.hh>
 #include <phantasm-renderer/backend/d3d12/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/d3d12/root_signature.hh>
@@ -91,7 +92,7 @@ TEST("pr backend liveness", exclusive)
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
 
 #ifdef PR_BACKEND_D3D12
-//    if(0)
+    //    if(0)
     {
         using namespace pr::backend;
         using namespace pr::backend::d3d12;
@@ -102,13 +103,11 @@ TEST("pr backend liveness", exclusive)
         BackendD3D12 backend;
         backend.initialize(config, window.getHandle());
 
-        CommandListRing commandListRing;
         DescriptorAllocator descAllocator;
         DynamicBufferRing dynamicBufferRing;
         UploadHeap uploadHeap;
         {
             auto const num_backbuffers = backend.mSwapchain.getNumBackbuffers();
-            auto const num_command_lists = 8;
             auto const num_shader_resources = 2000 + 2000 + 10;
             auto const num_dsvs = 3;
             auto const num_rtvs = 60;
@@ -116,11 +115,16 @@ TEST("pr backend liveness", exclusive)
             auto const dynamic_buffer_size = 20 * 1024 * 1024;
             auto const upload_size = 1000 * 1024 * 1024;
 
-            commandListRing.initialize(backend, num_backbuffers, num_command_lists, D3D12_COMMAND_LIST_TYPE_DIRECT);
             descAllocator.initialize(backend.mDevice.getDevice(), num_shader_resources, num_dsvs, num_rtvs, num_samplers, num_backbuffers);
             dynamicBufferRing.initialize(backend.mDevice.getDevice(), num_backbuffers, dynamic_buffer_size);
             uploadHeap.initialize(&backend, upload_size);
         }
+
+        CommandListPool cmdListPool;
+        {
+            cmdListPool.initialize(backend, 8, 10);
+        }
+
 
         {
             // Shader compilation
@@ -221,9 +225,6 @@ TEST("pr backend liveness", exclusive)
                 backend.mSwapchain.onResize(w, h);
             };
 
-            Fence test_fence;
-            test_fence.initialize(backend.mDevice.getDevice());
-
             // Main loop
             device::Timer timer;
             double run_time = 0.0;
@@ -246,7 +247,6 @@ TEST("pr backend liveness", exclusive)
 
                     dynamicBufferRing.onBeginFrame();
                     descAllocator.onBeginFrame();
-                    commandListRing.onBeginFrame();
 
 
                     // ... do something else ...
@@ -255,7 +255,8 @@ TEST("pr backend liveness", exclusive)
 
                     // ... render to swapchain ...
                     {
-                        auto* const command_list = commandListRing.acquireCommandList();
+                        handle::command_list const cmd_list = cmdListPool.create();
+                        auto* const command_list = cmdListPool.getRawList(cmd_list);
 
                         util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
                         descAllocator.setHeaps(*command_list);
@@ -325,7 +326,7 @@ TEST("pr backend liveness", exclusive)
                         command_list->Close();
 
                         backend.mDirectQueue.submit(command_list);
-                        test_fence.issueFence(backend.mDirectQueue.getQueue());
+                        cmdListPool.freeOnSubmit(cmd_list, backend.mDirectQueue.getQueue());
                     }
 
                     backend.mSwapchain.present();
@@ -335,6 +336,8 @@ TEST("pr backend liveness", exclusive)
             // Cleanup before dtors get called
             backend.flushGPU();
             backend.mSwapchain.setFullscreen(false);
+
+            cmdListPool.destroy();
         }
     }
 #endif
