@@ -91,6 +91,7 @@ TEST("pr backend liveness", exclusive)
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
 
 #ifdef PR_BACKEND_D3D12
+//    if(0)
     {
         using namespace pr::backend;
         using namespace pr::backend::d3d12;
@@ -165,26 +166,26 @@ TEST("pr backend liveness", exclusive)
 
             uploadHeap.flushAndFinish();
 
-            root_signature root_sig;
+            root_signature_high_level root_sig;
             {
-                shader_payload_shape payload_shape;
+                cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
 
                 // Argument 0, camera CBV
                 {
-                    shader_payload_shape::shader_argument_shape arg_shape;
+                    arg::shader_argument_shape arg_shape;
                     arg_shape.has_cb = true;
                     arg_shape.num_srvs = 0;
                     arg_shape.num_uavs = 0;
-                    payload_shape.shader_arguments.push_back(arg_shape);
+                    payload_shape.push_back(arg_shape);
                 }
 
                 // Argument 1, pixel shader SRV and model matrix CBV
                 {
-                    shader_payload_shape::shader_argument_shape arg_shape;
+                    arg::shader_argument_shape arg_shape;
                     arg_shape.has_cb = true;
                     arg_shape.num_srvs = 1;
                     arg_shape.num_uavs = 0;
-                    payload_shape.shader_arguments.push_back(arg_shape);
+                    payload_shape.push_back(arg_shape);
                 }
 
                 root_sig.initialize(backend.mDevice.getDevice(), payload_shape);
@@ -203,7 +204,7 @@ TEST("pr backend liveness", exclusive)
                 framebuf.render_targets.push_back(backend.mSwapchain.getBackbufferFormat());
 
                 auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
-                auto const input_layout = get_input_description(attrib_info);
+                auto const input_layout = get_native_vertex_format(attrib_info);
 
                 pso = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig.raw_root_sig, pr::default_config, framebuf);
             }
@@ -219,6 +220,9 @@ TEST("pr backend liveness", exclusive)
 
                 backend.mSwapchain.onResize(w, h);
             };
+
+            Fence test_fence;
+            test_fence.initialize(backend.mDevice.getDevice());
 
             // Main loop
             device::Timer timer;
@@ -321,6 +325,7 @@ TEST("pr backend liveness", exclusive)
                         command_list->Close();
 
                         backend.mDirectQueue.submit(command_list);
+                        test_fence.issueFence(backend.mDirectQueue.getQueue());
                     }
 
                     backend.mSwapchain.present();
