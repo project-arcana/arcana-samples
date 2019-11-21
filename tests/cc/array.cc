@@ -27,7 +27,7 @@ TEST("cc::array")
     CHECK(tg::sum(b) == 6);
 }
 
-TEST("fixed cc::array")
+TEST("cc::array fixed")
 {
     cc::array<int, 3> a;
 

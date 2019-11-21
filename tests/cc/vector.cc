@@ -139,7 +139,7 @@ struct vector_tester
 };
 }
 
-TEST("vector basics")
+TEST("cc::vector basics")
 {
     tg::rng rng;
 
@@ -177,7 +177,7 @@ TEST("vector basics")
     // TODO: count constructions!
 }
 
-FUZZ_TEST("vector fuzz")(tg::rng& rng)
+FUZZ_TEST("cc::vector fuzz")(tg::rng& rng)
 {
     auto cnt = uniform(rng, 1, 10);
 
