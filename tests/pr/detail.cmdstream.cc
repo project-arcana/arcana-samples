@@ -1,62 +1,72 @@
-#include <nexus/test.hh>
+#include <nexus/fuzz_test.hh>
 
 #include <cstdlib>
-#include <iostream>
 
 #include <clean-core/defer.hh>
 
 #include <phantasm-renderer/backend/command_stream.hh>
 
-
-TEST("pr backend detail - command stream")
+FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
 {
     using namespace pr::backend;
 
+    struct callback
+    {
+        int num_beg_rp = 0;
+        int num_draw = 0;
+        int num_transition = 0;
+        int num_end_rp = 0;
+
+        void execute(cmd::begin_render_pass const&) { ++num_beg_rp; }
+        void execute(cmd::draw const&) { ++num_draw; }
+        void execute(cmd::transition_resources const&) { ++num_transition; }
+        void execute(cmd::end_render_pass const&) { ++num_end_rp; }
+    };
+
     constexpr size_t buffer_size = 1024 * 1024;
 
-    // allocate a buffer
+    constexpr auto max_num_cmds = 2000u;
+    static_assert(cmd::detail::max_command_size * max_num_cmds < buffer_size);
+
+    // allocate a buffer (1kb, which is why this test costs 3ms)
     char* const buffer = static_cast<char*>(std::malloc(buffer_size));
     CC_DEFER { std::free(buffer); };
 
-    // create the writer
-    command_stream_writer writer(buffer, buffer_size);
+    auto const iterations = tg::uniform(rng, 5u, 10u);
 
-    // write 10 draw commands
-    constexpr auto num_draw_cmds = 10;
-    static_assert(sizeof(cmd::draw) * num_draw_cmds + sizeof(cmd::final_command) < buffer_size);
-
-    for (auto _ = 0; _ < num_draw_cmds; ++_)
-        writer.add_command(cmd::draw{});
-    writer.finalize();
-
-    // parse the buffer
-    command_stream_parser parser(buffer);
-
-    // check that all parsed commands are draws, and that the number is right
-    auto num_read_draws = 0;
-
-    struct callback
+    for (auto it = 0u; it < iterations; ++it)
     {
-        int num_drawcalls = 0;
+        // create the writer (discarding any previous contents)
+        command_stream_writer writer(buffer, buffer_size);
 
-        void execute(cmd::begin_render_pass const&) {}
-        void execute(cmd::draw const&) { ++num_drawcalls; }
-        void execute(cmd::transition_resources const&) {}
-        void execute(cmd::end_render_pass const&) {}
-        void execute(cmd::final_command const&) {}
-    };
+        // write random numbers of draw commands of each type
+        auto const num_beg_rp = tg::uniform(rng, 0u, max_num_cmds / 4);
+        auto const num_draw_cmds = tg::uniform(rng, 0u, max_num_cmds / 4);
+        auto const num_transition = tg::uniform(rng, 0u, max_num_cmds / 4);
+        auto const num_end_rp = tg::uniform(rng, 0u, max_num_cmds / 4);
 
-    callback callback_instance;
-    REQUIRE(callback_instance.num_drawcalls == 0);
+        for (auto _ = 0u; _ < num_beg_rp; ++_)
+            writer.add_command(cmd::begin_render_pass{});
+        for (auto _ = 0u; _ < num_draw_cmds; ++_)
+            writer.add_command(cmd::draw{});
+        for (auto _ = 0u; _ < num_transition; ++_)
+            writer.add_command(cmd::transition_resources{});
+        for (auto _ = 0u; _ < num_end_rp; ++_)
+            writer.add_command(cmd::end_render_pass{});
 
-    for (cmd::detail::cmd_base const& x : parser)
-    {
-        CHECK(x.type == cmd::detail::cmd_type::draw);
+        // parse the buffer
+        command_stream_parser parser(writer.buffer(), writer.size());
 
-        ++num_read_draws;
-        cmd::detail::dynamic_dispatch(x, callback_instance);
+        callback callback_instance;
+
+        // dynamically call the correct overloads of the callback
+        for (cmd::detail::cmd_base const& cmd : parser)
+            cmd::detail::dynamic_dispatch(cmd, callback_instance);
+
+        // check if the amount of calls was correct
+        CHECK(callback_instance.num_beg_rp == num_beg_rp);
+        CHECK(callback_instance.num_draw == num_draw_cmds);
+        CHECK(callback_instance.num_transition == num_transition);
+        CHECK(callback_instance.num_end_rp == num_end_rp);
     }
-
-    CHECK(num_read_draws == num_draw_cmds);
-    CHECK(num_read_draws == callback_instance.num_drawcalls);
 }
