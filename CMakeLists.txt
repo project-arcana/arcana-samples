@@ -119,6 +119,9 @@ foreach(TARGET_NAME
     clean-core
     nexus
     reflector
+    phantasm-renderer
+    rich-log
+    task-dispatcher
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
 endforeach()

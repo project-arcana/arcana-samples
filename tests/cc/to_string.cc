@@ -4,7 +4,7 @@
 #include <clean-core/bit_cast.hh>
 #include <clean-core/to_string.hh>
 
-#include <iostream>
+#include <string>
 
 TEST("cc::to_string basics")
 {
