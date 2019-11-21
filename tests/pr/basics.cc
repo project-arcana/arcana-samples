@@ -289,7 +289,7 @@ TEST("pr backend liveness", exclusive)
 
                             vert_cb_data->view_proj = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
 
-                            shader_argument arg_zero;
+                            legacy::shader_argument arg_zero;
                             arg_zero.cbv_view_offset = 0;
                             arg_zero.cbv_va = vert_cb_va;
 
@@ -311,7 +311,7 @@ TEST("pr backend liveness", exclusive)
 
                             for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
                             {
-                                shader_argument arg_one;
+                                legacy::shader_argument arg_one;
                                 arg_one.cbv_view_offset = i * sizeof(vert_cb_data->model_matrices[0]);
                                 arg_one.cbv_va = vert_cb_va;
                                 arg_one.srvs.push_back(mat_srv);
@@ -503,14 +503,14 @@ TEST("pr backend liveness", exclusive)
 
             arc_desc_set.initialize(descAllocator, arc_pipeline_layout);
 
-            shader_argument shader_arg_zero;
+            legacy::shader_argument shader_arg_zero;
             shader_arg_zero.cbv = dynamicBufferRing.getBuffer();
             shader_arg_zero.cbv_view_offset = 0;
             shader_arg_zero.cbv_view_size = sizeof(tg::mat4);
 
             arc_desc_set.update_argument(bv.mDevice.getDevice(), 0, shader_arg_zero);
 
-            shader_argument shader_arg_one;
+            legacy::shader_argument shader_arg_one;
             shader_arg_one.srvs.push_back(albedo_view);
             shader_arg_one.cbv = dynamicBufferRing.getBuffer();
             shader_arg_one.cbv_view_offset = 0;
@@ -524,7 +524,7 @@ TEST("pr backend liveness", exclusive)
         {
             present_desc_set.initialize(descAllocator, present_pipeline_layout);
 
-            shader_argument arg_zero;
+            legacy::shader_argument arg_zero;
             arg_zero.srvs.push_back(color_rt_view);
             present_desc_set.update_argument(bv.mDevice.getDevice(), 0, arg_zero);
         }
@@ -544,7 +544,7 @@ TEST("pr backend liveness", exclusive)
 
             // update RT-dependent descriptor sets
             {
-                shader_argument arg_zero;
+                legacy::shader_argument arg_zero;
                 arg_zero.srvs.push_back(color_rt_view);
                 present_desc_set.update_argument(bv.mDevice.getDevice(), 0, arg_zero);
             }
