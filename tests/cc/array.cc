@@ -1,5 +1,7 @@
 #include <nexus/test.hh>
 
+#include <array>
+
 #include <clean-core/array.hh>
 #include <clean-core/assert.hh>
 
