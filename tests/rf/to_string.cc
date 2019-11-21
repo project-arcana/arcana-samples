@@ -7,7 +7,21 @@ namespace
 struct foo
 {
 };
-cc::string to_string(foo const&) { return "foo"; }
+[[maybe_unused]] cc::string to_string(foo const&) { return "foo"; }
+
+struct bar
+{
+    int x;
+    foo f;
+    cc::string s;
+};
+template <class I>
+void introspect(I&& i, bar& v)
+{
+    i(v.x, "x");
+    i(v.f, "f");
+    i(v.s, "s");
+}
 }
 
 TEST("rf::to_string basics")
@@ -31,4 +45,5 @@ TEST("rf::to_string basics")
 
     // custom to_string
     CHECK(rf::to_string(foo{}) == "foo");
+    CHECK(rf::to_string(bar{7, {}, "hello"}) == "{ x: 7, f: foo, s: \"hello\" }");
 }
