@@ -29,12 +29,10 @@ FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
     static_assert(cmd::detail::max_command_size * max_num_cmds < buffer_size);
 
     // allocate a buffer (1kb, which is why this test costs 3ms)
-    char* const buffer = static_cast<char*>(std::malloc(buffer_size));
+    auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
     CC_DEFER { std::free(buffer); };
 
-    auto const iterations = tg::uniform(rng, 5u, 10u);
-
-    for (auto it = 0u; it < iterations; ++it)
+    for (auto it = 0u; it < 5u; ++it)
     {
         // create the writer (discarding any previous contents)
         command_stream_writer writer(buffer, buffer_size);
@@ -68,5 +66,20 @@ FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
         CHECK(callback_instance.num_draw == num_draw_cmds);
         CHECK(callback_instance.num_transition == num_transition);
         CHECK(callback_instance.num_end_rp == num_end_rp);
+    }
+
+    // zero case
+    {
+        command_stream_parser parser(nullptr, 0);
+
+        callback callback_instance;
+        for (cmd::detail::cmd_base const& cmd : parser)
+            cmd::detail::dynamic_dispatch(cmd, callback_instance);
+
+        // check if no calls happened
+        CHECK(callback_instance.num_beg_rp == 0);
+        CHECK(callback_instance.num_draw == 0);
+        CHECK(callback_instance.num_transition == 0);
+        CHECK(callback_instance.num_end_rp == 0);
     }
 }
