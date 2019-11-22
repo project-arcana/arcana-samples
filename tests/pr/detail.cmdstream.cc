@@ -21,6 +21,9 @@ FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
         void execute(cmd::draw const&) { ++num_draw; }
         void execute(cmd::transition_resources const&) { ++num_transition; }
         void execute(cmd::end_render_pass const&) { ++num_end_rp; }
+
+        void execute(cmd::copy_buffer const&) {}
+        void execute(cmd::copy_buffer_to_texture const&) {}
     };
 
     constexpr size_t buffer_size = 1024 * 1024;

@@ -1,24 +1,19 @@
 #include <nexus/test.hh>
 
-#include <array>
 #include <iostream>
 
 #include <clean-core/capped_vector.hh>
+#include <clean-core/defer.hh>
 
 #include <typed-geometry/tg.hh>
 
 #ifdef PR_BACKEND_D3D12
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
-#include <phantasm-renderer/backend/d3d12/CommandList.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
 #include <phantasm-renderer/backend/d3d12/common/util.hh>
-#include <phantasm-renderer/backend/d3d12/memory/DynamicBufferRing.hh>
-#include <phantasm-renderer/backend/d3d12/memory/StaticBufferPool.hh>
-#include <phantasm-renderer/backend/d3d12/memory/UploadHeap.hh>
 #include <phantasm-renderer/backend/d3d12/pipeline_state.hh>
 #include <phantasm-renderer/backend/d3d12/pools/cmd_list_pool.hh>
-#include <phantasm-renderer/backend/d3d12/resources/resource_creation.hh>
 #include <phantasm-renderer/backend/d3d12/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/d3d12/root_signature.hh>
 #include <phantasm-renderer/backend/d3d12/shader.hh>
@@ -46,6 +41,7 @@
 #include <phantasm-renderer/backend/assets/image_loader.hh>
 #include <phantasm-renderer/backend/assets/mesh_loader.hh>
 #include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
+#include <phantasm-renderer/backend/command_stream.hh>
 #include <phantasm-renderer/backend/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
@@ -60,6 +56,8 @@ auto const get_view_matrix = []() -> tg::mat4 {
     constexpr auto cam_pos = tg::pos3(1, 1.5f, 1) * 5.f;
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
 };
+
+auto const get_view_projection_matrix = [](int w, int h) -> tg::mat4 { return get_projection_matrix(w, h) * get_view_matrix(); };
 
 auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
     constexpr auto model_scale = 1.25f;
@@ -81,8 +79,79 @@ struct model_matrix_data
         char padding[256 - sizeof(tg::mat4)];
     };
 
+    static_assert(sizeof(padded_instance) == 256);
     cc::array<padded_instance, num_instances> model_matrices;
 };
+
+void copy_mipmaps_to_texture(ID3D12Device& device,
+                             pr::backend::command_stream_writer& writer,
+                             pr::backend::handle::resource upload_buffer,
+                             std::byte* upload_buffer_map,
+                             pr::backend::handle::resource dest_texture,
+                             pr::backend::format format,
+                             pr::backend::assets::image_size const& img_size,
+                             pr::backend::assets::image_data const& img_data)
+{
+    using namespace pr::backend;
+    using namespace pr::backend::d3d12;
+
+    auto const native_format = util::to_dxgi_format(format);
+
+    // Get mip footprints (if it is an array we reuse the mip footprints for all the elements of the array)
+    //
+    uint32_t num_rows[D3D12_REQ_MIP_LEVELS] = {0};
+    UINT64 row_sizes_in_bytes[D3D12_REQ_MIP_LEVELS] = {0};
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT placed_subres_tex2d[D3D12_REQ_MIP_LEVELS];
+    UINT64 upload_heap_size;
+    {
+        auto const res_desc = CD3DX12_RESOURCE_DESC::Tex2D(native_format, img_size.width, img_size.height, 1, UINT16(img_size.num_mipmaps));
+        device.GetCopyableFootprints(&res_desc, 0, img_size.num_mipmaps, 0, placed_subres_tex2d, num_rows, row_sizes_in_bytes, &upload_heap_size);
+    }
+
+    auto const bytes_per_pixel = util::get_dxgi_bytes_per_pixel(native_format);
+
+    CC_RUNTIME_ASSERT(img_size.array_size == 1 && "array upload unimplemented");
+    cmd::copy_buffer_to_texture command;
+    command.source = upload_buffer;
+    command.destination = dest_texture;
+    command.texture_format = format;
+
+    for (auto a = 0u; a < img_size.array_size; ++a)
+    {
+        // copy all the mip slices into the offsets specified by the footprint structure
+        //
+        for (auto mip = 0u; mip < img_size.num_mipmaps; ++mip)
+        {
+            command.mip_width = placed_subres_tex2d[mip].Footprint.Width;
+            command.mip_height = placed_subres_tex2d[mip].Footprint.Height;
+            command.row_pitch = placed_subres_tex2d[mip].Footprint.RowPitch;
+            command.source_offset = placed_subres_tex2d[mip].Offset;
+            command.subresource_index = a * img_size.num_mipmaps + mip;
+
+            writer.add_command(command);
+
+            pr::backend::assets::copy_subdata(img_data, upload_buffer_map + command.source_offset, command.row_pitch,
+                                              command.mip_width * bytes_per_pixel, command.mip_height);
+        }
+    }
+}
+
+size_t get_mipmap_upload_size(ID3D12Device& device, pr::backend::format format, pr::backend::assets::image_size const& img_size)
+{
+    using namespace pr::backend;
+    using namespace pr::backend::d3d12;
+
+    uint32_t num_rows[D3D12_REQ_MIP_LEVELS] = {0};
+    UINT64 row_sizes_in_bytes[D3D12_REQ_MIP_LEVELS] = {0};
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT placed_subres_tex2d[D3D12_REQ_MIP_LEVELS];
+    size_t res;
+    {
+        auto const res_desc = CD3DX12_RESOURCE_DESC::Tex2D(util::to_dxgi_format(format), img_size.width, img_size.height, 1, UINT16(img_size.num_mipmaps));
+        device.GetCopyableFootprints(&res_desc, 0, img_size.num_mipmaps, 0, placed_subres_tex2d, num_rows, row_sizes_in_bytes, &res);
+    }
+
+    return res;
+}
 }
 
 TEST("pr backend liveness", exclusive)
@@ -92,7 +161,7 @@ TEST("pr backend liveness", exclusive)
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
 
 #ifdef PR_BACKEND_D3D12
-    //    if(0)
+    if (10)
     {
         using namespace pr::backend;
         using namespace pr::backend::d3d12;
@@ -103,124 +172,155 @@ TEST("pr backend liveness", exclusive)
         BackendD3D12 backend;
         backend.initialize(config, window.getHandle());
 
-        DescriptorAllocator descAllocator;
-        DynamicBufferRing dynamicBufferRing;
-        UploadHeap uploadHeap;
         {
-            auto const num_backbuffers = backend.mSwapchain.getNumBackbuffers();
-            auto const num_shader_resources = 2000 + 2000 + 10;
-            auto const num_dsvs = 3;
-            auto const num_rtvs = 60;
-            auto const num_samplers = 20;
-            auto const dynamic_buffer_size = 20 * 1024 * 1024;
-            auto const upload_size = 1000 * 1024 * 1024;
-
-            descAllocator.initialize(backend.mDevice.getDevice(), num_shader_resources, num_dsvs, num_rtvs, num_samplers, num_backbuffers);
-            dynamicBufferRing.initialize(backend.mDevice.getDevice(), num_backbuffers, dynamic_buffer_size);
-            uploadHeap.initialize(&backend, upload_size);
-        }
-
-        CommandListPool cmdListPool;
-        {
-            cmdListPool.initialize(backend, 8, 10);
-        }
-
-
-        {
-            // Shader compilation
-            //
-            cc::capped_vector<shader, 6> shaders;
-            {
-                shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/vertex.dxil", shader_domain::vertex));
-                shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/pixel.dxil", shader_domain::pixel));
-
-                for (auto const& s : shaders)
-                    CC_RUNTIME_ASSERT(s.is_valid() && "failed to load shaders");
-            }
-
             // Resource setup
             //
-            resource material;
-            cpu_cbv_srv_uav mat_srv = descAllocator.allocCBV_SRV_UAV();
+            handle::resource material;
+            handle::resource verts;
+            handle::resource indices;
+            unsigned num_indices = 0;
             {
-                material = create_texture2d_from_file(backend.mAllocator, backend.mDevice.getDevice(), uploadHeap, sample_texture_path);
-                make_srv(material.raw, mat_srv.handle);
-
-                uploadHeap.barrierResourceOnFlush(material.get_allocation(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            }
-
-            resource mesh_vertices;
-            resource mesh_indices;
-            D3D12_VERTEX_BUFFER_VIEW mesh_vbv;
-            D3D12_INDEX_BUFFER_VIEW mesh_ibv;
-            unsigned mesh_num_indices = 0;
-            {
-                auto const mesh_data = assets::load_obj_mesh(sample_mesh_path);
-                mesh_num_indices = unsigned(mesh_data.indices.size());
-
-                mesh_indices = create_buffer_from_data<int>(backend.mAllocator, uploadHeap, mesh_data.indices);
-                mesh_vertices = create_buffer_from_data<assets::simple_vertex>(backend.mAllocator, uploadHeap, mesh_data.vertices);
-
-                mesh_ibv = make_index_buffer_view(mesh_indices, sizeof(int));
-                mesh_vbv = make_vertex_buffer_view(mesh_vertices, sizeof(assets::simple_vertex));
-
-                uploadHeap.barrierResourceOnFlush(mesh_indices.get_allocation(), D3D12_RESOURCE_STATE_INDEX_BUFFER);
-                uploadHeap.barrierResourceOnFlush(mesh_vertices.get_allocation(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-            }
-
-            uploadHeap.flushAndFinish();
-
-            root_signature_high_level root_sig;
-            {
-                cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
-
-                // Argument 0, camera CBV
+                handle::resource ng_upbuffer_material;
+                handle::resource ng_upbuff;
+                CC_DEFER
                 {
-                    arg::shader_argument_shape arg_shape;
-                    arg_shape.has_cb = true;
-                    arg_shape.num_srvs = 0;
-                    arg_shape.num_uavs = 0;
-                    payload_shape.push_back(arg_shape);
+                    backend.free(ng_upbuffer_material);
+                    backend.free(ng_upbuff);
+                };
+
+                auto const buffer_size = 1024ull * 16;
+                auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
+                CC_DEFER { std::free(buffer); };
+
+                command_stream_writer writer(buffer, buffer_size);
+
+
+                {
+                    assets::image_size img_size;
+                    auto const img_data = assets::load_image(sample_texture_path, img_size);
+                    CC_DEFER { assets::free(img_data); };
+
+                    material = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
+
+                    ng_upbuffer_material
+                        = backend.mPoolResources.createMappedBuffer(get_mipmap_upload_size(backend.mDevice.getDevice(), format::rgba8un, img_size));
+
+
+                    {
+                        cmd::transition_resources transition_cmd;
+                        transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{material, resource_state::copy_dest});
+                        writer.add_command(transition_cmd);
+                    }
+
+                    copy_mipmaps_to_texture(backend.mDevice.getDevice(), writer, ng_upbuffer_material,
+                                            backend.mPoolResources.getMappedMemory(ng_upbuffer_material), material, format::rgba8un, img_size, img_data);
                 }
 
-                // Argument 1, pixel shader SRV and model matrix CBV
+                // create vertex and index buffer
                 {
-                    arg::shader_argument_shape arg_shape;
-                    arg_shape.has_cb = true;
-                    arg_shape.num_srvs = 1;
-                    arg_shape.num_uavs = 0;
-                    payload_shape.push_back(arg_shape);
+                    auto const mesh_data = assets::load_obj_mesh(sample_mesh_path);
+                    num_indices = unsigned(mesh_data.indices.size());
+
+                    auto const vert_size = mesh_data.get_vertex_size_bytes();
+                    auto const ind_size = mesh_data.get_index_size_bytes();
+
+                    verts = backend.createBuffer(vert_size, resource_state::copy_dest, sizeof(assets::simple_vertex));
+                    indices = backend.createBuffer(ind_size, resource_state::copy_dest, sizeof(int));
+
+
+                    {
+                        cmd::transition_resources transition_cmd;
+                        transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{verts, resource_state::copy_dest});
+                        transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{indices, resource_state::copy_dest});
+                        writer.add_command(transition_cmd);
+                    }
+
+                    ng_upbuff = backend.mPoolResources.createMappedBuffer(vert_size + ind_size);
+                    std::byte* const upload_mapped = backend.mPoolResources.getMappedMemory(ng_upbuff);
+
+                    std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
+                    std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
+
+                    writer.add_command(cmd::copy_buffer{verts, 0, ng_upbuff, 0, vert_size});
+                    writer.add_command(cmd::copy_buffer{indices, 0, ng_upbuff, vert_size, ind_size});
                 }
 
-                root_sig.initialize(backend.mDevice.getDevice(), payload_shape);
+                // transition resources, record and free the upload command list, and upload buffers
+                {
+                    cmd::transition_resources transition_cmd;
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{verts, resource_state::vertex_buffer});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{indices, resource_state::index_buffer});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{material, resource_state::shader_resource});
+                    writer.add_command(transition_cmd);
+
+                    auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
+                    backend.submit(copy_cmd_list);
+
+                    backend.flushGPU();
+                }
             }
 
-            resource depth_buffer;
-            cpu_dsv depth_buffer_dsv = descAllocator.allocDSV();
-
-            resource color_buffer;
-            cpu_rtv color_buffer_rtv = descAllocator.allocRTV();
-
-            shared_com_ptr<ID3D12PipelineState> pso;
+            handle::pipeline_state pso;
             {
-                wip::framebuffer_format framebuf;
-                framebuf.depth_target.push_back(DXGI_FORMAT_D32_FLOAT);
-                framebuf.render_targets.push_back(backend.mSwapchain.getBackbufferFormat());
-
                 auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
-                auto const input_layout = get_native_vertex_format(attrib_info);
+                cc::capped_vector<format, 8> rtv_formats;
+                rtv_formats.push_back(format::rgba8un);
+                format const dsv_format = format::depth32f;
 
-                pso = create_pipeline_state(backend.mDevice.getDevice(), input_layout, shaders, root_sig.raw_root_sig, pr::default_config, framebuf);
+                cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
+                {
+                    // Argument 0, camera CBV
+                    {
+                        arg::shader_argument_shape arg_shape;
+                        arg_shape.has_cb = true;
+                        arg_shape.num_srvs = 0;
+                        arg_shape.num_uavs = 0;
+                        payload_shape.push_back(arg_shape);
+                    }
+
+                    // Argument 1, pixel shader SRV and model matrix CBV
+                    {
+                        arg::shader_argument_shape arg_shape;
+                        arg_shape.has_cb = true;
+                        arg_shape.num_srvs = 1;
+                        arg_shape.num_uavs = 0;
+                        payload_shape.push_back(arg_shape);
+                    }
+                }
+
+
+                cc::capped_vector<shader, 6> shaders;
+                {
+                    shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/vertex.dxil", shader_domain::vertex));
+                    shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/pixel.dxil", shader_domain::pixel));
+
+                    for (auto const& s : shaders)
+                        CC_RUNTIME_ASSERT(s.is_valid() && "failed to load shaders");
+                }
+
+                cc::capped_vector<arg::shader_stage, 6> shader_stages;
+                for (auto const& s : shaders)
+                    shader_stages.push_back(arg::shader_stage{s.bytecode.get(), s.bytecode.size(), s.domain});
+
+                pso = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
+                                                  arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, shader_stages, pr::default_config);
             }
+
+            handle::shader_view shaderview = backend.createShaderView(cc::span{material});
+
+            handle::resource cb_camdata = backend.mPoolResources.createMappedBuffer(sizeof(tg::mat4));
+            std::byte* const cb_camdata_map = backend.mPoolResources.getMappedMemory(cb_camdata);
+
+            handle::resource cb_modeldata = backend.mPoolResources.createMappedBuffer(sizeof(model_matrix_data));
+            std::byte* const cb_modeldata_map = backend.mPoolResources.getMappedMemory(cb_modeldata);
+
+            handle::resource depthbuffer = backend.createRenderTarget(format::depth32f, 150, 150);
 
             auto const on_resize_func = [&](int w, int h) {
                 std::cout << "resize to " << w << "x" << h << std::endl;
 
-                depth_buffer = create_depth_stencil(backend.mAllocator, w, h, DXGI_FORMAT_D32_FLOAT);
-                make_dsv(depth_buffer.raw, depth_buffer_dsv.handle);
-
-                color_buffer = create_render_target(backend.mAllocator, w, h, DXGI_FORMAT_R16G16B16A16_FLOAT);
-                make_rtv(color_buffer.raw, color_buffer_rtv.handle);
+                backend.free(depthbuffer);
+                depthbuffer = backend.createRenderTarget(format::depth32f, w, h);
 
                 backend.mSwapchain.onResize(w, h);
             };
@@ -228,6 +328,11 @@ TEST("pr backend liveness", exclusive)
             // Main loop
             device::Timer timer;
             double run_time = 0.0;
+
+            constexpr auto runtime_cmdlist_size = 1024ull * 10;
+            std::byte* const runtime_commandlist_buffer = static_cast<std::byte*>(std::malloc(runtime_cmdlist_size));
+
+            model_matrix_data model_data;
 
             while (!window.isRequestingClose())
             {
@@ -245,99 +350,76 @@ TEST("pr backend liveness", exclusive)
                     timer.restart();
                     run_time += frametime;
 
-                    dynamicBufferRing.onBeginFrame();
-                    descAllocator.onBeginFrame();
-
-
-                    // ... do something else ...
-
-                    backend.mSwapchain.waitForBackbuffer();
-
-                    // ... render to swapchain ...
+                    // Data upload
                     {
-                        handle::command_list const cmd_list = cmdListPool.create();
-                        auto* const command_list = cmdListPool.getRawList(cmd_list);
-
-                        util::set_viewport(command_list, backend.mSwapchain.getBackbufferSize());
-                        descAllocator.setHeaps(*command_list);
-                        command_list->SetGraphicsRootSignature(root_sig.raw_root_sig);
-                        command_list->SetPipelineState(pso);
-
-                        backend.mSwapchain.barrierToRenderTarget(command_list);
-
-                        auto backbuffer_rtv = backend.mSwapchain.getCurrentBackbufferRTV();
-                        command_list->OMSetRenderTargets(1, &backbuffer_rtv, false, &depth_buffer_dsv.handle);
-
-                        constexpr float clearColor[] = {0, 0, 0, 1};
-                        command_list->ClearRenderTargetView(backbuffer_rtv, clearColor, 0, nullptr);
-                        command_list->ClearDepthStencilView(depth_buffer_dsv.handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-
-                        command_list->IASetIndexBuffer(&mesh_ibv);
-                        command_list->IASetVertexBuffers(0, 1, &mesh_vbv);
-                        command_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-
+                        auto const vp = get_view_projection_matrix(window.getWidth(), window.getHeight());
+                        std::memcpy(cb_camdata_map, &vp, sizeof(vp));
+                    }
+                    {
+                        auto index = 0u;
+                        for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
                         {
-                            struct vert_cb
-                            {
-                                tg::mat4 view_proj;
-                            };
-
-                            vert_cb* vert_cb_data;
-                            D3D12_GPU_VIRTUAL_ADDRESS vert_cb_va;
-                            dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, vert_cb_va);
-
-                            vert_cb_data->view_proj = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
-
-                            legacy::shader_argument arg_zero;
-                            arg_zero.cbv_view_offset = 0;
-                            arg_zero.cbv_va = vert_cb_va;
-
-                            root_sig.bind(backend.mDevice.getDevice(), *command_list, descAllocator, 0, arg_zero);
+                            model_data.model_matrices[index].model_mat = get_model_matrix(modelpos, run_time, index);
+                            ++index;
                         }
-
-                        {
-                            model_matrix_data* vert_cb_data;
-                            D3D12_GPU_VIRTUAL_ADDRESS vert_cb_va;
-                            dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, vert_cb_va);
-
-                            // record model matrices
-                            auto index = 0u;
-                            for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
-                            {
-                                vert_cb_data->model_matrices[index].model_mat = get_model_matrix(modelpos, run_time, index);
-                                ++index;
-                            }
-
-                            for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
-                            {
-                                legacy::shader_argument arg_one;
-                                arg_one.cbv_view_offset = i * sizeof(vert_cb_data->model_matrices[0]);
-                                arg_one.cbv_va = vert_cb_va;
-                                arg_one.srvs.push_back(mat_srv);
-
-                                root_sig.bind(backend.mDevice.getDevice(), *command_list, descAllocator, 1, arg_one);
-                                command_list->DrawIndexedInstanced(mesh_num_indices, 1, 0, 0, 0);
-                            }
-                        }
-
-                        backend.mSwapchain.barrierToPresent(command_list);
-
-                        command_list->Close();
-
-                        backend.mDirectQueue.submit(command_list);
-                        cmdListPool.freeOnSubmit(cmd_list, backend.mDirectQueue.getQueue());
+                        std::memcpy(cb_modeldata_map, &model_data, sizeof(model_data));
                     }
 
-                    backend.mSwapchain.present();
+                    command_stream_writer ng_cmdlist(runtime_commandlist_buffer, runtime_cmdlist_size);
+
+
+                    auto const ng_backbuffer = backend.acquireBackbuffer();
+
+                    {
+                        cmd::transition_resources cmd_trans;
+                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::render_target});
+                        ng_cmdlist.add_command(cmd_trans);
+                    }
+
+                    {
+                        cmd::begin_render_pass cmd_brp;
+                        cmd_brp.viewport = backend.mSwapchain.getBackbufferSize();
+                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
+                            ng_backbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::clear};
+                        ng_cmdlist.add_command(cmd_brp);
+                    }
+
+                    {
+                        cmd::draw cmd_draw;
+                        cmd_draw.num_indices = num_indices;
+                        cmd_draw.index_buffer = indices;
+                        cmd_draw.vertex_buffer = verts;
+                        cmd_draw.pipeline_state = pso;
+                        cmd_draw.shader_arguments.push_back(shader_argument{cb_camdata, 0, handle::null_shader_view});
+                        cmd_draw.shader_arguments.push_back(shader_argument{cb_modeldata, 0, shaderview});
+
+                        for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
+                        {
+                            cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(model_matrix_data::padded_instance) * i;
+                            ng_cmdlist.add_command(cmd_draw);
+                        }
+                    }
+
+                    {
+                        cmd::end_render_pass cmd_erp;
+                        ng_cmdlist.add_command(cmd_erp);
+                    }
+
+                    {
+                        cmd::transition_resources cmd_trans;
+                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::present});
+                        ng_cmdlist.add_command(cmd_trans);
+                    }
+
+                    auto const ng_cmdlist_compiled = backend.recordCommandList(ng_cmdlist.buffer(), ng_cmdlist.size());
+                    backend.submit(ng_cmdlist_compiled);
+
+                    backend.present();
                 }
             }
 
-            // Cleanup before dtors get called
-            backend.flushGPU();
-            backend.mSwapchain.setFullscreen(false);
-
-            cmdListPool.destroy();
+            backend.destroy();
         }
     }
 #endif
