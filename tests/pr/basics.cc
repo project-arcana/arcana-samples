@@ -51,13 +51,13 @@ namespace
 {
 auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
 
-auto const get_view_matrix = []() -> tg::mat4 {
+auto const get_view_matrix = [](double runtime) -> tg::mat4 {
     constexpr auto target = tg::pos3(0, 1.45f, 0);
-    constexpr auto cam_pos = tg::pos3(1, 1.5f, 1) * 5.f;
+    const auto cam_pos = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 4.f, tg::radians(float(runtime * 0.01))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.25))), 0);
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
 };
 
-auto const get_view_projection_matrix = [](int w, int h) -> tg::mat4 { return get_projection_matrix(w, h) * get_view_matrix(); };
+auto const get_view_projection_matrix = [](double runtime, int w, int h) -> tg::mat4 { return get_projection_matrix(w, h) * get_view_matrix(runtime); };
 
 auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
     constexpr auto model_scale = 1.25f;
@@ -71,7 +71,7 @@ constexpr auto sample_texture_path = "res/pr/liveness_sample/texture/uv_checker.
 
 struct model_matrix_data
 {
-    static constexpr auto num_instances = 4;
+    static constexpr auto num_instances = 16;
 
     struct padded_instance
     {
@@ -81,6 +81,22 @@ struct model_matrix_data
 
     static_assert(sizeof(padded_instance) == 256);
     cc::array<padded_instance, num_instances> model_matrices;
+
+    void fill(double runtime)
+    {
+        cc::array constexpr model_positions = {tg::vec3(1, 0, 0), tg::vec3(0, 1, 0), tg::vec3(0, 0, 1), tg::vec3(-1, 0, 0), tg::vec3(0, -1, 0), tg::vec3(0, 0, -1)};
+
+        auto mp_i = 0u;
+        for (auto i = 0u; i < num_instances; ++i)
+        {
+            model_matrices[i].model_mat = get_model_matrix(model_positions[mp_i] * 0.5f * float(i), runtime / (double(i + 1) * .25), i);
+
+
+            ++mp_i;
+            if (mp_i == model_positions.size())
+                mp_i -= model_positions.size();
+        }
+    }
 };
 
 void copy_mipmaps_to_texture(ID3D12Device& device,
@@ -202,8 +218,7 @@ TEST("pr backend liveness", exclusive)
 
                     material = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
 
-                    ng_upbuffer_material
-                        = backend.mPoolResources.createMappedBuffer(get_mipmap_upload_size(backend.mDevice.getDevice(), format::rgba8un, img_size));
+                    ng_upbuffer_material = backend.createMappedBuffer(get_mipmap_upload_size(backend.getDevice(), format::rgba8un, img_size));
 
 
                     {
@@ -212,8 +227,8 @@ TEST("pr backend liveness", exclusive)
                         writer.add_command(transition_cmd);
                     }
 
-                    copy_mipmaps_to_texture(backend.mDevice.getDevice(), writer, ng_upbuffer_material,
-                                            backend.mPoolResources.getMappedMemory(ng_upbuffer_material), material, format::rgba8un, img_size, img_data);
+                    copy_mipmaps_to_texture(backend.getDevice(), writer, ng_upbuffer_material, backend.getMappedMemory(ng_upbuffer_material),
+                                            material, format::rgba8un, img_size, img_data);
                 }
 
                 // create vertex and index buffer
@@ -235,8 +250,8 @@ TEST("pr backend liveness", exclusive)
                         writer.add_command(transition_cmd);
                     }
 
-                    ng_upbuff = backend.mPoolResources.createMappedBuffer(vert_size + ind_size);
-                    std::byte* const upload_mapped = backend.mPoolResources.getMappedMemory(ng_upbuff);
+                    ng_upbuff = backend.createMappedBuffer(vert_size + ind_size);
+                    std::byte* const upload_mapped = backend.getMappedMemory(ng_upbuff);
 
                     std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
                     std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
@@ -308,11 +323,11 @@ TEST("pr backend liveness", exclusive)
 
             handle::shader_view shaderview = backend.createShaderView(cc::span{material});
 
-            handle::resource cb_camdata = backend.mPoolResources.createMappedBuffer(sizeof(tg::mat4));
-            std::byte* const cb_camdata_map = backend.mPoolResources.getMappedMemory(cb_camdata);
+            handle::resource cb_camdata = backend.createMappedBuffer(sizeof(tg::mat4));
+            std::byte* const cb_camdata_map = backend.getMappedMemory(cb_camdata);
 
-            handle::resource cb_modeldata = backend.mPoolResources.createMappedBuffer(sizeof(model_matrix_data));
-            std::byte* const cb_modeldata_map = backend.mPoolResources.getMappedMemory(cb_modeldata);
+            handle::resource cb_modeldata = backend.createMappedBuffer(sizeof(model_matrix_data));
+            std::byte* const cb_modeldata_map = backend.getMappedMemory(cb_modeldata);
 
             handle::resource depthbuffer = backend.createRenderTarget(format::depth32f, 150, 150);
 
@@ -322,7 +337,7 @@ TEST("pr backend liveness", exclusive)
                 backend.free(depthbuffer);
                 depthbuffer = backend.createRenderTarget(format::depth32f, w, h);
 
-                backend.mSwapchain.onResize(w, h);
+                backend.resize(w, h);
             };
 
             // Main loop
@@ -331,6 +346,7 @@ TEST("pr backend liveness", exclusive)
 
             constexpr auto runtime_cmdlist_size = 1024ull * 10;
             std::byte* const runtime_commandlist_buffer = static_cast<std::byte*>(std::malloc(runtime_cmdlist_size));
+            CC_DEFER { std::free(runtime_commandlist_buffer); };
 
             model_matrix_data model_data;
 
@@ -352,16 +368,11 @@ TEST("pr backend liveness", exclusive)
 
                     // Data upload
                     {
-                        auto const vp = get_view_projection_matrix(window.getWidth(), window.getHeight());
+                        auto const vp = get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
                         std::memcpy(cb_camdata_map, &vp, sizeof(vp));
                     }
                     {
-                        auto index = 0u;
-                        for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
-                        {
-                            model_data.model_matrices[index].model_mat = get_model_matrix(modelpos, run_time, index);
-                            ++index;
-                        }
+                        model_data.fill(run_time);
                         std::memcpy(cb_modeldata_map, &model_data, sizeof(model_data));
                     }
 
@@ -378,7 +389,7 @@ TEST("pr backend liveness", exclusive)
 
                     {
                         cmd::begin_render_pass cmd_brp;
-                        cmd_brp.viewport = backend.mSwapchain.getBackbufferSize();
+                        cmd_brp.viewport = backend.getBackbufferSize();
                         cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
                             ng_backbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
                         cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::clear};
@@ -756,7 +767,7 @@ TEST("pr backend liveness", exclusive)
                             {
                                 mvp_data* data;
                                 dynamicBufferRing.allocConstantBufferTyped(data, cb_upload_info);
-                                data->vp = get_projection_matrix(window.getWidth(), window.getHeight()) * get_view_matrix();
+                                data->vp = get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
                             }
                         }
 
@@ -771,12 +782,7 @@ TEST("pr backend liveness", exclusive)
                         dynamicBufferRing.allocConstantBufferTyped(vert_cb_data, cb_upload_info);
 
                         // record model matrices
-                        auto index = 0u;
-                        for (auto modelpos : {tg::vec3(0, 0, 0), tg::vec3(3, 0, 0), tg::vec3(0, 3, 0), tg::vec3(0, 0, 3)})
-                        {
-                            vert_cb_data->model_matrices[index].model_mat = get_model_matrix(modelpos, run_time, index);
-                            ++index;
-                        }
+                        vert_cb_data->fill(run_time);
 
                         for (auto i = 0u; i < vert_cb_data->model_matrices.size(); ++i)
                         {
