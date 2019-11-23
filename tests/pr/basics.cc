@@ -16,7 +16,6 @@
 #include <phantasm-renderer/backend/d3d12/pools/cmd_list_pool.hh>
 #include <phantasm-renderer/backend/d3d12/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/d3d12/root_signature.hh>
-#include <phantasm-renderer/backend/d3d12/shader.hh>
 #endif
 
 #ifdef PR_BACKEND_VULKAN
@@ -101,6 +100,7 @@ struct model_matrix_data
     }
 };
 
+#ifdef PR_BACKEND_D3D12
 void copy_mipmaps_to_texture(ID3D12Device& device,
                              pr::backend::command_stream_writer& writer,
                              pr::backend::handle::resource upload_buffer,
@@ -170,6 +170,7 @@ size_t get_mipmap_upload_size(ID3D12Device& device, pr::backend::format format, 
 
     return res;
 }
+#endif
 }
 
 TEST("pr backend liveness", exclusive)
@@ -188,7 +189,7 @@ TEST("pr backend liveness", exclusive)
         window.initialize("Liveness test | D3D12");
 
         BackendD3D12 backend;
-        backend.initialize(config, window.getHandle());
+        backend.initialize(config, window);
 
         {
             // Resource setup
@@ -306,18 +307,16 @@ TEST("pr backend liveness", exclusive)
                 }
 
 
-                cc::capped_vector<shader, 6> shaders;
-                {
-                    shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/vertex.dxil", shader_domain::vertex));
-                    shaders.push_back(load_binary_shader_from_file("res/pr/liveness_sample/shader/dxil/pixel.dxil", shader_domain::pixel));
+                auto const vertex_binary
+                    = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/vertex.dxil");
+                auto const pixel_binary
+                    = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/pixel.dxil");
 
-                    for (auto const& s : shaders)
-                        CC_RUNTIME_ASSERT(s.is_valid() && "failed to load shaders");
-                }
+                CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
                 cc::capped_vector<arg::shader_stage, 6> shader_stages;
-                for (auto const& s : shaders)
-                    shader_stages.push_back(arg::shader_stage{s.bytecode.get(), s.bytecode.size(), s.domain});
+                shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
+                shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
 
                 pso = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
                                                   arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, shader_stages, pr::default_config);
@@ -440,8 +439,6 @@ TEST("pr backend liveness", exclusive)
             backend.free(cb_camdata);
             backend.free(cb_modeldata);
             backend.free(depthbuffer);
-
-            backend.destroy();
         }
     }
 #endif
