@@ -69,7 +69,7 @@ auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -
 
 constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/apollo.obj";
 constexpr auto sample_texture_path = "res/pr/liveness_sample/texture/uv_checker.png";
-
+constexpr auto num_render_threads = 8;
 
 struct model_matrix_data
 {
@@ -395,13 +395,16 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
 
 
 #define THREAD_BUFFER_SIZE (static_cast<size_t>(1024ull * 10))
-        constexpr auto num_threads = 11;
-        cc::array<std::byte*, num_threads> thread_cmd_buffer_mem;
+        cc::array<std::byte*, num_render_threads> thread_cmd_buffer_mem;
 
         for (auto& mem : thread_cmd_buffer_mem)
             mem = static_cast<std::byte*>(std::malloc(THREAD_BUFFER_SIZE));
 
-        // CC_DEFER
+        CC_DEFER
+        {
+            for (std::byte* mem : thread_cmd_buffer_mem)
+                std::free(mem);
+        };
 
 
         model_matrix_data model_data;
@@ -431,7 +434,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
                     std::memcpy(cb_modeldata_map, &model_data, sizeof(model_data));
                 }
 
-                cc::array<handle::command_list, num_threads + 1> render_cmd_lists;
+                cc::array<handle::command_list, num_render_threads + 1> render_cmd_lists;
                 cc::fill(render_cmd_lists, handle::null_command_list);
 
                 // clear RTs
@@ -490,7 +493,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
 
                             render_cmd_lists[i + 1] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         },
-                        model_matrix_data::num_instances, num_threads);
+                        model_matrix_data::num_instances, num_render_threads);
 
 
                     td::wait_for(render_sync);
@@ -546,13 +549,8 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
             }
         }
 
-        {
-            for (std::byte* mem : thread_cmd_buffer_mem)
-                std::free(mem);
-        }
 
         backend.flushGPU();
-
         backend.free(resources.material);
         backend.free(resources.vertex_buffer);
         backend.free(resources.index_buffer);
@@ -572,6 +570,7 @@ TEST("pr backend liveness", exclusive)
     pr::backend::backend_config config;
     config.validation = pr::backend::validation_level::on_extended;
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
+    config.num_threads = td::system::hardware_concurrency;
 
 #ifdef PR_BACKEND_D3D12
     td::launch([&] { run_d3d12_sample(config); });
