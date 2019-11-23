@@ -53,7 +53,8 @@ auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::per
 
 auto const get_view_matrix = [](double runtime) -> tg::mat4 {
     constexpr auto target = tg::pos3(0, 1.45f, 0);
-    const auto cam_pos = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 4.f, tg::radians(float(runtime * 0.01))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.25))), 0);
+    const auto cam_pos
+        = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 4.f, tg::radians(float(runtime * 0.01))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.25))), 0);
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
 };
 
@@ -84,7 +85,8 @@ struct model_matrix_data
 
     void fill(double runtime)
     {
-        cc::array constexpr model_positions = {tg::vec3(1, 0, 0), tg::vec3(0, 1, 0), tg::vec3(0, 0, 1), tg::vec3(-1, 0, 0), tg::vec3(0, -1, 0), tg::vec3(0, 0, -1)};
+        cc::array constexpr model_positions
+            = {tg::vec3(1, 0, 0), tg::vec3(0, 1, 0), tg::vec3(0, 0, 1), tg::vec3(-1, 0, 0), tg::vec3(0, -1, 0), tg::vec3(0, 0, -1)};
 
         auto mp_i = 0u;
         for (auto i = 0u; i < num_instances; ++i)
@@ -378,7 +380,6 @@ TEST("pr backend liveness", exclusive)
 
                     command_stream_writer ng_cmdlist(runtime_commandlist_buffer, runtime_cmdlist_size);
 
-
                     auto const ng_backbuffer = backend.acquireBackbuffer();
 
                     {
@@ -429,6 +430,16 @@ TEST("pr backend liveness", exclusive)
                     backend.present();
                 }
             }
+
+            backend.flushGPU();
+
+            backend.free(material);
+            backend.free(verts);
+            backend.free(indices);
+            backend.free(pso);
+            backend.free(cb_camdata);
+            backend.free(cb_modeldata);
+            backend.free(depthbuffer);
 
             backend.destroy();
         }
