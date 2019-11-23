@@ -13,10 +13,9 @@
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 #include <phantasm-renderer/backend/d3d12/common/d3dx12.hh>
-#include <phantasm-renderer/backend/d3d12/common/util.hh>
+#include <phantasm-renderer/backend/d3d12/common/dxgi_format.hh>
 #include <phantasm-renderer/backend/d3d12/pipeline_state.hh>
 #include <phantasm-renderer/backend/d3d12/pools/cmd_list_pool.hh>
-#include <phantasm-renderer/backend/d3d12/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/d3d12/root_signature.hh>
 #endif
 
