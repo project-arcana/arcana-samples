@@ -7,6 +7,8 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <task-dispatcher/td.hh>
+
 #ifdef PR_BACKEND_D3D12
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
@@ -170,6 +172,398 @@ size_t get_mipmap_upload_size(ID3D12Device& device, pr::backend::format format, 
 
     return res;
 }
+
+void run_d3d12_sample(pr::backend::backend_config const& config)
+{
+    using namespace pr::backend;
+    using namespace pr::backend::d3d12;
+
+    pr::backend::device::Window window;
+    window.initialize("Liveness test | D3D12");
+
+    BackendD3D12 backend;
+    backend.initialize(config, window);
+
+    {
+        struct resources_t
+        {
+            handle::resource material;
+            handle::resource vertex_buffer;
+            handle::resource index_buffer;
+            unsigned num_indices = 0;
+
+            handle::resource cb_camdata;
+            handle::resource cb_modeldata;
+
+            handle::pipeline_state pso_render;
+            handle::shader_view shaderview_render;
+            handle::resource depthbuffer;
+            handle::resource colorbuffer;
+
+            handle::pipeline_state pso_blit;
+            handle::shader_view shaderview_blit;
+        };
+
+        resources_t resources;
+
+        // Resource setup
+        //
+        {
+            handle::resource ng_upbuffer_material;
+            handle::resource ng_upbuff;
+            CC_DEFER
+            {
+                backend.free(ng_upbuffer_material);
+                backend.free(ng_upbuff);
+            };
+
+            auto const buffer_size = 1024ull * 16;
+            auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
+            CC_DEFER { std::free(buffer); };
+
+            command_stream_writer writer(buffer, buffer_size);
+
+
+            {
+                assets::image_size img_size;
+                auto const img_data = assets::load_image(sample_texture_path, img_size);
+                CC_DEFER { assets::free(img_data); };
+
+                resources.material = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
+
+                ng_upbuffer_material = backend.createMappedBuffer(get_mipmap_upload_size(backend.getDevice(), format::rgba8un, img_size));
+
+
+                {
+                    cmd::transition_resources transition_cmd;
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.material, resource_state::copy_dest});
+                    writer.add_command(transition_cmd);
+                }
+
+                copy_mipmaps_to_texture(backend.getDevice(), writer, ng_upbuffer_material, backend.getMappedMemory(ng_upbuffer_material),
+                                        resources.material, format::rgba8un, img_size, img_data);
+            }
+
+            // create vertex and index buffer
+            {
+                auto const mesh_data = assets::load_obj_mesh(sample_mesh_path);
+                resources.num_indices = unsigned(mesh_data.indices.size());
+
+                auto const vert_size = mesh_data.get_vertex_size_bytes();
+                auto const ind_size = mesh_data.get_index_size_bytes();
+
+                resources.vertex_buffer = backend.createBuffer(vert_size, resource_state::copy_dest, sizeof(assets::simple_vertex));
+                resources.index_buffer = backend.createBuffer(ind_size, resource_state::copy_dest, sizeof(int));
+
+
+                {
+                    cmd::transition_resources transition_cmd;
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.vertex_buffer, resource_state::copy_dest});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.index_buffer, resource_state::copy_dest});
+                    writer.add_command(transition_cmd);
+                }
+
+                ng_upbuff = backend.createMappedBuffer(vert_size + ind_size);
+                std::byte* const upload_mapped = backend.getMappedMemory(ng_upbuff);
+
+                std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
+                std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
+
+                writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, ng_upbuff, 0, vert_size});
+                writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, ng_upbuff, vert_size, ind_size});
+            }
+
+            // transition resources, record and free the upload command list, and upload buffers
+            {
+                cmd::transition_resources transition_cmd;
+                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.vertex_buffer, resource_state::vertex_buffer});
+                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.index_buffer, resource_state::index_buffer});
+                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.material, resource_state::shader_resource});
+                writer.add_command(transition_cmd);
+
+                auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
+                backend.submit(cc::span{copy_cmd_list});
+
+                backend.flushGPU();
+            }
+        }
+
+        {
+            cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
+            {
+                // Argument 0, camera CBV
+                {
+                    arg::shader_argument_shape arg_shape;
+                    arg_shape.has_cb = true;
+                    arg_shape.num_srvs = 0;
+                    arg_shape.num_uavs = 0;
+                    payload_shape.push_back(arg_shape);
+                }
+
+                // Argument 1, pixel shader SRV and model matrix CBV
+                {
+                    arg::shader_argument_shape arg_shape;
+                    arg_shape.has_cb = true;
+                    arg_shape.num_srvs = 1;
+                    arg_shape.num_uavs = 0;
+                    payload_shape.push_back(arg_shape);
+                }
+            }
+
+            auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/vertex.dxil");
+            auto const pixel_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/pixel.dxil");
+
+            CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+
+            cc::capped_vector<arg::shader_stage, 6> shader_stages;
+            shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
+            shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+
+            auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
+            cc::capped_vector<format, 8> rtv_formats;
+            rtv_formats.push_back(format::rgba16f);
+            format const dsv_format = format::depth32f;
+
+            resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
+                                                               arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
+                                                               shader_stages, pr::default_config);
+        }
+
+        {
+            cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
+            {
+                // Argument 1, blit target SRV
+                {
+                    arg::shader_argument_shape arg_shape;
+                    arg_shape.has_cb = false;
+                    arg_shape.num_srvs = 1;
+                    arg_shape.num_uavs = 0;
+                    payload_shape.push_back(arg_shape);
+                }
+            }
+
+            auto const vertex_binary
+                = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/blit_vertex.dxil");
+            auto const pixel_binary
+                = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/blit_pixel.dxil");
+
+            CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+
+            cc::capped_vector<arg::shader_stage, 6> shader_stages;
+            shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
+            shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+
+            cc::capped_vector<format, 8> rtv_formats;
+            rtv_formats.push_back(format::rgba8un);
+
+            pr::primitive_pipeline_config config;
+            config.cull = pr::cull_mode::front;
+            resources.pso_blit
+                = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape, shader_stages, config);
+        }
+
+        resources.shaderview_render = backend.createShaderView(cc::span{resources.material});
+
+        resources.cb_camdata = backend.createMappedBuffer(sizeof(tg::mat4));
+        std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
+
+        resources.cb_modeldata = backend.createMappedBuffer(sizeof(model_matrix_data));
+        std::byte* const cb_modeldata_map = backend.getMappedMemory(resources.cb_modeldata);
+
+        resources.depthbuffer = backend.createRenderTarget(format::depth32f, 150, 150);
+        resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150);
+
+        handle::shader_view shaderview_blit = backend.createShaderView(cc::span{resources.colorbuffer});
+
+        auto const on_resize_func = [&](int w, int h) {
+            std::cout << "resize to " << w << "x" << h << std::endl;
+
+            backend.free(resources.depthbuffer);
+            resources.depthbuffer = backend.createRenderTarget(format::depth32f, w, h);
+            backend.free(resources.colorbuffer);
+            resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h);
+
+            backend.free(shaderview_blit);
+            shaderview_blit = backend.createShaderView(cc::span{resources.colorbuffer});
+
+            backend.resize(w, h);
+        };
+
+        // Main loop
+        device::Timer timer;
+        double run_time = 0.0;
+
+
+#define THREAD_BUFFER_SIZE (static_cast<size_t>(1024ull * 10))
+        constexpr auto num_threads = 11;
+        cc::array<std::byte*, num_threads> thread_cmd_buffer_mem;
+
+        for (auto& mem : thread_cmd_buffer_mem)
+            mem = static_cast<std::byte*>(std::malloc(THREAD_BUFFER_SIZE));
+
+        // CC_DEFER
+
+
+        model_matrix_data model_data;
+
+        while (!window.isRequestingClose())
+        {
+            window.pollEvents();
+            if (window.isPendingResize())
+            {
+                if (!window.isMinimized())
+                    on_resize_func(window.getWidth(), window.getHeight());
+                window.clearPendingResize();
+            }
+
+            if (!window.isMinimized())
+            {
+                auto const frametime = timer.elapsedSecondsD();
+                timer.restart();
+                run_time += frametime;
+
+                // Data upload
+                {
+                    auto const vp = get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
+                    std::memcpy(cb_camdata_map, &vp, sizeof(vp));
+
+                    model_data.fill(run_time);
+                    std::memcpy(cb_modeldata_map, &model_data, sizeof(model_data));
+                }
+
+                cc::array<handle::command_list, num_threads + 1> render_cmd_lists;
+                cc::fill(render_cmd_lists, handle::null_command_list);
+
+                // clear RTs
+                {
+                    command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
+
+                    cmd::transition_resources cmd_trans;
+                    cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::render_target});
+                    cmd_writer.add_command(cmd_trans);
+
+                    cmd::begin_render_pass cmd_brp;
+                    cmd_brp.viewport = backend.getBackbufferSize();
+                    cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
+                        resources.colorbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                    cmd_brp.depth_target
+                        = cmd::begin_render_pass::depth_stencil_info{resources.depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::clear};
+                    cmd_writer.add_command(cmd_brp);
+
+                    cmd_writer.add_command(cmd::end_render_pass{});
+
+                    render_cmd_lists[0] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                }
+
+                // parallel rendering
+                {
+                    auto render_sync = td::submit_batched_n(
+                        [&](unsigned start, unsigned end, unsigned i) {
+                            // cacheline-sized tasks call for desperate measures (macro)
+                            command_stream_writer cmd_writer(thread_cmd_buffer_mem[i], THREAD_BUFFER_SIZE);
+
+                            cmd::begin_render_pass cmd_brp;
+                            cmd_brp.viewport = backend.getBackbufferSize();
+                            cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
+                                resources.colorbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::load});
+                            cmd_brp.depth_target
+                                = cmd::begin_render_pass::depth_stencil_info{resources.depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::load};
+                            cmd_writer.add_command(cmd_brp);
+
+
+                            cmd::draw cmd_draw;
+                            cmd_draw.num_indices = resources.num_indices;
+                            cmd_draw.index_buffer = resources.index_buffer;
+                            cmd_draw.vertex_buffer = resources.vertex_buffer;
+                            cmd_draw.pipeline_state = resources.pso_render;
+                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_camdata, 0, handle::null_shader_view});
+                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_modeldata, 0, resources.shaderview_render});
+
+                            for (auto inst = start; inst < end; ++inst)
+                            {
+                                cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(model_matrix_data::padded_instance) * inst;
+                                cmd_writer.add_command(cmd_draw);
+                            }
+
+                            cmd_writer.add_command(cmd::end_render_pass{});
+
+
+                            render_cmd_lists[i + 1] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                        },
+                        model_matrix_data::num_instances, num_threads);
+
+
+                    td::wait_for(render_sync);
+                    backend.submit(render_cmd_lists);
+                }
+
+                {
+                    command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
+
+                    auto const ng_backbuffer = backend.acquireBackbuffer();
+
+                    {
+                        cmd::transition_resources cmd_trans;
+                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::render_target});
+                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::shader_resource});
+                        cmd_writer.add_command(cmd_trans);
+                    }
+
+                    {
+                        cmd::begin_render_pass cmd_brp;
+                        cmd_brp.viewport = backend.getBackbufferSize();
+                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
+                            ng_backbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                        cmd_writer.add_command(cmd_brp);
+                    }
+
+                    {
+                        cmd::draw cmd_draw;
+                        cmd_draw.num_indices = 3;
+                        cmd_draw.index_buffer = handle::null_resource;
+                        cmd_draw.vertex_buffer = handle::null_resource;
+                        cmd_draw.pipeline_state = resources.pso_blit;
+                        cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, shaderview_blit});
+                        cmd_writer.add_command(cmd_draw);
+                    }
+
+                    {
+                        cmd::end_render_pass cmd_erp;
+                        cmd_writer.add_command(cmd_erp);
+                    }
+
+                    {
+                        cmd::transition_resources cmd_trans;
+                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::present});
+                        cmd_writer.add_command(cmd_trans);
+                    }
+                    auto const present_list = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                    backend.submit(cc::span{present_list});
+                }
+
+
+                backend.present();
+            }
+        }
+
+        {
+            for (std::byte* mem : thread_cmd_buffer_mem)
+                std::free(mem);
+        }
+
+        backend.flushGPU();
+
+        backend.free(resources.material);
+        backend.free(resources.vertex_buffer);
+        backend.free(resources.index_buffer);
+        backend.free(resources.pso_render);
+        backend.free(resources.cb_camdata);
+        backend.free(resources.cb_modeldata);
+        backend.free(resources.colorbuffer);
+        backend.free(resources.depthbuffer);
+        backend.free(resources.pso_blit);
+    }
+}
 #endif
 }
 
@@ -180,267 +574,7 @@ TEST("pr backend liveness", exclusive)
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
 
 #ifdef PR_BACKEND_D3D12
-    if (10)
-    {
-        using namespace pr::backend;
-        using namespace pr::backend::d3d12;
-
-        pr::backend::device::Window window;
-        window.initialize("Liveness test | D3D12");
-
-        BackendD3D12 backend;
-        backend.initialize(config, window);
-
-        {
-            // Resource setup
-            //
-            handle::resource material;
-            handle::resource verts;
-            handle::resource indices;
-            unsigned num_indices = 0;
-            {
-                handle::resource ng_upbuffer_material;
-                handle::resource ng_upbuff;
-                CC_DEFER
-                {
-                    backend.free(ng_upbuffer_material);
-                    backend.free(ng_upbuff);
-                };
-
-                auto const buffer_size = 1024ull * 16;
-                auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
-                CC_DEFER { std::free(buffer); };
-
-                command_stream_writer writer(buffer, buffer_size);
-
-
-                {
-                    assets::image_size img_size;
-                    auto const img_data = assets::load_image(sample_texture_path, img_size);
-                    CC_DEFER { assets::free(img_data); };
-
-                    material = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
-
-                    ng_upbuffer_material = backend.createMappedBuffer(get_mipmap_upload_size(backend.getDevice(), format::rgba8un, img_size));
-
-
-                    {
-                        cmd::transition_resources transition_cmd;
-                        transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{material, resource_state::copy_dest});
-                        writer.add_command(transition_cmd);
-                    }
-
-                    copy_mipmaps_to_texture(backend.getDevice(), writer, ng_upbuffer_material, backend.getMappedMemory(ng_upbuffer_material),
-                                            material, format::rgba8un, img_size, img_data);
-                }
-
-                // create vertex and index buffer
-                {
-                    auto const mesh_data = assets::load_obj_mesh(sample_mesh_path);
-                    num_indices = unsigned(mesh_data.indices.size());
-
-                    auto const vert_size = mesh_data.get_vertex_size_bytes();
-                    auto const ind_size = mesh_data.get_index_size_bytes();
-
-                    verts = backend.createBuffer(vert_size, resource_state::copy_dest, sizeof(assets::simple_vertex));
-                    indices = backend.createBuffer(ind_size, resource_state::copy_dest, sizeof(int));
-
-
-                    {
-                        cmd::transition_resources transition_cmd;
-                        transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{verts, resource_state::copy_dest});
-                        transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{indices, resource_state::copy_dest});
-                        writer.add_command(transition_cmd);
-                    }
-
-                    ng_upbuff = backend.createMappedBuffer(vert_size + ind_size);
-                    std::byte* const upload_mapped = backend.getMappedMemory(ng_upbuff);
-
-                    std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
-                    std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
-
-                    writer.add_command(cmd::copy_buffer{verts, 0, ng_upbuff, 0, vert_size});
-                    writer.add_command(cmd::copy_buffer{indices, 0, ng_upbuff, vert_size, ind_size});
-                }
-
-                // transition resources, record and free the upload command list, and upload buffers
-                {
-                    cmd::transition_resources transition_cmd;
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{verts, resource_state::vertex_buffer});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{indices, resource_state::index_buffer});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{material, resource_state::shader_resource});
-                    writer.add_command(transition_cmd);
-
-                    auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
-                    backend.submit(copy_cmd_list);
-
-                    backend.flushGPU();
-                }
-            }
-
-            handle::pipeline_state pso;
-            {
-                auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
-                cc::capped_vector<format, 8> rtv_formats;
-                rtv_formats.push_back(format::rgba8un);
-                format const dsv_format = format::depth32f;
-
-                cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
-                {
-                    // Argument 0, camera CBV
-                    {
-                        arg::shader_argument_shape arg_shape;
-                        arg_shape.has_cb = true;
-                        arg_shape.num_srvs = 0;
-                        arg_shape.num_uavs = 0;
-                        payload_shape.push_back(arg_shape);
-                    }
-
-                    // Argument 1, pixel shader SRV and model matrix CBV
-                    {
-                        arg::shader_argument_shape arg_shape;
-                        arg_shape.has_cb = true;
-                        arg_shape.num_srvs = 1;
-                        arg_shape.num_uavs = 0;
-                        payload_shape.push_back(arg_shape);
-                    }
-                }
-
-
-                auto const vertex_binary
-                    = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/vertex.dxil");
-                auto const pixel_binary
-                    = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/dxil/pixel.dxil");
-
-                CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
-
-                cc::capped_vector<arg::shader_stage, 6> shader_stages;
-                shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
-                shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
-
-                pso = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
-                                                  arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, shader_stages, pr::default_config);
-            }
-
-            handle::shader_view shaderview = backend.createShaderView(cc::span{material});
-
-            handle::resource cb_camdata = backend.createMappedBuffer(sizeof(tg::mat4));
-            std::byte* const cb_camdata_map = backend.getMappedMemory(cb_camdata);
-
-            handle::resource cb_modeldata = backend.createMappedBuffer(sizeof(model_matrix_data));
-            std::byte* const cb_modeldata_map = backend.getMappedMemory(cb_modeldata);
-
-            handle::resource depthbuffer = backend.createRenderTarget(format::depth32f, 150, 150);
-
-            auto const on_resize_func = [&](int w, int h) {
-                std::cout << "resize to " << w << "x" << h << std::endl;
-
-                backend.free(depthbuffer);
-                depthbuffer = backend.createRenderTarget(format::depth32f, w, h);
-
-                backend.resize(w, h);
-            };
-
-            // Main loop
-            device::Timer timer;
-            double run_time = 0.0;
-
-            constexpr auto runtime_cmdlist_size = 1024ull * 10;
-            std::byte* const runtime_commandlist_buffer = static_cast<std::byte*>(std::malloc(runtime_cmdlist_size));
-            CC_DEFER { std::free(runtime_commandlist_buffer); };
-
-            model_matrix_data model_data;
-
-            while (!window.isRequestingClose())
-            {
-                window.pollEvents();
-                if (window.isPendingResize())
-                {
-                    if (!window.isMinimized())
-                        on_resize_func(window.getWidth(), window.getHeight());
-                    window.clearPendingResize();
-                }
-
-                if (!window.isMinimized())
-                {
-                    auto const frametime = timer.elapsedSecondsD();
-                    timer.restart();
-                    run_time += frametime;
-
-                    // Data upload
-                    {
-                        auto const vp = get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
-                        std::memcpy(cb_camdata_map, &vp, sizeof(vp));
-                    }
-                    {
-                        model_data.fill(run_time);
-                        std::memcpy(cb_modeldata_map, &model_data, sizeof(model_data));
-                    }
-
-                    command_stream_writer ng_cmdlist(runtime_commandlist_buffer, runtime_cmdlist_size);
-
-                    auto const ng_backbuffer = backend.acquireBackbuffer();
-
-                    {
-                        cmd::transition_resources cmd_trans;
-                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::render_target});
-                        ng_cmdlist.add_command(cmd_trans);
-                    }
-
-                    {
-                        cmd::begin_render_pass cmd_brp;
-                        cmd_brp.viewport = backend.getBackbufferSize();
-                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
-                            ng_backbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
-                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::clear};
-                        ng_cmdlist.add_command(cmd_brp);
-                    }
-
-                    {
-                        cmd::draw cmd_draw;
-                        cmd_draw.num_indices = num_indices;
-                        cmd_draw.index_buffer = indices;
-                        cmd_draw.vertex_buffer = verts;
-                        cmd_draw.pipeline_state = pso;
-                        cmd_draw.shader_arguments.push_back(shader_argument{cb_camdata, 0, handle::null_shader_view});
-                        cmd_draw.shader_arguments.push_back(shader_argument{cb_modeldata, 0, shaderview});
-
-                        for (auto i = 0u; i < model_matrix_data::num_instances; ++i)
-                        {
-                            cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(model_matrix_data::padded_instance) * i;
-                            ng_cmdlist.add_command(cmd_draw);
-                        }
-                    }
-
-                    {
-                        cmd::end_render_pass cmd_erp;
-                        ng_cmdlist.add_command(cmd_erp);
-                    }
-
-                    {
-                        cmd::transition_resources cmd_trans;
-                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::present});
-                        ng_cmdlist.add_command(cmd_trans);
-                    }
-
-                    auto const ng_cmdlist_compiled = backend.recordCommandList(ng_cmdlist.buffer(), ng_cmdlist.size());
-                    backend.submit(ng_cmdlist_compiled);
-
-                    backend.present();
-                }
-            }
-
-            backend.flushGPU();
-
-            backend.free(material);
-            backend.free(verts);
-            backend.free(indices);
-            backend.free(pso);
-            backend.free(cb_camdata);
-            backend.free(cb_modeldata);
-            backend.free(depthbuffer);
-        }
-    }
+    td::launch([&] { run_d3d12_sample(config); });
 #endif
 
 #ifdef PR_BACKEND_VULKAN
