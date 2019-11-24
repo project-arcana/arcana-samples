@@ -13,3 +13,6 @@ target_link_libraries(pr-tests PUBLIC
     typed-geometry
     phantasm-renderer
 )
+
+set_property(TARGET pr-tests PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
