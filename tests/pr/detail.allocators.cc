@@ -101,7 +101,7 @@ TEST("pr backend detail - page allocator random")
             if (allocations.empty())
                 continue;
 
-            auto const free_index = tg::uniform(rng, 0ull, allocations.size() - 1);
+            auto const free_index = tg::uniform(rng, size_t(0), allocations.size() - 1);
 
             allocator.free(allocations[free_index]);
 
