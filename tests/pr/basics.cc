@@ -596,8 +596,6 @@ TEST("pr backend liveness", exclusive)
             auto const num_cbvs = 2000;
             auto const num_srvs = 2000;
             auto const num_uavs = 20;
-            //            auto const num_dsvs = 3;
-            //            auto const num_rtvs = 60;
             auto const num_samplers = 20;
             auto const dynamic_buffer_size = 20 * 1024 * 1024;
             auto const upload_size = 1000 * 1024 * 1024;
@@ -858,7 +856,8 @@ TEST("pr backend liveness", exclusive)
 
                 auto const backbuffer_size = bv.mSwapchain.getBackbufferSize();
 
-                auto const cmd_buf = commandBufferRing.acquireCommandBuffer();
+                handle::command_list const cmdlist_handle = bv.recordCommandList(nullptr, 0);
+                auto const cmd_buf = bv.mPoolCmdLists.getRawBuffer(cmdlist_handle);
 
                 {
                     // transition color_rt to render target
@@ -973,7 +972,10 @@ TEST("pr backend liveness", exclusive)
 
                 PR_VK_VERIFY_SUCCESS(vkEndCommandBuffer(cmd_buf));
 
-                bv.mSwapchain.performPresentSubmit(cmd_buf);
+
+                bv.submit(cc::span{cmdlist_handle});
+
+                bv.mSwapchain.performPresentSubmit();
                 bv.mSwapchain.present();
             }
         }
