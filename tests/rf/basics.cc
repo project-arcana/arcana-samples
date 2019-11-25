@@ -31,7 +31,6 @@ TEST("reflector basics")
     static_assert(rf::member_count<foo> == 3);
     static_assert(rf::is_introspectable<foo>);
     static_assert(!rf::is_introspectable<non_rf_class>);
-
     static_assert(rf::member_infos<foo>.size() == 3);
 
     auto const& members = rf::member_infos<foo>;

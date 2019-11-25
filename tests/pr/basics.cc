@@ -1,5 +1,6 @@
 #include <nexus/test.hh>
 
+#ifdef PR_BACKEND_D3D12
 #include <iostream>
 
 #include <clean-core/capped_vector.hh>
@@ -1053,3 +1054,4 @@ TEST("pr adapter choice", exclusive)
     }
 #endif
 }
+#endif
