@@ -62,7 +62,7 @@ MONTE_CARLO_TEST("mct precondition")
     addInvariant("pos", [](int a) { CHECK(a >= 0); });
 }
 
-MONTE_CARLO_TEST("nexus mct equivalence")
+MONTE_CARLO_TEST("mct equivalence")
 {
     addOp("gen int", [](tg::rng& rng) { return uniform(rng, -10, 10); });
 
@@ -97,6 +97,17 @@ MONTE_CARLO_TEST("nexus mct equivalence")
         for (size_t i = 0; i < s; ++i)
             CHECK(a[i] == b[i]);
     });
+}
+
+MONTE_CARLO_TEST("mct replay", disabled)
+{
+    addValue("4", 4);
+
+    addOp("add", [](int a, int b) { return a + b; });
+    addOp("inc", [](int& a) { a++; });
+    addOp("sub", [](int a, int b) { return a - b; });
+
+    addInvariant("> 0", [](int a) { CHECK(a >= 0); });
 }
 
 // TODO: proper move-only impl
