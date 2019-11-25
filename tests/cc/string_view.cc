@@ -11,4 +11,5 @@ TEST("cc::string_view")
     CHECK(s[0] == 'h');
     CHECK(s.size() == 5);
     CHECK(s[4] == 'o');
+    CHECK(s == "hello");
 }

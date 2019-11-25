@@ -1,5 +1,6 @@
 #include <nexus/test.hh>
 
+#ifdef PR_BACKEND_D3D12
 #include <iostream>
 
 #include <phantasm-renderer/backend/d3d12/Adapter.hh>
@@ -61,3 +62,4 @@ TEST("pr backend liveness")
     }
 #endif
 }
+#endif
