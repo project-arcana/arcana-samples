@@ -52,9 +52,6 @@ add_subdirectory(extern/task-dispatcher)
 # logging
 add_subdirectory(extern/rich-log)
 
-# testing, benchmarking, apps
-add_subdirectory(extern/nexus)
-
 
 ## Main
 
@@ -65,6 +62,10 @@ add_subdirectory(extern/polymesh)
 add_subdirectory(extern/phantasm-renderer)
 
 # TODO: other libs
+
+
+# testing, benchmarking, apps
+add_subdirectory(extern/nexus)
 
 
 # ===============================================
