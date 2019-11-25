@@ -217,7 +217,7 @@ TEST("td API - consistency", exclusive)
         auto const main_thread_id = std::this_thread::get_id();
 
         // Staying on the main thread when using pinned wait
-        auto const num_tasks = td::system::hardware_concurrency * 50;
+        auto const num_tasks = td::system::num_logical_cores() * 50;
         for (auto _ = 0; _ < 50; ++_)
         {
             auto s1 = td::submit_n([](auto) { ++gSink; }, num_tasks);

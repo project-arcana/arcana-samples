@@ -569,7 +569,7 @@ TEST("pr backend liveness", exclusive)
     pr::backend::backend_config config;
     config.validation = pr::backend::validation_level::on_extended;
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
-    config.num_threads = td::system::hardware_concurrency;
+    config.num_threads = td::system::num_logical_cores();
 
 #ifdef PR_BACKEND_D3D12
     td::launch([&] { run_d3d12_sample(config); });
