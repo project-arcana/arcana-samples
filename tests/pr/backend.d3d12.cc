@@ -137,6 +137,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
             {
                 assets::image_size img_size;
                 auto const img_data = assets::load_image(pr_test::sample_texture_path, img_size);
+                CC_RUNTIME_ASSERT(assets::is_valid(img_data) && "failed to load texture");
                 CC_DEFER { assets::free(img_data); };
 
                 resources.material = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
