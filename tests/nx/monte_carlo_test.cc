@@ -99,15 +99,16 @@ MONTE_CARLO_TEST("mct equivalence")
     });
 }
 
-MONTE_CARLO_TEST("mct replay", seed(1574747082406104563), disabled)
+MONTE_CARLO_TEST("mct replay", disabled) // for testing purposes
 {
     addValue("4", 4);
 
     addOp("add", [](int a, int b) { return a + b; });
     addOp("inc", [](int& a) { a++; });
     addOp("sub", [](int a, int b) { return a - b; });
+    addOp("sub3", [](int& a) { a -= 3; });
 
-    addInvariant("> 0", [](int a) { CHECK(a >= 0); });
+    addInvariant(">= 0", [](int a) { CHECK(a >= 0); });
 }
 
 // TODO: proper move-only impl
