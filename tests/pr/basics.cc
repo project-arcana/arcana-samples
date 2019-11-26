@@ -423,15 +423,15 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
 
             if (!window.isMinimized())
             {
-                auto const frametime = timer.elapsedSecondsD();
+                auto const frametime = timer.elapsedMillisecondsD();
                 timer.restart();
-                run_time += frametime;
+                run_time += frametime / 1000.;
 
                 {
                     ++framecounter;
                     if (framecounter == 60)
                     {
-                        std::cout << "Frametime: " << frametime << std::endl;
+                        std::cout << "Frametime: " << frametime << "ms" << std::endl;
                         framecounter = 0;
                     }
                 }
@@ -853,15 +853,15 @@ TEST("pr backend liveness", exclusive)
                     bv.mSwapchain.clearBackbufferResizeFlag();
                 }
 
-                auto const frametime = timer.elapsedSecondsD();
+                auto const frametime = timer.elapsedMillisecondsD();
                 timer.restart();
-                run_time += frametime;
+                run_time += frametime / 1000.;
 
                 {
                     ++framecounter;
                     if (framecounter == 60)
                     {
-                        std::cout << "Frametime: " << frametime << std::endl;
+                        std::cout << "Frametime: " << frametime << "ms" << std::endl;
                         framecounter = 0;
                     }
                 }
