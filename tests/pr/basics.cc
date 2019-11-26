@@ -73,7 +73,7 @@ constexpr auto num_render_threads = 8;
 
 struct model_matrix_data
 {
-    static constexpr auto num_instances = 400;
+    static constexpr auto num_instances = 200;
 
     struct padded_instance
     {
@@ -578,6 +578,7 @@ TEST("pr backend liveness", exclusive)
 {
     pr::backend::backend_config config;
     config.validation = pr::backend::validation_level::on_extended;
+    config.present_mode = pr::backend::present_mode::allow_tearing;
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
     config.num_threads = td::system::num_logical_cores();
 
