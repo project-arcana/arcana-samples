@@ -233,7 +233,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
             auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
             cc::capped_vector<format, 8> rtv_formats;
             rtv_formats.push_back(format::rgba16f);
-            format const dsv_format = format::depth32f;
+            format const dsv_format = format::depth24un_stencil8u;
 
             resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
                                                                arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
@@ -243,7 +243,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
         {
             cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
             {
-                // Argument 1, blit target SRV
+                // Argument 0, blit target SRV
                 {
                     arg::shader_argument_shape arg_shape;
                     arg_shape.has_cb = false;
@@ -281,7 +281,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
         resources.cb_modeldata = backend.createMappedBuffer(sizeof(pr_test::model_matrix_data));
         std::byte* const cb_modeldata_map = backend.getMappedMemory(resources.cb_modeldata);
 
-        resources.depthbuffer = backend.createRenderTarget(format::depth32f, 150, 150);
+        resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150);
         resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150);
 
         handle::shader_view shaderview_blit = backend.createShaderView(cc::span{resources.colorbuffer});
@@ -292,7 +292,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
             backend.flushGPU();
 
             backend.free(resources.depthbuffer);
-            resources.depthbuffer = backend.createRenderTarget(format::depth32f, w, h);
+            resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h);
             backend.free(resources.colorbuffer);
             resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h);
 

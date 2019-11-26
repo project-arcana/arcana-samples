@@ -52,24 +52,25 @@ TEST("pr::backend::vk liveness", exclusive)
 
     pipeline_layout arc_pipeline_layout;
     {
-        shader_payload_shape payload_shape;
-
-        // Argument 0, camera CBV
+        cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
         {
-            shader_payload_shape::shader_argument_shape arg_shape;
-            arg_shape.has_cb = true;
-            arg_shape.num_srvs = 0;
-            arg_shape.num_uavs = 0;
-            payload_shape.shader_arguments.push_back(arg_shape);
-        }
+            // Argument 0, camera CBV
+            {
+                arg::shader_argument_shape arg_shape;
+                arg_shape.has_cb = true;
+                arg_shape.num_srvs = 0;
+                arg_shape.num_uavs = 0;
+                payload_shape.push_back(arg_shape);
+            }
 
-        // Argument 1, pixel shader SRV and model matrix CBV
-        {
-            shader_payload_shape::shader_argument_shape arg_shape;
-            arg_shape.has_cb = true;
-            arg_shape.num_srvs = 1;
-            arg_shape.num_uavs = 0;
-            payload_shape.shader_arguments.push_back(arg_shape);
+            // Argument 1, pixel shader SRV and model matrix CBV
+            {
+                arg::shader_argument_shape arg_shape;
+                arg_shape.has_cb = true;
+                arg_shape.num_srvs = 1;
+                arg_shape.num_uavs = 0;
+                payload_shape.push_back(arg_shape);
+            }
         }
 
         arc_pipeline_layout.initialize(bv.mDevice.getDevice(), payload_shape);
@@ -77,15 +78,16 @@ TEST("pr::backend::vk liveness", exclusive)
 
     pipeline_layout present_pipeline_layout;
     {
-        shader_payload_shape payload_shape;
-
-        // Argument 0, color target SRV
+        cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
         {
-            shader_payload_shape::shader_argument_shape arg_shape;
-            arg_shape.has_cb = false;
-            arg_shape.num_srvs = 1;
-            arg_shape.num_uavs = 0;
-            payload_shape.shader_arguments.push_back(arg_shape);
+            // Argument 0, blit target SRV
+            {
+                arg::shader_argument_shape arg_shape;
+                arg_shape.has_cb = false;
+                arg_shape.num_srvs = 1;
+                arg_shape.num_uavs = 0;
+                payload_shape.push_back(arg_shape);
+            }
         }
 
         present_pipeline_layout.initialize(bv.mDevice.getDevice(), payload_shape);
@@ -105,12 +107,12 @@ TEST("pr::backend::vk liveness", exclusive)
 
     VkRenderPass arcRenderPass;
     {
-        wip::framebuffer_format framebuffer_format;
-        framebuffer_format.render_targets.push_back(VK_FORMAT_R16G16B16A16_SFLOAT);
-        framebuffer_format.depth_target.push_back(VK_FORMAT_D32_SFLOAT);
+        cc::capped_vector<format, 8> rtv_formats;
+        rtv_formats.push_back(format::rgba16f);
+        format const dsv_format = format::depth32f;
 
         auto arc_prim_config = pr::primitive_pipeline_config{};
-        arcRenderPass = create_render_pass(bv.mDevice.getDevice(), framebuffer_format, arc_prim_config);
+        arcRenderPass = create_render_pass(bv.mDevice.getDevice(), arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, arc_prim_config);
     }
 
     cc::capped_vector<shader, 6> arcShaders;
@@ -122,7 +124,7 @@ TEST("pr::backend::vk liveness", exclusive)
     {
         auto const vert_attribs = assets::get_vertex_attributes<assets::simple_vertex>();
         auto const input_layout = get_input_description(vert_attribs);
-        arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.pipeline_layout, arcShaders, pr::default_config,
+        arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.raw_layout, arcShaders, pr::default_config,
                                       input_layout, sizeof(assets::simple_vertex));
 
         {
@@ -146,7 +148,7 @@ TEST("pr::backend::vk liveness", exclusive)
 
     VkPipeline presentPipeline;
     {
-        presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.pipeline_layout, presentShaders);
+        presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.raw_layout, presentShaders);
     }
 
     buffer vert_buf;
@@ -364,7 +366,7 @@ TEST("pr::backend::vk liveness", exclusive)
 
                     auto const dynamic_offset = uint32_t(cb_upload_info.offset);
 
-                    arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.pipeline_layout, 0, dynamic_offset);
+                    arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.raw_layout, 0, dynamic_offset);
                 }
 
                 {
@@ -380,7 +382,7 @@ TEST("pr::backend::vk liveness", exclusive)
                         auto const dynamic_offset = uint32_t(i * sizeof(vert_cb_data->model_matrices[0]));
                         auto const combined_offset = uint32_t(cb_upload_info.offset) + dynamic_offset;
 
-                        arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.pipeline_layout, 1, combined_offset);
+                        arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.raw_layout, 1, combined_offset);
                         vkCmdDrawIndexed(cmd_buf, num_indices, 1, 0, 0, 0);
                     }
                 }
@@ -416,7 +418,7 @@ TEST("pr::backend::vk liveness", exclusive)
                 vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                 vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
 
-                present_desc_set.bind_argument(cmd_buf, present_pipeline_layout.pipeline_layout, 0);
+                present_desc_set.bind_argument(cmd_buf, present_pipeline_layout.raw_layout, 0);
 
                 vkCmdDraw(cmd_buf, 3, 1, 0, 0);
                 vkCmdEndRenderPass(cmd_buf);
