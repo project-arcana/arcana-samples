@@ -54,7 +54,7 @@ auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::per
 auto const get_view_matrix = [](double runtime) -> tg::mat4 {
     constexpr auto target = tg::pos3(0, 1.45f, 0);
     const auto cam_pos
-        = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 4.f, tg::radians(float(runtime * 0.01))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.25))), 0);
+        = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 20.f, tg::radians(float(runtime * 0.01))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.25))), 0);
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
 };
 
@@ -62,7 +62,8 @@ auto const get_view_projection_matrix = [](double runtime, int w, int h) -> tg::
 
 auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
     constexpr auto model_scale = 1.25f;
-    return tg::translation(pos) * tg::rotation_y(tg::radians((float(runtime) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
+    return tg::translation(pos + tg::vec3(index % 9, index % 6, index % 9))
+           * tg::rotation_y(tg::radians((float(runtime) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
            * tg::scaling(model_scale, model_scale, model_scale);
 };
 
@@ -72,7 +73,7 @@ constexpr auto num_render_threads = 8;
 
 struct model_matrix_data
 {
-    static constexpr auto num_instances = 16;
+    static constexpr auto num_instances = 400;
 
     struct padded_instance
     {
@@ -91,7 +92,7 @@ struct model_matrix_data
         auto mp_i = 0u;
         for (auto i = 0u; i < num_instances; ++i)
         {
-            model_matrices[i].model_mat = get_model_matrix(model_positions[mp_i] * 0.5f * float(i), runtime / (double(i + 1) * .25), i);
+            model_matrices[i].model_mat = get_model_matrix(model_positions[mp_i] * 0.25f * float(i), runtime / (double(i + 1) * .25), i);
 
 
             ++mp_i;
@@ -393,8 +394,8 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
         double run_time = 0.0;
 
 
-#define THREAD_BUFFER_SIZE (static_cast<size_t>(1024ull * 10))
-        cc::array<std::byte*, num_render_threads> thread_cmd_buffer_mem;
+#define THREAD_BUFFER_SIZE (static_cast<size_t>(1024ull * 100))
+        cc::array<std::byte*, num_render_threads + 1> thread_cmd_buffer_mem;
 
         for (auto& mem : thread_cmd_buffer_mem)
             mem = static_cast<std::byte*>(std::malloc(THREAD_BUFFER_SIZE));
@@ -406,8 +407,10 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
         };
 
 
-        model_matrix_data model_data;
+        model_matrix_data* model_data = new model_matrix_data();
+        CC_DEFER { delete model_data; };
 
+        auto framecounter = 0;
         while (!window.isRequestingClose())
         {
             window.pollEvents();
@@ -424,13 +427,22 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
                 timer.restart();
                 run_time += frametime;
 
+                {
+                    ++framecounter;
+                    if (framecounter == 60)
+                    {
+                        std::cout << "Frametime: " << frametime << std::endl;
+                        framecounter = 0;
+                    }
+                }
+
                 // Data upload
                 {
                     auto const vp = get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
                     std::memcpy(cb_camdata_map, &vp, sizeof(vp));
 
-                    model_data.fill(run_time);
-                    std::memcpy(cb_modeldata_map, &model_data, sizeof(model_data));
+                    model_data->fill(run_time);
+                    std::memcpy(cb_modeldata_map, model_data, sizeof(model_matrix_data));
                 }
 
                 cc::array<handle::command_list, num_render_threads + 1> render_cmd_lists;
@@ -458,46 +470,41 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
                 }
 
                 // parallel rendering
-                {
-                    auto render_sync = td::submit_batched_n(
-                        [&](unsigned start, unsigned end, unsigned i) {
-                            // cacheline-sized tasks call for desperate measures (macro)
-                            command_stream_writer cmd_writer(thread_cmd_buffer_mem[i], THREAD_BUFFER_SIZE);
+                auto render_sync = td::submit_batched_n(
+                    [&](unsigned start, unsigned end, unsigned i) {
+                        // cacheline-sized tasks call for desperate measures (macro)
+                        command_stream_writer cmd_writer(thread_cmd_buffer_mem[i + 1], THREAD_BUFFER_SIZE);
 
-                            cmd::begin_render_pass cmd_brp;
-                            cmd_brp.viewport = backend.getBackbufferSize();
-                            cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
-                                resources.colorbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::load});
-                            cmd_brp.depth_target
-                                = cmd::begin_render_pass::depth_stencil_info{resources.depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::load};
-                            cmd_writer.add_command(cmd_brp);
-
-
-                            cmd::draw cmd_draw;
-                            cmd_draw.num_indices = resources.num_indices;
-                            cmd_draw.index_buffer = resources.index_buffer;
-                            cmd_draw.vertex_buffer = resources.vertex_buffer;
-                            cmd_draw.pipeline_state = resources.pso_render;
-                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_camdata, 0, handle::null_shader_view});
-                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_modeldata, 0, resources.shaderview_render});
-
-                            for (auto inst = start; inst < end; ++inst)
-                            {
-                                cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(model_matrix_data::padded_instance) * inst;
-                                cmd_writer.add_command(cmd_draw);
-                            }
-
-                            cmd_writer.add_command(cmd::end_render_pass{});
+                        cmd::begin_render_pass cmd_brp;
+                        cmd_brp.viewport = backend.getBackbufferSize();
+                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
+                            resources.colorbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::load});
+                        cmd_brp.depth_target
+                            = cmd::begin_render_pass::depth_stencil_info{resources.depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::load};
+                        cmd_writer.add_command(cmd_brp);
 
 
-                            render_cmd_lists[i + 1] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
-                        },
-                        model_matrix_data::num_instances, num_render_threads);
+                        cmd::draw cmd_draw;
+                        cmd_draw.num_indices = resources.num_indices;
+                        cmd_draw.index_buffer = resources.index_buffer;
+                        cmd_draw.vertex_buffer = resources.vertex_buffer;
+                        cmd_draw.pipeline_state = resources.pso_render;
+                        cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_camdata, 0, handle::null_shader_view});
+                        cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_modeldata, 0, resources.shaderview_render});
+
+                        for (auto inst = start; inst < end; ++inst)
+                        {
+                            cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(model_matrix_data::padded_instance) * inst;
+                            cmd_writer.add_command(cmd_draw);
+                        }
+
+                        cmd_writer.add_command(cmd::end_render_pass{});
 
 
-                    td::wait_for(render_sync);
-                    backend.submit(render_cmd_lists);
-                }
+                        render_cmd_lists[i + 1] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                    },
+                    model_matrix_data::num_instances, num_render_threads);
+
 
                 {
                     command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
@@ -540,6 +547,9 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
                         cmd_writer.add_command(cmd_trans);
                     }
                     auto const present_list = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+
+                    td::wait_for(render_sync);
+                    backend.submit(render_cmd_lists);
                     backend.submit(cc::span{present_list});
                 }
 
@@ -820,6 +830,7 @@ TEST("pr backend liveness", exclusive)
         device::Timer timer;
         double run_time = 0.0;
 
+        auto framecounter = 0;
         while (!window.isRequestingClose())
         {
             window.pollEvents();
@@ -844,6 +855,15 @@ TEST("pr backend liveness", exclusive)
                 auto const frametime = timer.elapsedSecondsD();
                 timer.restart();
                 run_time += frametime;
+
+                {
+                    ++framecounter;
+                    if (framecounter == 60)
+                    {
+                        std::cout << "Frametime: " << frametime << std::endl;
+                        framecounter = 0;
+                    }
+                }
 
                 if (!bv.mSwapchain.waitForBackbuffer())
                 {
