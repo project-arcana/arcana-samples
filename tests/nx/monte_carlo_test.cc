@@ -99,7 +99,7 @@ MONTE_CARLO_TEST("mct equivalence")
     });
 }
 
-MONTE_CARLO_TEST("mct replay", disabled) // for testing purposes
+MONTE_CARLO_TEST("mct replay", reproduce("-000302004-10"), disabled) // for testing purposes
 {
     addValue("4", 4);
 
