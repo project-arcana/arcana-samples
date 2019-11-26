@@ -99,7 +99,7 @@ MONTE_CARLO_TEST("mct equivalence")
     });
 }
 
-MONTE_CARLO_TEST("mct replay", disabled)
+MONTE_CARLO_TEST("mct replay", seed(1574747082406104563), disabled)
 {
     addValue("4", 4);
 
