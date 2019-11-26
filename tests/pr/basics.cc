@@ -54,7 +54,7 @@ auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::per
 auto const get_view_matrix = [](double runtime) -> tg::mat4 {
     constexpr auto target = tg::pos3(0, 1.45f, 0);
     const auto cam_pos
-        = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 20.f, tg::radians(float(runtime * 0.01))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.25))), 0);
+        = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 20.f, tg::radians(float(runtime * 0.05))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.125))) * 10.f, 0);
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
 };
 
@@ -63,7 +63,7 @@ auto const get_view_projection_matrix = [](double runtime, int w, int h) -> tg::
 auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
     constexpr auto model_scale = 1.25f;
     return tg::translation(pos + tg::vec3(index % 9, index % 6, index % 9))
-           * tg::rotation_y(tg::radians((float(runtime) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
+           * tg::rotation_y(tg::radians((float(runtime * 2.) + float(index) * 0.5f * tg::pi_scalar<float>) * (index % 2 == 0 ? -1 : 1)))
            * tg::scaling(model_scale, model_scale, model_scale);
 };
 
@@ -73,7 +73,7 @@ constexpr auto num_render_threads = 8;
 
 struct model_matrix_data
 {
-    static constexpr auto num_instances = 200;
+    static constexpr auto num_instances = 400;
 
     struct padded_instance
     {
@@ -92,7 +92,7 @@ struct model_matrix_data
         auto mp_i = 0u;
         for (auto i = 0u; i < num_instances; ++i)
         {
-            model_matrices[i].model_mat = get_model_matrix(model_positions[mp_i] * 0.25f * float(i), runtime / (double(i + 1) * .25), i);
+            model_matrices[i].model_mat = get_model_matrix(model_positions[mp_i] * 0.25f * float(i), runtime / (double(i + 1) * .15), i);
 
 
             ++mp_i;
