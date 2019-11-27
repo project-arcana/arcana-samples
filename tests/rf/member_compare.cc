@@ -2,7 +2,7 @@
 
 #include <clean-core/string.hh>
 
-#include <reflector/member_compare.hh>
+#include <reflector/compare.hh>
 
 namespace
 {
@@ -29,17 +29,25 @@ TEST("rf::member_compare")
     b1.x = 5;
     b1.y = 51;
     b1.z = nullptr;
-    CHECK(rf::member_compare(b1, b1));
+    CHECK(rf::is_equal(b1, b1));
 
     auto b2 = b1;
-    CHECK(rf::member_compare(b1, b2));
-    CHECK(rf::member_compare(b2, b1));
+    CHECK(rf::is_equal(b1, b2));
+    CHECK(rf::is_equal(b2, b1));
 
     b2.z = &b1;
-    CHECK(!rf::member_compare(b1, b2));
-    CHECK(!rf::member_compare(b2, b1));
+    CHECK(!rf::is_equal(b1, b2));
+    CHECK(!rf::is_equal(b2, b1));
 
     auto const b3 = b2;
-    CHECK(rf::member_compare(b3, b2));
-    CHECK(rf::member_compare(b2, b3));
+    CHECK(rf::is_equal(b3, b2));
+    CHECK(rf::is_equal(b2, b3));
+
+    CHECK(rf::is_less(0, 5));
+    CHECK(rf::is_greater(6, 5));
+    CHECK(rf::is_equal(0, 0));
+    CHECK(rf::is_not_equal(1, 0));
+    CHECK(rf::is_greater_equal(0, 0));
+    CHECK(rf::is_less_equal(0, 0));
+    CHECK(rf::is_less_equal(-1, 0));
 }

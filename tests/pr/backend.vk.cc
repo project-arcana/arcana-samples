@@ -3,6 +3,8 @@
 
 #include "backend_common.hh"
 
+#include <phantasm-renderer/backend/detail/unique_buffer.hh>
+
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 #include <phantasm-renderer/backend/vulkan/CommandBufferRing.hh>
 #include <phantasm-renderer/backend/vulkan/common/util.hh>
@@ -15,7 +17,6 @@
 #include <phantasm-renderer/backend/vulkan/resources/resource_creation.hh>
 #include <phantasm-renderer/backend/vulkan/resources/resource_state.hh>
 #include <phantasm-renderer/backend/vulkan/resources/resource_view.hh>
-#include <phantasm-renderer/backend/vulkan/resources/vertex_attributes.hh>
 #include <phantasm-renderer/backend/vulkan/shader.hh>
 #include <phantasm-renderer/backend/vulkan/shader_arguments.hh>
 
@@ -115,16 +116,21 @@ TEST("pr::backend::vk liveness", exclusive)
         arcRenderPass = create_render_pass(bv.mDevice.getDevice(), arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, arc_prim_config);
     }
 
-    cc::capped_vector<shader, 6> arcShaders;
-    arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/pixel.spv", shader_domain::pixel));
-    arcShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/vertex.spv", shader_domain::vertex));
-
     VkPipeline arcPipeline;
     VkFramebuffer arcFramebuffer;
     {
+        auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex.spv");
+        auto const pixel_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel.spv");
+
+        CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+
+        cc::capped_vector<arg::shader_stage, 6> shader_stages;
+        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+
         auto const vert_attribs = assets::get_vertex_attributes<assets::simple_vertex>();
-        auto const input_layout = get_input_description(vert_attribs);
-        arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.raw_layout, arcShaders, pr::default_config,
+        auto const input_layout = util::get_native_vertex_format(vert_attribs);
+        arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.raw_layout, shader_stages, pr::default_config,
                                       input_layout, sizeof(assets::simple_vertex));
 
         {
@@ -142,13 +148,18 @@ TEST("pr::backend::vk liveness", exclusive)
         }
     }
 
-    cc::capped_vector<shader, 6> presentShaders;
-    presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/pixel_blit.spv", shader_domain::pixel));
-    presentShaders.push_back(create_shader_from_spirv_file(bv.mDevice.getDevice(), "res/pr/liveness_sample/shader/spirv/vertex_blit.spv", shader_domain::vertex));
-
     VkPipeline presentPipeline;
     {
-        presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.raw_layout, presentShaders);
+        auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex_blit.spv");
+        auto const pixel_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel_blit.spv");
+
+        CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+
+        cc::capped_vector<arg::shader_stage, 6> shader_stages;
+        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+
+        presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.raw_layout, shader_stages);
     }
 
     buffer vert_buf;
@@ -338,7 +349,7 @@ TEST("pr::backend::vk liveness", exclusive)
                 renderPassInfo.clearValueCount = clear_values.size();
                 renderPassInfo.pClearValues = clear_values.data();
 
-                util::set_viewport(cmd_buf, backbuffer_size);
+                util::set_viewport(cmd_buf, backbuffer_size.x, backbuffer_size.y);
                 vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                 vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipeline);
 
@@ -414,7 +425,7 @@ TEST("pr::backend::vk liveness", exclusive)
                 renderPassInfo.clearValueCount = clear_values.size();
                 renderPassInfo.pClearValues = clear_values.data();
 
-                util::set_viewport(cmd_buf, backbuffer_size);
+                util::set_viewport(cmd_buf, backbuffer_size.x, backbuffer_size.y);
                 vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
                 vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
 
@@ -462,12 +473,6 @@ TEST("pr::backend::vk liveness", exclusive)
 
         arc_desc_set.free(descAllocator);
         present_desc_set.free(descAllocator);
-
-        for (auto& shader : arcShaders)
-            shader.free(device);
-
-        for (auto& shader : presentShaders)
-            shader.free(device);
     }
 }
 
