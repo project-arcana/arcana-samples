@@ -10,6 +10,7 @@
 #include <phantasm-renderer/backend/vulkan/common/util.hh>
 #include <phantasm-renderer/backend/vulkan/common/verify.hh>
 #include <phantasm-renderer/backend/vulkan/common/zero_struct.hh>
+#include <phantasm-renderer/backend/vulkan/loader/spirv_patch_util.hh>
 #include <phantasm-renderer/backend/vulkan/memory/DynamicBufferRing.hh>
 #include <phantasm-renderer/backend/vulkan/memory/ResourceAllocator.hh>
 #include <phantasm-renderer/backend/vulkan/memory/UploadHeap.hh>
@@ -119,14 +120,17 @@ TEST("pr::backend::vk liveness", exclusive)
     VkPipeline arcPipeline;
     VkFramebuffer arcFramebuffer;
     {
-        auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex.spv");
-        auto const pixel_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel.spv");
-
-        CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+        auto const vertex_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex.spv");
+        auto const pixel_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel.spv");
+        CC_DEFER
+        {
+            util::free_patched_spirv(vertex_binary);
+            util::free_patched_spirv(pixel_binary);
+        };
 
         cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+        shader_stages.push_back(arg::shader_stage{vertex_binary.bytecode, vertex_binary.bytecode_size, shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{pixel_binary.bytecode, pixel_binary.bytecode_size, shader_domain::pixel});
 
         auto const vert_attribs = assets::get_vertex_attributes<assets::simple_vertex>();
         auto const input_layout = util::get_native_vertex_format(vert_attribs);
@@ -150,14 +154,17 @@ TEST("pr::backend::vk liveness", exclusive)
 
     VkPipeline presentPipeline;
     {
-        auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex_blit.spv");
-        auto const pixel_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel_blit.spv");
-
-        CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+        auto const vertex_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex_blit.spv");
+        auto const pixel_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel_blit.spv");
+        CC_DEFER
+        {
+            util::free_patched_spirv(vertex_binary);
+            util::free_patched_spirv(pixel_binary);
+        };
 
         cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+        shader_stages.push_back(arg::shader_stage{vertex_binary.bytecode, vertex_binary.bytecode_size, shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{pixel_binary.bytecode, pixel_binary.bytecode_size, shader_domain::pixel});
 
         presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.raw_layout, shader_stages);
     }
