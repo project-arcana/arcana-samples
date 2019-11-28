@@ -49,7 +49,7 @@ TEST("pr::backend::vk liveness", exclusive)
         commandBufferRing.initialize(bv.mDevice, num_backbuffers, num_command_lists, bv.mDevice.getQueueFamilyGraphics());
         dynamicBufferRing.initialize(&bv.mDevice, &bv.mAllocator, num_backbuffers, dynamic_buffer_size);
         uploadHeap.initialize(&bv.mDevice, upload_size);
-        descAllocator.initialize(&bv.mDevice, num_cbvs, num_srvs, num_uavs, num_samplers);
+        descAllocator.initialize(bv.mDevice.getDevice(), num_cbvs, num_srvs, num_uavs, num_samplers);
     }
 
     pipeline_layout arc_pipeline_layout;
@@ -480,6 +480,8 @@ TEST("pr::backend::vk liveness", exclusive)
 
         arc_desc_set.free(descAllocator);
         present_desc_set.free(descAllocator);
+
+        descAllocator.destroy();
     }
 }
 
