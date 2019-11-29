@@ -40,7 +40,7 @@ private:
 };
 }
 
-MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001000010001021108-108-11A-210A-210G-200B-210"), disabled)
+MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001008-10B-200B-200B-200F-200B-200"), disabled)
 {
     auto const get_vertex = [](Mesh3D const& m, unsigned idx) -> pm::vertex_handle {
         if (m.mesh->vertices().empty())
@@ -75,8 +75,8 @@ MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001000010001021108-108-11
         auto hb = get_halfedge(m, ib);
         return ha.is_valid() && hb.is_valid() && pm::can_add_or_get_edge(ha, hb);
     };
-    auto const has_vertices_rng = [&](Mesh3D const& m, tg::rng& rng) { return !m.mesh->vertices().empty(); };
-    auto const has_edges_rng = [&](Mesh3D const& m, tg::rng& rng) { return !m.mesh->edges().empty(); };
+    auto const has_vertices_rng = [&](Mesh3D const& m, tg::rng&) { return !m.mesh->vertices().empty(); };
+    auto const has_edges_rng = [&](Mesh3D const& m, tg::rng&) { return !m.mesh->edges().empty(); };
     auto const random_permutation = [&](tg::rng& rng, int size) {
         std::vector<int> p;
         p.resize(size);
