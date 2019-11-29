@@ -40,7 +40,7 @@ private:
 };
 }
 
-MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-1008-102110I00B-2000010F-210A-210"), disabled)
+MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001000010001021108-108-11A-210A-210G-200B-210"), disabled)
 {
     auto const get_vertex = [](Mesh3D const& m, unsigned idx) -> pm::vertex_handle {
         if (m.mesh->vertices().empty())
