@@ -120,17 +120,16 @@ TEST("pr::backend::vk liveness", exclusive)
     VkPipeline arcPipeline;
     VkFramebuffer arcFramebuffer;
     {
-        auto const vertex_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex.spv");
-        auto const pixel_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel.spv");
-        CC_DEFER
-        {
-            util::free_patched_spirv(vertex_binary);
-            util::free_patched_spirv(pixel_binary);
-        };
+        cc::vector<util::spirv_desc_info> spirv_info;
 
         cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{vertex_binary.bytecode, vertex_binary.bytecode_size, shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{pixel_binary.bytecode, pixel_binary.bytecode_size, shader_domain::pixel});
+        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex.spv", spirv_info));
+        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel.spv", spirv_info));
+        CC_DEFER
+        {
+            for (auto const& ps : shader_stages)
+                util::free_patched_spirv(ps);
+        };
 
         auto const vert_attribs = assets::get_vertex_attributes<assets::simple_vertex>();
         auto const input_layout = util::get_native_vertex_format(vert_attribs);
@@ -154,17 +153,15 @@ TEST("pr::backend::vk liveness", exclusive)
 
     VkPipeline presentPipeline;
     {
-        auto const vertex_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex_blit.spv");
-        auto const pixel_binary = util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel_blit.spv");
+        cc::vector<util::spirv_desc_info> spirv_info;
+        cc::capped_vector<arg::shader_stage, 6> shader_stages;
+        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex_blit.spv", spirv_info));
+        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel_blit.spv", spirv_info));
         CC_DEFER
         {
-            util::free_patched_spirv(vertex_binary);
-            util::free_patched_spirv(pixel_binary);
+            for (auto const& ps : shader_stages)
+                util::free_patched_spirv(ps);
         };
-
-        cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{vertex_binary.bytecode, vertex_binary.bytecode_size, shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{pixel_binary.bytecode, pixel_binary.bytecode_size, shader_domain::pixel});
 
         presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.raw_layout, shader_stages);
     }
