@@ -79,7 +79,7 @@ TEST("td API - compilation", exclusive)
                 td::submit(s1, +[] {});
                 td::submit(s1, fun);
 
-                foo f;
+                // foo f;
                 // auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
 
                 // With arguments
