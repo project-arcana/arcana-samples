@@ -273,8 +273,11 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
                 = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape, shader_stages, config);
         }
 
-        resources.shaderview_render = backend.createShaderView(cc::span{resources.material});
-
+        {
+            cc::capped_vector<arg::shader_view_element, 2> srv_elems;
+            srv_elems.emplace_back().init_as_tex2d(resources.material, format::rgba8un);
+            resources.shaderview_render = backend.createShaderView(srv_elems);
+        }
         resources.cb_camdata = backend.createMappedBuffer(sizeof(tg::mat4));
         std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
 
@@ -284,7 +287,11 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
         resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150);
         resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150);
 
-        handle::shader_view shaderview_blit = backend.createShaderView(cc::span{resources.colorbuffer});
+        {
+            cc::capped_vector<arg::shader_view_element, 2> srv_elems;
+            srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
+            resources.shaderview_blit = backend.createShaderView(srv_elems);
+        }
 
         auto const on_resize_func = [&](int w, int h) {
             std::cout << "resize to " << w << "x" << h << std::endl;
@@ -296,8 +303,10 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
             backend.free(resources.colorbuffer);
             resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h);
 
-            backend.free(shaderview_blit);
-            shaderview_blit = backend.createShaderView(cc::span{resources.colorbuffer});
+            backend.free(resources.shaderview_blit);
+            cc::capped_vector<arg::shader_view_element, 2> srv_elems;
+            srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
+            resources.shaderview_blit = backend.createShaderView(srv_elems);
 
             backend.resize(w, h);
         };
@@ -445,7 +454,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
                         cmd_draw.index_buffer = handle::null_resource;
                         cmd_draw.vertex_buffer = handle::null_resource;
                         cmd_draw.pipeline_state = resources.pso_blit;
-                        cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, shaderview_blit});
+                        cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, resources.shaderview_blit});
                         cmd_writer.add_command(cmd_draw);
                     }
 
