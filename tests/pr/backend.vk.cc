@@ -9,6 +9,7 @@
 #include <phantasm-renderer/backend/vulkan/CommandBufferRing.hh>
 #include <phantasm-renderer/backend/vulkan/common/util.hh>
 #include <phantasm-renderer/backend/vulkan/common/verify.hh>
+#include <phantasm-renderer/backend/vulkan/common/vk_format.hh>
 #include <phantasm-renderer/backend/vulkan/common/zero_struct.hh>
 #include <phantasm-renderer/backend/vulkan/loader/spirv_patch_util.hh>
 #include <phantasm-renderer/backend/vulkan/memory/DynamicBufferRing.hh>
@@ -50,23 +51,6 @@ TEST("pr::backend::vk liveness", exclusive)
         dynamicBufferRing.initialize(&bv.mDevice, &bv.mAllocator, num_backbuffers, dynamic_buffer_size);
         uploadHeap.initialize(&bv.mDevice, upload_size);
         descAllocator.initialize(bv.mDevice.getDevice(), num_cbvs, num_srvs, num_uavs, num_samplers);
-    }
-
-    pipeline_layout present_pipeline_layout;
-    {
-        cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
-        {
-            // Argument 0, blit target SRV
-            {
-                arg::shader_argument_shape arg_shape;
-                arg_shape.has_cb = false;
-                arg_shape.num_srvs = 1;
-                arg_shape.num_uavs = 0;
-                payload_shape.push_back(arg_shape);
-            }
-        }
-
-        present_pipeline_layout.initialize(bv.mDevice.getDevice(), payload_shape);
     }
 
     image depth_image;
@@ -123,19 +107,36 @@ TEST("pr::backend::vk liveness", exclusive)
                                                               shader_stages, pr::default_config);
     }
 
-    VkPipeline presentPipeline;
+    handle::pipeline_state ng_pso_blit;
     {
-        cc::vector<util::spirv_desc_info> spirv_info;
-        cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex_blit.spv", spirv_info));
-        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel_blit.spv", spirv_info));
-        CC_DEFER
+        cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
         {
-            for (auto const& ps : shader_stages)
-                util::free_patched_spirv(ps);
-        };
+            // Argument 0, blit target SRV
+            {
+                arg::shader_argument_shape arg_shape;
+                arg_shape.has_cb = false;
+                arg_shape.num_srvs = 1;
+                arg_shape.num_uavs = 0;
+                payload_shape.push_back(arg_shape);
+            }
+        }
 
-        presentPipeline = create_fullscreen_pipeline(bv.mDevice.getDevice(), bv.mSwapchain.getRenderPass(), present_pipeline_layout.raw_layout, shader_stages);
+        auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex_blit.spv");
+        auto const pixel_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel_blit.spv");
+
+        CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+
+        cc::capped_vector<arg::shader_stage, 6> shader_stages;
+        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+
+        cc::capped_vector<format, 8> rtv_formats;
+        rtv_formats.push_back(util::to_pr_format(bv.mSwapchain.getBackbufferFormat()));
+
+        pr::primitive_pipeline_config config;
+        config.cull = pr::cull_mode::front;
+        ng_pso_blit = bv.mPoolPipelines.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape,
+                                                            shader_stages, config);
     }
 
     buffer vert_buf;
@@ -184,7 +185,7 @@ TEST("pr::backend::vk liveness", exclusive)
 
     descriptor_set_bundle present_desc_set;
     {
-        present_desc_set.initialize(descAllocator, present_pipeline_layout);
+        present_desc_set.initialize(descAllocator, *bv.mPoolPipelines.get(ng_pso_blit).associated_pipeline_layout);
 
         legacy::shader_argument arg_zero;
         arg_zero.srvs.push_back(color_rt_view);
@@ -319,8 +320,8 @@ TEST("pr::backend::vk liveness", exclusive)
                 renderPassInfo.renderArea.extent.height = backbuffer_size.y;
 
                 cc::array<VkClearValue, 2> clear_values;
-                clear_values[0] = {0.f, 0.f, 0.f, 1.f};
-                clear_values[1] = {1.f, 0};
+                clear_values[0] = {{{0.f, 0.f, 0.f, 1.f}}};
+                clear_values[1] = {{{1.f, 0}}};
 
                 renderPassInfo.clearValueCount = clear_values.size();
                 renderPassInfo.pClearValues = clear_values.data();
@@ -379,37 +380,62 @@ TEST("pr::backend::vk liveness", exclusive)
             }
 
             {
-                // transition color_rt to shader resource
-                barrier_bundle<1> barrier;
+                // transition color_rt to shader resource, backbuffer to rt
+                barrier_bundle<2> barrier;
                 barrier.add_image_barrier(color_rt_image.image,
                                           state_change{resource_state::render_target, resource_state::shader_resource, shader_domain::pixel});
+                barrier.add_image_barrier(bv.mSwapchain.getCurrentBackbuffer(), state_change{resource_state::present, resource_state::render_target});
                 barrier.record(cmd_buf);
             }
 
             // Present render pass
             {
+                auto const& pso_node = bv.mPoolPipelines.get(ng_pso_blit);
+
+                cc::array const attachments = {bv.mSwapchain.getCurrentBackbufferView()};
+                VkFramebufferCreateInfo fb_info = {};
+                fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+                fb_info.pNext = nullptr;
+                fb_info.renderPass = pso_node.associated_render_pass;
+                fb_info.attachmentCount = unsigned(attachments.size());
+                fb_info.pAttachments = attachments.data();
+                fb_info.width = unsigned(backbuffer_size.x);
+                fb_info.height = unsigned(backbuffer_size.y);
+                fb_info.layers = 1;
+                VkFramebuffer temp_framebuffer;
+                PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &temp_framebuffer));
+                bv.mPoolCmdLists.addAssociatedFramebuffer(cmdlist_handle, temp_framebuffer);
+
                 VkRenderPassBeginInfo renderPassInfo = {};
                 renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                renderPassInfo.renderPass = bv.mSwapchain.getRenderPass();
-                renderPassInfo.framebuffer = bv.mSwapchain.getCurrentFramebuffer();
+                renderPassInfo.renderPass = pso_node.associated_render_pass;
+                renderPassInfo.framebuffer = temp_framebuffer;
                 renderPassInfo.renderArea.offset = {0, 0};
                 renderPassInfo.renderArea.extent.width = backbuffer_size.x;
                 renderPassInfo.renderArea.extent.height = backbuffer_size.y;
 
                 cc::array<VkClearValue, 1> clear_values;
-                clear_values[0] = {0.f, 0.f, 0.f, 1.f};
+                clear_values[0] = {{{0.f, 0.f, 0.f, 1.f}}};
 
                 renderPassInfo.clearValueCount = clear_values.size();
                 renderPassInfo.pClearValues = clear_values.data();
 
                 util::set_viewport(cmd_buf, backbuffer_size.x, backbuffer_size.y);
                 vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-                vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, presentPipeline);
+                vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pso_node.raw_pipeline);
 
-                present_desc_set.bind_argument(cmd_buf, present_pipeline_layout.raw_layout, 0);
+                present_desc_set.bind_argument_no_cbv(cmd_buf, pso_node.associated_pipeline_layout->raw_layout, 0);
 
                 vkCmdDraw(cmd_buf, 3, 1, 0, 0);
                 vkCmdEndRenderPass(cmd_buf);
+            }
+
+            {
+                // transition color_rt to shader resource
+                barrier_bundle<1> barrier;
+                barrier.add_image_barrier(bv.mSwapchain.getCurrentBackbuffer(),
+                                          state_change{resource_state::render_target, shader_domain::pixel, resource_state::present});
+                barrier.record(cmd_buf);
             }
 
             PR_VK_VERIFY_SUCCESS(vkEndCommandBuffer(cmd_buf));
@@ -437,10 +463,6 @@ TEST("pr::backend::vk liveness", exclusive)
 
         bv.mAllocator.free(color_rt_image);
         vkDestroyImageView(device, color_rt_view, nullptr);
-
-        vkDestroyPipeline(device, presentPipeline, nullptr);
-
-        present_pipeline_layout.free(device);
 
         arc_desc_set.free(descAllocator);
         present_desc_set.free(descAllocator);
