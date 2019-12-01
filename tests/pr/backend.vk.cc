@@ -52,32 +52,6 @@ TEST("pr::backend::vk liveness", exclusive)
         descAllocator.initialize(bv.mDevice.getDevice(), num_cbvs, num_srvs, num_uavs, num_samplers);
     }
 
-    pipeline_layout arc_pipeline_layout;
-    {
-        cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
-        {
-            // Argument 0, camera CBV
-            {
-                arg::shader_argument_shape arg_shape;
-                arg_shape.has_cb = true;
-                arg_shape.num_srvs = 0;
-                arg_shape.num_uavs = 0;
-                payload_shape.push_back(arg_shape);
-            }
-
-            // Argument 1, pixel shader SRV and model matrix CBV
-            {
-                arg::shader_argument_shape arg_shape;
-                arg_shape.has_cb = true;
-                arg_shape.num_srvs = 1;
-                arg_shape.num_uavs = 0;
-                payload_shape.push_back(arg_shape);
-            }
-        }
-
-        arc_pipeline_layout.initialize(bv.mDevice.getDevice(), payload_shape);
-    }
-
     pipeline_layout present_pipeline_layout;
     {
         cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
@@ -149,35 +123,6 @@ TEST("pr::backend::vk liveness", exclusive)
                                                               shader_stages, pr::default_config);
     }
 
-    VkRenderPass arcRenderPass;
-    {
-        cc::capped_vector<format, 8> rtv_formats;
-        rtv_formats.push_back(format::rgba16f);
-        format const dsv_format = format::depth32f;
-
-        auto arc_prim_config = pr::primitive_pipeline_config{};
-        arcRenderPass = create_render_pass(bv.mDevice.getDevice(), arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, arc_prim_config);
-    }
-
-    VkPipeline arcPipeline;
-    {
-        cc::vector<util::spirv_desc_info> spirv_info;
-
-        cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex.spv", spirv_info));
-        shader_stages.push_back(util::create_patched_spirv_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel.spv", spirv_info));
-        CC_DEFER
-        {
-            for (auto const& ps : shader_stages)
-                util::free_patched_spirv(ps);
-        };
-
-        auto const vert_attribs = assets::get_vertex_attributes<assets::simple_vertex>();
-        auto const input_layout = util::get_native_vertex_format(vert_attribs);
-        arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.raw_layout, shader_stages, pr::default_config,
-                                      input_layout, sizeof(assets::simple_vertex));
-    }
-
     VkPipeline presentPipeline;
     {
         cc::vector<util::spirv_desc_info> spirv_info;
@@ -218,8 +163,7 @@ TEST("pr::backend::vk liveness", exclusive)
     {
         // we just need a single one of these, since we do not update it during dispatch
         // we just re-bind at different offsets
-
-        arc_desc_set.initialize(descAllocator, arc_pipeline_layout);
+        arc_desc_set.initialize(descAllocator, *bv.mPoolPipelines.get(ng_pso_render).associated_pipeline_layout);
 
         legacy::shader_argument shader_arg_zero;
         shader_arg_zero.cbv = dynamicBufferRing.getBuffer();
@@ -350,11 +294,13 @@ TEST("pr::backend::vk liveness", exclusive)
 
             // Arc render pass
             {
+                auto const& pso_node = bv.mPoolPipelines.get(ng_pso_render);
+
                 cc::array const attachments = {color_rt_view, depth_view};
                 VkFramebufferCreateInfo fb_info = {};
                 fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
                 fb_info.pNext = nullptr;
-                fb_info.renderPass = arcRenderPass;
+                fb_info.renderPass = pso_node.associated_render_pass;
                 fb_info.attachmentCount = unsigned(attachments.size());
                 fb_info.pAttachments = attachments.data();
                 fb_info.width = unsigned(backbuffer_size.x);
@@ -366,7 +312,7 @@ TEST("pr::backend::vk liveness", exclusive)
 
                 VkRenderPassBeginInfo renderPassInfo = {};
                 renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                renderPassInfo.renderPass = arcRenderPass;
+                renderPassInfo.renderPass = pso_node.associated_render_pass;
                 renderPassInfo.framebuffer = temp_framebuffer;
                 renderPassInfo.renderArea.offset = {0, 0};
                 renderPassInfo.renderArea.extent.width = backbuffer_size.x;
@@ -379,9 +325,10 @@ TEST("pr::backend::vk liveness", exclusive)
                 renderPassInfo.clearValueCount = clear_values.size();
                 renderPassInfo.pClearValues = clear_values.data();
 
+
                 util::set_viewport(cmd_buf, backbuffer_size.x, backbuffer_size.y);
                 vkCmdBeginRenderPass(cmd_buf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-                vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, arcPipeline);
+                vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pso_node.raw_pipeline);
 
                 VkBuffer vertex_buffers[] = {vert_buf.buffer};
                 VkDeviceSize offsets[] = {0};
@@ -407,7 +354,7 @@ TEST("pr::backend::vk liveness", exclusive)
 
                     auto const dynamic_offset = uint32_t(cb_upload_info.offset);
 
-                    arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.raw_layout, 0, dynamic_offset);
+                    arc_desc_set.bind_argument(cmd_buf, pso_node.associated_pipeline_layout->raw_layout, 0, dynamic_offset);
                 }
 
                 {
@@ -423,7 +370,7 @@ TEST("pr::backend::vk liveness", exclusive)
                         auto const dynamic_offset = uint32_t(i * sizeof(vert_cb_data->model_matrices[0]));
                         auto const combined_offset = uint32_t(cb_upload_info.offset) + dynamic_offset;
 
-                        arc_desc_set.bind_argument(cmd_buf, arc_pipeline_layout.raw_layout, 1, combined_offset);
+                        arc_desc_set.bind_argument(cmd_buf, pso_node.associated_pipeline_layout->raw_layout, 1, combined_offset);
                         vkCmdDrawIndexed(cmd_buf, num_indices, 1, 0, 0, 0);
                     }
                 }
@@ -491,12 +438,8 @@ TEST("pr::backend::vk liveness", exclusive)
         bv.mAllocator.free(color_rt_image);
         vkDestroyImageView(device, color_rt_view, nullptr);
 
-        vkDestroyPipeline(device, arcPipeline, nullptr);
-        vkDestroyRenderPass(device, arcRenderPass, nullptr);
-
         vkDestroyPipeline(device, presentPipeline, nullptr);
 
-        arc_pipeline_layout.free(device);
         present_pipeline_layout.free(device);
 
         arc_desc_set.free(descAllocator);
