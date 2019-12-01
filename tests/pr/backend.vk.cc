@@ -107,6 +107,48 @@ TEST("pr::backend::vk liveness", exclusive)
         color_rt_view = make_image_view(bv.mDevice.getDevice(), color_rt_image, VK_FORMAT_R16G16B16A16_SFLOAT);
     }
 
+    handle::pipeline_state ng_pso_render;
+    {
+        cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
+        {
+            // Argument 0, camera CBV
+            {
+                arg::shader_argument_shape arg_shape;
+                arg_shape.has_cb = true;
+                arg_shape.num_srvs = 0;
+                arg_shape.num_uavs = 0;
+                payload_shape.push_back(arg_shape);
+            }
+
+            // Argument 1, pixel shader SRV and model matrix CBV
+            {
+                arg::shader_argument_shape arg_shape;
+                arg_shape.has_cb = true;
+                arg_shape.num_srvs = 1;
+                arg_shape.num_uavs = 0;
+                payload_shape.push_back(arg_shape);
+            }
+        }
+
+        auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/vertex.spv");
+        auto const pixel_binary = pr::backend::detail::unique_buffer::create_from_binary_file("res/pr/liveness_sample/shader/spirv/pixel.spv");
+
+        CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
+
+        cc::capped_vector<arg::shader_stage, 6> shader_stages;
+        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+
+        auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
+        cc::capped_vector<format, 8> rtv_formats;
+        rtv_formats.push_back(format::rgba16f);
+        format const dsv_format = format::depth32f;
+
+        ng_pso_render = bv.mPoolPipelines.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
+                                                              arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
+                                                              shader_stages, pr::default_config);
+    }
+
     VkRenderPass arcRenderPass;
     {
         cc::capped_vector<format, 8> rtv_formats;
@@ -118,7 +160,6 @@ TEST("pr::backend::vk liveness", exclusive)
     }
 
     VkPipeline arcPipeline;
-    VkFramebuffer arcFramebuffer;
     {
         cc::vector<util::spirv_desc_info> spirv_info;
 
@@ -135,20 +176,6 @@ TEST("pr::backend::vk liveness", exclusive)
         auto const input_layout = util::get_native_vertex_format(vert_attribs);
         arcPipeline = create_pipeline(bv.mDevice.getDevice(), arcRenderPass, arc_pipeline_layout.raw_layout, shader_stages, pr::default_config,
                                       input_layout, sizeof(assets::simple_vertex));
-
-        {
-            cc::array const attachments = {color_rt_view, depth_view};
-            VkFramebufferCreateInfo fb_info;
-            zero_info_struct(fb_info, VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);
-            fb_info.pNext = nullptr;
-            fb_info.renderPass = arcRenderPass;
-            fb_info.attachmentCount = unsigned(attachments.size());
-            fb_info.pAttachments = attachments.data();
-            fb_info.width = 15;
-            fb_info.height = 15;
-            fb_info.layers = 1;
-            PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &arcFramebuffer));
-        }
     }
 
     VkPipeline presentPipeline;
@@ -251,22 +278,6 @@ TEST("pr::backend::vk liveness", exclusive)
             barrier_dispatch.submit(cmd_buf, bv.mDevice.getQueueGraphics());
         }
 
-        // recreate arc framebuffer
-        {
-            vkDestroyFramebuffer(bv.mDevice.getDevice(), arcFramebuffer, nullptr);
-            cc::array const attachments = {color_rt_view, depth_view};
-            VkFramebufferCreateInfo fb_info = {};
-            fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            fb_info.pNext = nullptr;
-            fb_info.renderPass = arcRenderPass;
-            fb_info.attachmentCount = unsigned(attachments.size());
-            fb_info.pAttachments = attachments.data();
-            fb_info.width = unsigned(backbuffer_size.x);
-            fb_info.height = unsigned(backbuffer_size.y);
-            fb_info.layers = 1;
-            PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &arcFramebuffer));
-        }
-
         // flush
         vkDeviceWaitIdle(bv.mDevice.getDevice());
         std::cout << "resized swapchain to: " << backbuffer_size.x << "x" << backbuffer_size.y << std::endl;
@@ -336,12 +347,27 @@ TEST("pr::backend::vk liveness", exclusive)
                 barrier.record(cmd_buf);
             }
 
+
             // Arc render pass
             {
+                cc::array const attachments = {color_rt_view, depth_view};
+                VkFramebufferCreateInfo fb_info = {};
+                fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+                fb_info.pNext = nullptr;
+                fb_info.renderPass = arcRenderPass;
+                fb_info.attachmentCount = unsigned(attachments.size());
+                fb_info.pAttachments = attachments.data();
+                fb_info.width = unsigned(backbuffer_size.x);
+                fb_info.height = unsigned(backbuffer_size.y);
+                fb_info.layers = 1;
+                VkFramebuffer temp_framebuffer;
+                PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &temp_framebuffer));
+                bv.mPoolCmdLists.addAssociatedFramebuffer(cmdlist_handle, temp_framebuffer);
+
                 VkRenderPassBeginInfo renderPassInfo = {};
                 renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
                 renderPassInfo.renderPass = arcRenderPass;
-                renderPassInfo.framebuffer = arcFramebuffer;
+                renderPassInfo.framebuffer = temp_framebuffer;
                 renderPassInfo.renderArea.offset = {0, 0};
                 renderPassInfo.renderArea.extent.width = backbuffer_size.x;
                 renderPassInfo.renderArea.extent.height = backbuffer_size.y;
@@ -441,7 +467,6 @@ TEST("pr::backend::vk liveness", exclusive)
 
             PR_VK_VERIFY_SUCCESS(vkEndCommandBuffer(cmd_buf));
 
-
             bv.submit(cc::span{cmdlist_handle});
 
             bv.mSwapchain.performPresentSubmit();
@@ -466,7 +491,6 @@ TEST("pr::backend::vk liveness", exclusive)
         bv.mAllocator.free(color_rt_image);
         vkDestroyImageView(device, color_rt_view, nullptr);
 
-        vkDestroyFramebuffer(device, arcFramebuffer, nullptr);
         vkDestroyPipeline(device, arcPipeline, nullptr);
         vkDestroyRenderPass(device, arcRenderPass, nullptr);
 
