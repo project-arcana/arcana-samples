@@ -86,6 +86,7 @@ TEST("si api", disabled)
         }
 
         // custom lists
+#if 0
         if (auto l = si::listbox("floats"))
         {
             si::item();
@@ -97,11 +98,12 @@ TEST("si api", disabled)
         if (auto c = si::combobox("floats"))
         {
         }
+#endif
 
         // layouting
 
-		// animation
+        // animation
 
-		// plotting
+        // plotting
     }
 }
