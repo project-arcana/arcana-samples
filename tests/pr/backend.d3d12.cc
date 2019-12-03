@@ -274,7 +274,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
         }
 
         {
-            cc::capped_vector<arg::shader_view_element, 2> srv_elems;
+            cc::capped_vector<shader_view_element, 2> srv_elems;
             srv_elems.emplace_back().init_as_tex2d(resources.material, format::rgba8un);
             resources.shaderview_render = backend.createShaderView(srv_elems);
         }
@@ -288,7 +288,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
         resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150);
 
         {
-            cc::capped_vector<arg::shader_view_element, 2> srv_elems;
+            cc::capped_vector<shader_view_element, 2> srv_elems;
             srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
             resources.shaderview_blit = backend.createShaderView(srv_elems);
         }
@@ -304,7 +304,7 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
             resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h);
 
             backend.free(resources.shaderview_blit);
-            cc::capped_vector<arg::shader_view_element, 2> srv_elems;
+            cc::capped_vector<shader_view_element, 2> srv_elems;
             srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
             resources.shaderview_blit = backend.createShaderView(srv_elems);
 
@@ -380,10 +380,18 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
 
                     cmd::begin_render_pass cmd_brp;
                     cmd_brp.viewport = backend.getBackbufferSize();
-                    cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
-                        resources.colorbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+
+
+                    cmd_brp.render_targets.push_back(
+                        cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                    cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f);
+
+
                     cmd_brp.depth_target
-                        = cmd::begin_render_pass::depth_stencil_info{resources.depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::clear};
+
+                        = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, cmd::begin_render_pass::rt_clear_type::clear};
+                    cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u);
+
                     cmd_writer.add_command(cmd_brp);
 
                     cmd_writer.add_command(cmd::end_render_pass{});
@@ -399,10 +407,14 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
 
                         cmd::begin_render_pass cmd_brp;
                         cmd_brp.viewport = backend.getBackbufferSize();
-                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
-                            resources.colorbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::load});
-                        cmd_brp.depth_target
-                            = cmd::begin_render_pass::depth_stencil_info{resources.depthbuffer, 1.f, 0, cmd::begin_render_pass::rt_clear_type::load};
+
+                        cmd_brp.render_targets.push_back(
+                            cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::load});
+                        cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f);
+
+                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, cmd::begin_render_pass::rt_clear_type::load};
+                        cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u);
+
                         cmd_writer.add_command(cmd_brp);
 
 
@@ -443,8 +455,10 @@ void run_d3d12_sample(pr::backend::backend_config const& config)
                     {
                         cmd::begin_render_pass cmd_brp;
                         cmd_brp.viewport = backend.getBackbufferSize();
-                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{
-                            ng_backbuffer, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                        cmd_brp.render_targets.push_back(
+                            cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                        cmd_brp.render_targets.back().sve.init_as_backbuffer(ng_backbuffer);
+                        cmd_brp.depth_target.sve.init_as_null();
                         cmd_writer.add_command(cmd_brp);
                     }
 

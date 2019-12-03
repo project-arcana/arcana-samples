@@ -217,9 +217,10 @@ TEST("pr::backend::vk liveness", exclusive)
             auto const cmd_buf = commandBufferRing.acquireCommandBuffer();
 
             barrier_bundle<2> barrier_dispatch;
-            barrier_dispatch.add_image_barrier(color_rt_image.image,
-                                               state_change{resource_state::undefined, resource_state::shader_resource, shader_domain::pixel});
-            barrier_dispatch.add_image_barrier(depth_image.image, state_change{resource_state::undefined, resource_state::depth_write}, true);
+            barrier_dispatch.add_image_barrier(
+                color_rt_image.image, state_change{resource_state::undefined, resource_state::shader_resource, 0, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT},
+                util::to_native_image_aspect(format::rgba16f));
+            barrier_dispatch.add_image_barrier(depth_image.image, state_change{resource_state::undefined, resource_state::depth_write}, util::to_native_image_aspect(format::depth32f));
             barrier_dispatch.submit(cmd_buf, bv.mDevice.getQueueGraphics());
         }
 
@@ -288,7 +289,9 @@ TEST("pr::backend::vk liveness", exclusive)
             {
                 // transition color_rt to render target
                 barrier_bundle<1> barrier;
-                barrier.add_image_barrier(color_rt_image.image, state_change{resource_state::shader_resource, shader_domain::pixel, resource_state::render_target});
+                barrier.add_image_barrier(color_rt_image.image,
+                                          state_change{resource_state::shader_resource, resource_state::render_target, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT},
+                                          util::to_native_image_aspect(format::rgba16f));
                 barrier.record(cmd_buf);
             }
 
@@ -383,8 +386,12 @@ TEST("pr::backend::vk liveness", exclusive)
                 // transition color_rt to shader resource, backbuffer to rt
                 barrier_bundle<2> barrier;
                 barrier.add_image_barrier(color_rt_image.image,
-                                          state_change{resource_state::render_target, resource_state::shader_resource, shader_domain::pixel});
-                barrier.add_image_barrier(bv.mSwapchain.getCurrentBackbuffer(), state_change{resource_state::present, resource_state::render_target});
+                                          state_change{resource_state::render_target, resource_state::shader_resource, 0, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT},
+                                          VK_IMAGE_ASPECT_COLOR_BIT);
+
+                barrier.add_image_barrier(bv.mSwapchain.getCurrentBackbuffer(), state_change{resource_state::present, resource_state::render_target},
+                                          VK_IMAGE_ASPECT_COLOR_BIT);
+
                 barrier.record(cmd_buf);
             }
 
@@ -434,7 +441,8 @@ TEST("pr::backend::vk liveness", exclusive)
                 // transition color_rt to shader resource
                 barrier_bundle<1> barrier;
                 barrier.add_image_barrier(bv.mSwapchain.getCurrentBackbuffer(),
-                                          state_change{resource_state::render_target, shader_domain::pixel, resource_state::present});
+                                          state_change{resource_state::render_target, resource_state::present, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT},
+                                          VK_IMAGE_ASPECT_COLOR_BIT);
                 barrier.record(cmd_buf);
             }
 
