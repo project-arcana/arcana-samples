@@ -45,10 +45,17 @@ inline constexpr auto num_render_threads = 1;
 
 inline auto const get_backend_config = [] {
     pr::backend::backend_config config;
-    config.validation = pr::backend::validation_level::on_extended;
     config.present_mode = pr::backend::present_mode::allow_tearing;
     config.adapter_preference = pr::backend::adapter_preference::highest_vram;
     config.num_threads = td::system::num_logical_cores();
+
+    config.validation =
+#ifdef NDEBUG
+        pr::backend::validation_level::off;
+#else
+        pr::backend::validation_level::on_extended;
+#endif
+
     return config;
 };
 
