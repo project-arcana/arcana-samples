@@ -97,21 +97,21 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     {
         struct resources_t
         {
-            handle::resource material;
-            handle::resource vertex_buffer;
-            handle::resource index_buffer;
+            handle::resource material = handle::null_resource;
+            handle::resource vertex_buffer = handle::null_resource;
+            handle::resource index_buffer = handle::null_resource;
             unsigned num_indices = 0;
 
-            handle::resource cb_camdata;
-            handle::resource cb_modeldata;
+            handle::resource cb_camdata = handle::null_resource;
+            handle::resource cb_modeldata = handle::null_resource;
 
-            handle::pipeline_state pso_render;
-            handle::shader_view shaderview_render;
-            handle::resource depthbuffer;
-            handle::resource colorbuffer;
+            handle::pipeline_state pso_render = handle::null_pipeline_state;
+            handle::shader_view shaderview_render = handle::null_shader_view;
+            handle::resource depthbuffer = handle::null_resource;
+            handle::resource colorbuffer = handle::null_resource;
 
-            handle::pipeline_state pso_blit;
-            handle::shader_view shaderview_blit;
+            handle::pipeline_state pso_blit = handle::null_pipeline_state;
+            handle::shader_view shaderview_blit = handle::null_shader_view;
         };
 
         resources_t resources;
@@ -294,27 +294,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150);
         resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150);
 
-        {
-            auto* const writer_mem = static_cast<std::byte*>(std::malloc(1024));
-            command_stream_writer writer(writer_mem, 1024);
-
-            cmd::transition_resources transition_cmd;
-            transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.depthbuffer, resource_state::depth_write});
-            transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::render_target});
-            writer.add_command(transition_cmd);
-
-            auto const cl = backend.recordCommandList(writer.buffer(), writer.size());
-            backend.submit(cc::span{cl});
-
-            std::free(writer_mem);
-        }
-
-        {
-            cc::capped_vector<shader_view_element, 2> srv_elems;
-            srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
-            resources.shaderview_blit = backend.createShaderView(srv_elems);
-        }
-
         auto const on_resize_func = [&](int w, int h) {
             std::cout << "resize to " << w << "x" << h << std::endl;
 
@@ -325,14 +304,18 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             backend.free(resources.colorbuffer);
             resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h);
 
-            backend.free(resources.shaderview_blit);
-            cc::capped_vector<shader_view_element, 2> srv_elems;
-            srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
-            resources.shaderview_blit = backend.createShaderView(srv_elems);
+            {
+                if (resources.shaderview_blit.is_valid())
+                    backend.free(resources.shaderview_blit);
+
+                cc::capped_vector<shader_view_element, 1> srv_elems;
+                srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
+                resources.shaderview_blit = backend.createShaderView(srv_elems);
+            }
 
             {
-                auto* const writer_mem = static_cast<std::byte*>(std::malloc(1024));
-                command_stream_writer writer(writer_mem, 1024);
+                std::byte writer_mem[sizeof(cmd::transition_resources)];
+                command_stream_writer writer(writer_mem, sizeof(writer_mem));
 
                 cmd::transition_resources transition_cmd;
                 transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.depthbuffer, resource_state::depth_write});
@@ -341,9 +324,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                 auto const cl = backend.recordCommandList(writer.buffer(), writer.size());
                 backend.submit(cc::span{cl});
-
-                std::free(writer_mem);
             }
+
             backend.resize(w, h);
         };
 
@@ -498,7 +480,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     }
 
                     {
-                        cmd::transition_resources cmd_trans;                        
+                        cmd::transition_resources cmd_trans;
                         cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::render_target});
                         cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::shader_resource});
                         cmd_writer.add_command(cmd_trans);

@@ -9,18 +9,17 @@
 
 #include <task-dispatcher/td.hh>
 
+#include <phantasm-renderer/backend/Backend.hh>
 #include <phantasm-renderer/backend/assets/image_loader.hh>
 #include <phantasm-renderer/backend/assets/mesh_loader.hh>
 #include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
 #include <phantasm-renderer/backend/command_stream.hh>
-#include <phantasm-renderer/backend/Backend.hh>
 #include <phantasm-renderer/backend/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
 
 namespace pr_test
 {
-
 inline auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
 
 inline auto const get_view_matrix = [](double runtime) -> tg::mat4 {
