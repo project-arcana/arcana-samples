@@ -13,12 +13,14 @@
 #include <phantasm-renderer/backend/assets/mesh_loader.hh>
 #include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
 #include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/Backend.hh>
 #include <phantasm-renderer/backend/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
 
 namespace pr_test
 {
+
 inline auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
 
 inline auto const get_view_matrix = [](double runtime) -> tg::mat4 {
@@ -40,7 +42,7 @@ inline auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned i
 
 inline constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/apollo.obj";
 inline constexpr auto sample_texture_path = "res/pr/liveness_sample/texture/uv_checker.png";
-inline constexpr auto num_render_threads = 8;
+inline constexpr auto num_render_threads = 1;
 
 inline auto const get_backend_config = [] {
     pr::backend::backend_config config;
@@ -53,7 +55,7 @@ inline auto const get_backend_config = [] {
 
 struct model_matrix_data
 {
-    static constexpr auto num_instances = 400;
+    static constexpr auto num_instances = 16;
 
     struct padded_instance
     {
@@ -81,4 +83,29 @@ struct model_matrix_data
         }
     }
 };
+
+// Sample code
+struct sample_config
+{
+    char const* window_title;
+    char const* path_render_vs;
+    char const* path_render_ps;
+    char const* path_blit_vs;
+    char const* path_blit_ps;
+};
+
+void run_sample(pr::backend::Backend& backend, pr::backend::backend_config const& config, sample_config const& sample_config);
+
+// MIP map upload utilities
+
+void copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer,
+                             pr::backend::handle::resource upload_buffer,
+                             std::byte* upload_buffer_map,
+                             pr::backend::handle::resource dest_texture,
+                             pr::backend::format format,
+                             pr::backend::assets::image_size const& img_size,
+                             pr::backend::assets::image_data const& img_data);
+
+unsigned get_mipmap_upload_size(pr::backend::format format, pr::backend::assets::image_size const& img_size);
+
 }

@@ -24,6 +24,20 @@
 
 TEST("pr::backend::vk liveness", exclusive)
 {
+    td::launch([&] {
+        pr::backend::vk::BackendVulkan backend;
+
+        pr_test::sample_config sample_conf;
+        sample_conf.window_title = "pr::backend::vk liveness";
+        sample_conf.path_render_vs = "res/pr/liveness_sample/shader/spirv/vertex.spv";
+        sample_conf.path_render_ps = "res/pr/liveness_sample/shader/spirv/pixel.spv";
+        sample_conf.path_blit_vs = "res/pr/liveness_sample/shader/spirv/vertex_blit.spv";
+        sample_conf.path_blit_ps = "res/pr/liveness_sample/shader/spirv/pixel_blit.spv";
+
+        pr_test::run_sample(backend, pr_test::get_backend_config(), sample_conf);
+    });
+    return;
+
     using namespace pr::backend;
     using namespace pr::backend::vk;
 
@@ -102,9 +116,14 @@ TEST("pr::backend::vk liveness", exclusive)
         rtv_formats.push_back(format::rgba16f);
         format const dsv_format = format::depth32f;
 
+
+        sampler_config mat_sampler;
+        mat_sampler.init_default(sampler_filter::anisotropic);
+        // mat_sampler.min_lod = 8.f;
+
         ng_pso_render = bv.mPoolPipelines.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
                                                               arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
-                                                              shader_stages, pr::default_config);
+                                                              cc::span{mat_sampler}, shader_stages, pr::default_config);
     }
 
     handle::pipeline_state ng_pso_blit;
@@ -135,8 +154,13 @@ TEST("pr::backend::vk liveness", exclusive)
 
         pr::primitive_pipeline_config config;
         config.cull = pr::cull_mode::front;
+
+
+        sampler_config rt_sampler;
+        rt_sampler.init_default(sampler_filter::min_mag_mip_point);
+
         ng_pso_blit = bv.mPoolPipelines.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape,
-                                                            shader_stages, config);
+                                                            cc::span{rt_sampler}, shader_stages, config);
     }
 
     buffer vert_buf;
@@ -220,7 +244,8 @@ TEST("pr::backend::vk liveness", exclusive)
             barrier_dispatch.add_image_barrier(
                 color_rt_image.image, state_change{resource_state::undefined, resource_state::shader_resource, 0, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT},
                 util::to_native_image_aspect(format::rgba16f));
-            barrier_dispatch.add_image_barrier(depth_image.image, state_change{resource_state::undefined, resource_state::depth_write}, util::to_native_image_aspect(format::depth32f));
+            barrier_dispatch.add_image_barrier(depth_image.image, state_change{resource_state::undefined, resource_state::depth_write},
+                                               util::to_native_image_aspect(format::depth32f));
             barrier_dispatch.submit(cmd_buf, bv.mDevice.getQueueGraphics());
         }
 
@@ -312,7 +337,7 @@ TEST("pr::backend::vk liveness", exclusive)
                 fb_info.layers = 1;
                 VkFramebuffer temp_framebuffer;
                 PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &temp_framebuffer));
-                bv.mPoolCmdLists.addAssociatedFramebuffer(cmdlist_handle, temp_framebuffer);
+                bv.mPoolCmdLists.addAssociatedFramebuffer(cmdlist_handle, temp_framebuffer, {});
 
                 VkRenderPassBeginInfo renderPassInfo = {};
                 renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -411,7 +436,7 @@ TEST("pr::backend::vk liveness", exclusive)
                 fb_info.layers = 1;
                 VkFramebuffer temp_framebuffer;
                 PR_VK_VERIFY_SUCCESS(vkCreateFramebuffer(bv.mDevice.getDevice(), &fb_info, nullptr, &temp_framebuffer));
-                bv.mPoolCmdLists.addAssociatedFramebuffer(cmdlist_handle, temp_framebuffer);
+                bv.mPoolCmdLists.addAssociatedFramebuffer(cmdlist_handle, temp_framebuffer, {});
 
                 VkRenderPassBeginInfo renderPassInfo = {};
                 renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
