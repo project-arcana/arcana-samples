@@ -22,7 +22,7 @@
 #include <phantasm-renderer/backend/vulkan/shader.hh>
 #include <phantasm-renderer/backend/vulkan/shader_arguments.hh>
 
-TEST("pr::backend::vk liveness", exclusive)
+TEST("pr::backend::vk liveness", disabled, exclusive)
 {
     td::launch([&] {
         pr::backend::vk::BackendVulkan backend;
@@ -37,6 +37,8 @@ TEST("pr::backend::vk liveness", exclusive)
         pr_test::run_sample(backend, pr_test::get_backend_config(), sample_conf);
     });
     return;
+
+#if 0
 
     using namespace pr::backend;
     using namespace pr::backend::vk;
@@ -502,6 +504,8 @@ TEST("pr::backend::vk liveness", exclusive)
 
         descAllocator.destroy();
     }
+
+#endif
 }
 
 #endif

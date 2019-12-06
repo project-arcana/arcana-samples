@@ -6,7 +6,7 @@
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 
-TEST("pr::backend::d3d12 liveness", exclusive)
+TEST("pr::backend::d3d12 liveness", disabled, exclusive)
 {
     td::launch([&] {
         pr::backend::d3d12::BackendD3D12 backend;
@@ -22,36 +22,34 @@ TEST("pr::backend::d3d12 liveness", exclusive)
     });
 }
 
-TEST("pr::backend::d3d12 adapter choice", exclusive)
+TEST("pr::backend::d3d12 adapter choice", disabled, exclusive)
 {
     auto constexpr mute = false;
-    if (0)
+
+    using namespace pr::backend;
+    using namespace pr::backend::d3d12;
+
+    // Adapter choice basics
+    auto const candidates = get_adapter_candidates();
+
+    auto const vram_choice = get_preferred_gpu(candidates, adapter_preference::highest_vram);
+    auto const feature_choice = get_preferred_gpu(candidates, adapter_preference::highest_feature_level);
+    auto const integrated_choice = get_preferred_gpu(candidates, adapter_preference::integrated);
+
+    if constexpr (!mute)
     {
-        using namespace pr::backend;
-        using namespace pr::backend::d3d12;
-
-        // Adapter choice basics
-        auto const candidates = get_adapter_candidates();
-
-        auto const vram_choice = get_preferred_adapter_index(candidates, adapter_preference::highest_vram);
-        auto const feature_choice = get_preferred_adapter_index(candidates, adapter_preference::highest_feature_level);
-        auto const integrated_choice = get_preferred_adapter_index(candidates, adapter_preference::integrated);
-
-        if constexpr (!mute)
+        std::cout << "\n\n";
+        for (auto const& cand : candidates)
         {
-            std::cout << "\n\n";
-            for (auto const& cand : candidates)
-            {
-                std::cout << "D3D12 Adapter Candidate #" << cand.index << ": " << cand.description << '\n';
-                std::cout << " VRAM: " << unsigned(cand.dedicated_video_memory_bytes / (1024 * 1024)) << "MB";
-                std::cout << ", RAM: " << unsigned(cand.dedicated_system_memory_bytes / (1024 * 1024)) << "MB";
-                std::cout << ", Shared: " << unsigned(cand.shared_system_memory_bytes / (1024 * 1024)) << "MB\n" << std::endl;
-            }
-
-
-            std::cout << "Chose #" << vram_choice << " for highest vram, #" << feature_choice << " for highest feature level and #"
-                      << integrated_choice << " for integrated GPU" << std::endl;
+            std::cout << "D3D12 Adapter Candidate #" << cand.index << ": " << cand.description.c_str() << '\n';
+            std::cout << " VRAM: " << unsigned(cand.dedicated_video_memory_bytes / (1024 * 1024)) << "MB";
+            std::cout << ", RAM: " << unsigned(cand.dedicated_system_memory_bytes / (1024 * 1024)) << "MB";
+            std::cout << ", Shared: " << unsigned(cand.shared_system_memory_bytes / (1024 * 1024)) << "MB\n" << std::endl;
         }
+
+
+        std::cout << "Chose #" << vram_choice << " for highest vram, #" << feature_choice << " for highest feature level and #" << integrated_choice
+                  << " for integrated GPU" << std::endl;
     }
 }
 

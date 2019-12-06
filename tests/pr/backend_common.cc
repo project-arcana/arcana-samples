@@ -368,7 +368,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                 {
                     ++framecounter;
-                    if (framecounter == 60)
+                    if (framecounter == 480)
                     {
                         std::cout << "Frametime: " << frametime << "ms" << std::endl;
                         framecounter = 0;
@@ -402,14 +402,13 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         cmd_brp.viewport = backend.getBackbufferSize();
 
 
-                        cmd_brp.render_targets.push_back(
-                            cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, rt_clear_type::clear});
                         cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f);
 
 
                         cmd_brp.depth_target
 
-                            = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, cmd::begin_render_pass::rt_clear_type::clear};
+                            = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, rt_clear_type::clear};
                         cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u);
 
                         cmd_writer.add_command(cmd_brp);
@@ -429,11 +428,10 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         cmd::begin_render_pass cmd_brp;
                         cmd_brp.viewport = backend.getBackbufferSize();
 
-                        cmd_brp.render_targets.push_back(
-                            cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::load});
+                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, rt_clear_type::load});
                         cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f);
 
-                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, cmd::begin_render_pass::rt_clear_type::load};
+                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, rt_clear_type::load};
                         cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u);
 
                         cmd_writer.add_command(cmd_brp);
@@ -489,8 +487,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     {
                         cmd::begin_render_pass cmd_brp;
                         cmd_brp.viewport = backend.getBackbufferSize();
-                        cmd_brp.render_targets.push_back(
-                            cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, cmd::begin_render_pass::rt_clear_type::clear});
+                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, rt_clear_type::clear});
                         cmd_brp.render_targets.back().sve.init_as_backbuffer(ng_backbuffer);
                         cmd_brp.depth_target.sve.init_as_null();
                         cmd_writer.add_command(cmd_brp);
