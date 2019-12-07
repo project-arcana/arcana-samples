@@ -294,10 +294,12 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150);
         resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150);
 
-        auto const on_resize_func = [&](int w, int h) {
-            std::cout << "resize to " << w << "x" << h << std::endl;
-
+        auto const on_resize_func = [&]() {
             backend.flushGPU();
+            auto const backbuffer_size = backend.getBackbufferSize();
+            auto const w = backbuffer_size.x;
+            auto const h = backbuffer_size.y;
+            std::cout << "backbuffer resize to " << w << "x" << h << std::endl;
 
             backend.free(resources.depthbuffer);
             resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h);
@@ -328,8 +330,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 auto const cl = backend.recordCommandList(writer.buffer(), writer.size());
                 backend.submit(cc::span{cl});
             }
-
-            backend.resize(w, h);
         };
 
         // Main loop
@@ -361,7 +361,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             if (window.isPendingResize())
             {
                 if (!window.isMinimized())
-                    on_resize_func(window.getWidth(), window.getHeight());
+                    backend.onResize(window.getWidth(), window.getHeight());
                 window.clearPendingResize();
             }
 
@@ -379,6 +379,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         framecounter = 0;
                     }
                 }
+
+                if (backend.clearPendingResize())
+                    on_resize_func();
 
                 // Data upload
                 {
@@ -449,7 +452,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     if (!ng_backbuffer.is_valid())
                     {
                         // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
-
                         td::wait_for(render_sync);
                         for (auto const cl : render_cmd_lists)
                         {
@@ -501,7 +503,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     backend.submit(render_cmd_lists);
                     backend.submit(cc::span{present_list});
                 }
-
 
                 backend.present();
             }
