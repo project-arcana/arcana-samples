@@ -41,7 +41,7 @@ inline auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned i
 
 inline constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/apollo.obj";
 inline constexpr auto sample_texture_path = "res/pr/liveness_sample/texture/uv_checker.png";
-inline constexpr auto num_render_threads = 1;
+inline constexpr auto num_render_threads = 8;
 
 inline auto const get_backend_config = [] {
     pr::backend::backend_config config;

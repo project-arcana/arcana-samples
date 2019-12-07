@@ -334,7 +334,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         double run_time = 0.0;
 
 
+        // cacheline-sized tasks call for desperate measures (macro)
 #define THREAD_BUFFER_SIZE (static_cast<size_t>(1024ull * 100))
+
         cc::array<std::byte*, pr_test::num_render_threads + 1> thread_cmd_buffer_mem;
 
         for (auto& mem : thread_cmd_buffer_mem)
@@ -384,54 +386,31 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     std::memcpy(cb_modeldata_map, model_data, sizeof(pr_test::model_matrix_data));
                 }
 
-                cc::array<handle::command_list, pr_test::num_render_threads + 1> render_cmd_lists;
+                cc::array<handle::command_list, pr_test::num_render_threads> render_cmd_lists;
                 cc::fill(render_cmd_lists, handle::null_command_list);
-
-                // clear RTs
-                {
-                    command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
-
-                    {
-                        cmd::transition_resources cmd_trans;
-                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::render_target});
-                        cmd_writer.add_command(cmd_trans);
-                    }
-
-                    {
-                        cmd::begin_render_pass cmd_brp;
-                        cmd_brp.viewport = backend.getBackbufferSize();
-
-
-                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, rt_clear_type::clear});
-                        cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f);
-
-
-                        cmd_brp.depth_target
-
-                            = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, rt_clear_type::clear};
-                        cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u);
-
-                        cmd_writer.add_command(cmd_brp);
-                    }
-
-                    cmd_writer.add_command(cmd::end_render_pass{});
-
-                    render_cmd_lists[0] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
-                }
 
                 // parallel rendering
                 auto render_sync = td::submit_batched_n(
                     [&](unsigned start, unsigned end, unsigned i) {
-                        // cacheline-sized tasks call for desperate measures (macro)
                         command_stream_writer cmd_writer(thread_cmd_buffer_mem[i + 1], THREAD_BUFFER_SIZE);
+
+                        auto const is_first_batch = i == 0;
+                        auto const clear_or_load = is_first_batch ? rt_clear_type::clear : rt_clear_type::load;
+
+                        if (is_first_batch)
+                        {
+                            cmd::transition_resources cmd_trans;
+                            cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::render_target});
+                            cmd_writer.add_command(cmd_trans);
+                        }
 
                         cmd::begin_render_pass cmd_brp;
                         cmd_brp.viewport = backend.getBackbufferSize();
 
-                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, rt_clear_type::load});
+                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, clear_or_load});
                         cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f);
 
-                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, rt_clear_type::load};
+                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, clear_or_load};
                         cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u);
 
                         cmd_writer.add_command(cmd_brp);
@@ -454,7 +433,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         cmd_writer.add_command(cmd::end_render_pass{});
 
 
-                        render_cmd_lists[i + 1] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                        render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                     },
                     pr_test::model_matrix_data::num_instances, pr_test::num_render_threads);
 
