@@ -519,5 +519,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         backend.free(resources.colorbuffer);
         backend.free(resources.depthbuffer);
         backend.free(resources.pso_blit);
+        backend.free(resources.shaderview_blit);
+        backend.free(resources.shaderview_render);
     }
 }
