@@ -33,6 +33,7 @@ TEST("pr::backend::vk liveness", disabled, exclusive)
         sample_conf.path_render_ps = "res/pr/liveness_sample/shader/spirv/pixel.spv";
         sample_conf.path_blit_vs = "res/pr/liveness_sample/shader/spirv/vertex_blit.spv";
         sample_conf.path_blit_ps = "res/pr/liveness_sample/shader/spirv/pixel_blit.spv";
+        sample_conf.align_mip_rows = false;
 
         pr_test::run_sample(backend, pr_test::get_backend_config(), sample_conf);
     });

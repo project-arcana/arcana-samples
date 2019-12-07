@@ -98,6 +98,9 @@ struct sample_config
     char const* path_render_ps;
     char const* path_blit_vs;
     char const* path_blit_ps;
+
+    /// whether to align MIP rows by 256 bytes (D3D12: yes, Vulkan: no)
+    bool align_mip_rows;
 };
 
 void run_sample(pr::backend::Backend& backend, pr::backend::backend_config const& config, sample_config const& sample_config);
@@ -110,7 +113,8 @@ void copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer,
                              pr::backend::handle::resource dest_texture,
                              pr::backend::format format,
                              pr::backend::assets::image_size const& img_size,
-                             pr::backend::assets::image_data const& img_data);
+                             pr::backend::assets::image_data const& img_data,
+                             bool use_d3d12_per_row_alingment);
 
 unsigned get_mipmap_upload_size(pr::backend::format format, pr::backend::assets::image_size const& img_size);
 

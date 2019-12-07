@@ -10,7 +10,8 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
                                       pr::backend::handle::resource dest_texture,
                                       pr::backend::format format,
                                       const pr::backend::assets::image_size& img_size,
-                                      const pr::backend::assets::image_data& img_data)
+                                      const pr::backend::assets::image_data& img_data,
+                                      bool use_d3d12_per_row_alingment)
 {
     using namespace pr::backend;
     auto const bytes_per_pixel = detail::pr_format_size_bytes(format);
@@ -43,7 +44,7 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
             writer.add_command(command);
 
             // MIP maps are 256-byte aligned per row
-            auto const row_pitch = mem::align_up(bytes_per_pixel * command.dest_width, 256);
+            auto const row_pitch = use_d3d12_per_row_alingment ? mem::align_up(bytes_per_pixel * command.dest_width, 256) : bytes_per_pixel * command.dest_width;
             auto const custom_offset = row_pitch * command.dest_height;
             accumulated_offset += custom_offset;
 
@@ -152,7 +153,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 }
 
                 pr_test::copy_mipmaps_to_texture(writer, ng_upbuffer_material, backend.getMappedMemory(ng_upbuffer_material), resources.material,
-                                                 format::rgba8un, img_size, img_data);
+                                                 format::rgba8un, img_size, img_data, sample_config.align_mip_rows);
             }
 
             // create vertex and index buffer
