@@ -3,24 +3,7 @@
 
 #include "backend_common.hh"
 
-#include <phantasm-renderer/backend/detail/unique_buffer.hh>
-
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
-#include <phantasm-renderer/backend/vulkan/CommandBufferRing.hh>
-#include <phantasm-renderer/backend/vulkan/common/util.hh>
-#include <phantasm-renderer/backend/vulkan/common/verify.hh>
-#include <phantasm-renderer/backend/vulkan/common/vk_format.hh>
-#include <phantasm-renderer/backend/vulkan/common/zero_struct.hh>
-#include <phantasm-renderer/backend/vulkan/loader/spirv_patch_util.hh>
-#include <phantasm-renderer/backend/vulkan/memory/DynamicBufferRing.hh>
-#include <phantasm-renderer/backend/vulkan/memory/ResourceAllocator.hh>
-#include <phantasm-renderer/backend/vulkan/memory/UploadHeap.hh>
-#include <phantasm-renderer/backend/vulkan/pipeline_state.hh>
-#include <phantasm-renderer/backend/vulkan/resources/resource_creation.hh>
-#include <phantasm-renderer/backend/vulkan/resources/resource_state.hh>
-#include <phantasm-renderer/backend/vulkan/resources/resource_view.hh>
-#include <phantasm-renderer/backend/vulkan/shader.hh>
-#include <phantasm-renderer/backend/vulkan/shader_arguments.hh>
 
 TEST("pr::backend::vk liveness", disabled, exclusive)
 {
