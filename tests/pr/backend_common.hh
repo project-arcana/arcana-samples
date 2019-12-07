@@ -24,7 +24,7 @@ inline auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return 
 
 inline auto const get_view_matrix = [](double runtime) -> tg::mat4 {
     constexpr auto target = tg::pos3(0, 1.45f, 0);
-    const auto cam_pos = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 20.f, tg::radians(float(runtime * 0.05)))
+    const auto cam_pos = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 10.f, tg::radians(float(runtime * 0.05)))
                          + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.125))) * 10.f, 0);
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
 };
@@ -53,7 +53,7 @@ inline auto const get_backend_config = [] {
 #ifdef NDEBUG
         pr::backend::validation_level::off;
 #else
-        pr::backend::validation_level::on_extended;
+        pr::backend::validation_level::on_extended_dred;
 #endif
 
     return config;
