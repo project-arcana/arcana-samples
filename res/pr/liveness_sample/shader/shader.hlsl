@@ -23,12 +23,13 @@ struct ModelConstants
     float4x4 model;
 };
 
+SamplerState g_sampler                              : register(s0, space1);
+
 Texture2D<float4> g_albedo                          : register(t0, space1);
 
 ConstantBuffer<CameraConstants> g_FrameData         : register(b0, space0);
 ConstantBuffer<ModelConstants> g_ModelData          : register(b0, space1);
 
-SamplerState g_sampler                              : register(s0, space0);
 
 vs_out mainVS(vs_in In)
 {

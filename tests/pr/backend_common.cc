@@ -209,6 +209,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     arg_shape.has_cb = true;
                     arg_shape.num_srvs = 0;
                     arg_shape.num_uavs = 0;
+                    arg_shape.num_samplers = 0;
                     payload_shape.push_back(arg_shape);
                 }
 
@@ -218,6 +219,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     arg_shape.has_cb = true;
                     arg_shape.num_srvs = 1;
                     arg_shape.num_uavs = 0;
+                    arg_shape.num_samplers = 1;
                     payload_shape.push_back(arg_shape);
                 }
             }
@@ -236,13 +238,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             rtv_formats.push_back(format::rgba16f);
             format const dsv_format = format::depth24un_stencil8u;
 
-            sampler_config mat_sampler;
-            mat_sampler.init_default(sampler_filter::min_mag_mip_linear);
-            // mat_sampler.min_lod = 8.f;
-
             resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
                                                                arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
-                                                               cc::span{mat_sampler}, shader_stages, pr::default_config);
+                                                               shader_stages, pr::default_config);
         }
 
         {
@@ -254,6 +252,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     arg_shape.has_cb = false;
                     arg_shape.num_srvs = 1;
                     arg_shape.num_uavs = 0;
+                    arg_shape.num_samplers = 1;
                     payload_shape.push_back(arg_shape);
                 }
             }
@@ -273,18 +272,18 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             pr::primitive_pipeline_config config;
             config.cull = pr::cull_mode::front;
 
-
-            sampler_config rt_sampler;
-            rt_sampler.init_default(sampler_filter::min_mag_mip_point);
-
-            resources.pso_blit = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape,
-                                                             cc::span{rt_sampler}, shader_stages, config);
+            resources.pso_blit
+                = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape, shader_stages, config);
         }
 
         {
+            sampler_config mat_sampler;
+            mat_sampler.init_default(sampler_filter::min_mag_mip_linear);
+            // mat_sampler.min_lod = 8.f;
+
             cc::capped_vector<shader_view_element, 2> srv_elems;
             srv_elems.emplace_back().init_as_tex2d(resources.material, format::rgba8un);
-            resources.shaderview_render = backend.createShaderView(srv_elems);
+            resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
         }
         resources.cb_camdata = backend.createMappedBuffer(sizeof(tg::mat4));
         std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
@@ -309,9 +308,12 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 if (resources.shaderview_blit.is_valid())
                     backend.free(resources.shaderview_blit);
 
+                sampler_config rt_sampler;
+                rt_sampler.init_default(sampler_filter::min_mag_mip_point);
+
                 cc::capped_vector<shader_view_element, 1> srv_elems;
                 srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
-                resources.shaderview_blit = backend.createShaderView(srv_elems);
+                resources.shaderview_blit = backend.createShaderView(srv_elems, {}, cc::span{rt_sampler});
             }
 
             {
