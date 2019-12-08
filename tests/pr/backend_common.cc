@@ -303,8 +303,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         auto const on_resize_func = [&]() {
             backend.flushGPU();
             auto const backbuffer_size = backend.getBackbufferSize();
-            auto const w = backbuffer_size.x;
-            auto const h = backbuffer_size.y;
+            auto const w = backbuffer_size.width;
+            auto const h = backbuffer_size.height;
             std::cout << "backbuffer resize to " << w << "x" << h << std::endl;
 
             backend.free(resources.depthbuffer);
@@ -367,7 +367,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             if (window.isPendingResize())
             {
                 if (!window.isMinimized())
-                    backend.onResize(window.getWidth(), window.getHeight());
+                    backend.onResize({window.getWidth(), window.getHeight()});
                 window.clearPendingResize();
             }
 
