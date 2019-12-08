@@ -52,7 +52,6 @@ add_subdirectory(extern/task-dispatcher)
 # logging
 add_subdirectory(extern/rich-log)
 
-
 ## Main
 
 # half-edge meshes
@@ -69,6 +68,11 @@ add_subdirectory(extern/structured-interface)
 
 # testing, benchmarking, apps
 add_subdirectory(extern/nexus)
+
+## Incubator
+
+# provisional code
+add_subdirectory(extern/arcana-incubator)
 
 
 # ===============================================
