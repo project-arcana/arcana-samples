@@ -89,6 +89,9 @@ unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const pr::b
 
 void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backend_config& config, sample_config const& sample_config)
 {
+#define msaa_enabled false
+    auto constexpr msaa_samples = msaa_enabled ? 4 : 1;
+
     using namespace pr::backend;
 
     pr::backend::device::Window window;
@@ -238,9 +241,12 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             rtv_formats.push_back(format::rgba16f);
             format const dsv_format = format::depth24un_stencil8u;
 
+            pr::primitive_pipeline_config config;
+            config.samples = msaa_samples;
+
             resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
                                                                arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
-                                                               shader_stages, pr::default_config);
+                                                               shader_stages, config);
         }
 
         {
@@ -291,8 +297,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.cb_modeldata = backend.createMappedBuffer(sizeof(pr_test::model_matrix_data));
         std::byte* const cb_modeldata_map = backend.getMappedMemory(resources.cb_modeldata);
 
-        resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150);
-        resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150);
+        resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150, msaa_samples);
+        resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150, msaa_samples);
 
         auto const on_resize_func = [&]() {
             backend.flushGPU();
@@ -302,9 +308,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             std::cout << "backbuffer resize to " << w << "x" << h << std::endl;
 
             backend.free(resources.depthbuffer);
-            resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h);
+            resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h, msaa_samples);
             backend.free(resources.colorbuffer);
-            resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h);
+            resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h, msaa_samples);
 
             {
                 if (resources.shaderview_blit.is_valid())
@@ -314,7 +320,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 rt_sampler.init_default(sampler_filter::min_mag_mip_point);
 
                 cc::capped_vector<shader_view_element, 1> srv_elems;
-                srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f);
+                srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f, msaa_enabled);
                 resources.shaderview_blit = backend.createShaderView(srv_elems, {}, cc::span{rt_sampler});
             }
 
@@ -414,10 +420,10 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         cmd_brp.viewport = backend.getBackbufferSize();
 
                         cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, clear_or_load});
-                        cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f);
+                        cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f, msaa_enabled);
 
                         cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, clear_or_load};
-                        cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u);
+                        cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u, msaa_enabled);
 
                         cmd_writer.add_command(cmd_brp);
 
