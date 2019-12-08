@@ -9,8 +9,8 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
                                       std::byte* upload_buffer_map,
                                       pr::backend::handle::resource dest_texture,
                                       pr::backend::format format,
-                                      const pr::backend::assets::image_size& img_size,
-                                      const pr::backend::assets::image_data& img_data,
+                                      const inc::assets::image_size& img_size,
+                                      const inc::assets::image_data& img_data,
                                       bool use_d3d12_per_row_alingment)
 {
     using namespace pr::backend;
@@ -48,13 +48,13 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
             auto const custom_offset = row_pitch * command.dest_height;
             accumulated_offset += custom_offset;
 
-            pr::backend::assets::copy_subdata(img_data, upload_buffer_map + command.source_offset, row_pitch, command.dest_width * bytes_per_pixel,
+            inc::assets::copy_subdata(img_data, upload_buffer_map + command.source_offset, row_pitch, command.dest_width * bytes_per_pixel,
                                               command.dest_height);
         }
     }
 }
 
-unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const pr::backend::assets::image_size& img_size)
+unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::assets::image_size& img_size)
 {
     using namespace pr::backend;
     auto const bytes_per_pixel = detail::pr_format_size_bytes(format);
@@ -139,10 +139,10 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
 
             {
-                assets::image_size img_size;
-                auto const img_data = assets::load_image(pr_test::sample_texture_path, img_size);
-                CC_RUNTIME_ASSERT(assets::is_valid(img_data) && "failed to load texture");
-                CC_DEFER { assets::free(img_data); };
+                inc::assets::image_size img_size;
+                auto const img_data = inc::assets::load_image(pr_test::sample_texture_path, img_size);
+                CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
+                CC_DEFER { inc::assets::free(img_data); };
 
                 resources.material = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
 
@@ -161,13 +161,13 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
             // create vertex and index buffer
             {
-                auto const mesh_data = assets::load_obj_mesh(pr_test::sample_mesh_path);
+                auto const mesh_data = inc::assets::load_obj_mesh(pr_test::sample_mesh_path);
                 resources.num_indices = unsigned(mesh_data.indices.size());
 
                 auto const vert_size = mesh_data.get_vertex_size_bytes();
                 auto const ind_size = mesh_data.get_index_size_bytes();
 
-                resources.vertex_buffer = backend.createBuffer(vert_size, resource_state::copy_dest, sizeof(assets::simple_vertex));
+                resources.vertex_buffer = backend.createBuffer(vert_size, resource_state::copy_dest, sizeof(inc::assets::simple_vertex));
                 resources.index_buffer = backend.createBuffer(ind_size, resource_state::copy_dest, sizeof(int));
 
 
@@ -236,7 +236,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
             shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
 
-            auto const attrib_info = assets::get_vertex_attributes<assets::simple_vertex>();
+            auto const attrib_info = assets::get_vertex_attributes<inc::assets::simple_vertex>();
             cc::capped_vector<format, 8> rtv_formats;
             rtv_formats.push_back(format::rgba16f);
             format const dsv_format = format::depth24un_stencil8u;
@@ -244,7 +244,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             pr::primitive_pipeline_config config;
             config.samples = msaa_samples;
 
-            resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(assets::simple_vertex)},
+            resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)},
                                                                arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
                                                                shader_stages, config);
         }

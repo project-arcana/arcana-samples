@@ -12,6 +12,7 @@ target_link_libraries(pr-tests PUBLIC
     task-dispatcher
     typed-geometry
     phantasm-renderer
+    arcana-incubator
 )
 
 set_property(TARGET pr-tests PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

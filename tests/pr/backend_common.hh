@@ -10,13 +10,14 @@
 #include <task-dispatcher/td.hh>
 
 #include <phantasm-renderer/backend/Backend.hh>
-#include <phantasm-renderer/backend/assets/image_loader.hh>
-#include <phantasm-renderer/backend/assets/mesh_loader.hh>
 #include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
 #include <phantasm-renderer/backend/command_stream.hh>
 #include <phantasm-renderer/backend/device_tentative/timer.hh>
 #include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
+
+#include <arcana-incubator/asset-loading/image_loader.hh>
+#include <arcana-incubator/asset-loading/mesh_loader.hh>
 
 namespace pr_test
 {
@@ -112,10 +113,10 @@ void copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer,
                              std::byte* upload_buffer_map,
                              pr::backend::handle::resource dest_texture,
                              pr::backend::format format,
-                             pr::backend::assets::image_size const& img_size,
-                             pr::backend::assets::image_data const& img_data,
+                             inc::assets::image_size const& img_size,
+                             inc::assets::image_data const& img_data,
                              bool use_d3d12_per_row_alingment);
 
-unsigned get_mipmap_upload_size(pr::backend::format format, pr::backend::assets::image_size const& img_size);
+unsigned get_mipmap_upload_size(pr::backend::format format, inc::assets::image_size const& img_size);
 
 }
