@@ -61,6 +61,9 @@ add_subdirectory(extern/polymesh)
 # phantasm renderer
 add_subdirectory(extern/phantasm-renderer)
 
+# UI
+add_subdirectory(extern/structured-interface)
+
 # TODO: other libs
 
 
@@ -123,6 +126,7 @@ foreach(TARGET_NAME
     phantasm-renderer
     rich-log
     task-dispatcher
+    structured-interface
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
 endforeach()
