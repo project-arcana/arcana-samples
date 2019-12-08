@@ -25,8 +25,6 @@ TEST("pr::backend::d3d12 liveness", disabled, exclusive)
 
 TEST("pr::backend::d3d12 adapter choice", disabled, exclusive)
 {
-    auto constexpr mute = false;
-
     using namespace pr::backend;
     using namespace pr::backend::d3d12;
 
@@ -37,7 +35,6 @@ TEST("pr::backend::d3d12 adapter choice", disabled, exclusive)
     auto const feature_choice = get_preferred_gpu(candidates, adapter_preference::highest_feature_level);
     auto const integrated_choice = get_preferred_gpu(candidates, adapter_preference::integrated);
 
-    if constexpr (!mute)
     {
         std::cout << "\n\n";
         for (auto const& cand : candidates)

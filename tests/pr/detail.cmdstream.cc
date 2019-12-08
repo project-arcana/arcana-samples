@@ -61,7 +61,7 @@ FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
         callback callback_instance;
 
         // dynamically call the correct overloads of the callback
-        for (cmd::detail::cmd_base& cmd : parser)
+        for (cmd::detail::cmd_base const& cmd : parser)
             cmd::detail::dynamic_dispatch(cmd, callback_instance);
 
         // check if the amount of calls was correct
@@ -76,7 +76,7 @@ FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
         command_stream_parser parser(nullptr, 0);
 
         callback callback_instance;
-        for (cmd::detail::cmd_base& cmd : parser)
+        for (cmd::detail::cmd_base const& cmd : parser)
             cmd::detail::dynamic_dispatch(cmd, callback_instance);
 
         // check if no calls happened
