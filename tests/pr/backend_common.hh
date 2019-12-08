@@ -62,7 +62,7 @@ inline auto const get_backend_config = [] {
 
 struct model_matrix_data
 {
-    static constexpr auto num_instances = 16;
+    static constexpr auto num_instances = 128;
 
     struct padded_instance
     {
