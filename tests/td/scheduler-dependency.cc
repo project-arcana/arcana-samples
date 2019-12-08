@@ -38,7 +38,7 @@ void mainTaskFunc(void*)
 }
 
 
-TEST("td::Scheduler (dependency)")
+TEST("td::Scheduler (dependency)", exclusive)
 {
     sGlobalBuffer.resize(workloadSize, 0);
     std::fill(sGlobalBuffer.begin(), sGlobalBuffer.end(), 0);

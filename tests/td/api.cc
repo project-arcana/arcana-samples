@@ -38,7 +38,7 @@ struct foo
 };
 }
 
-TEST("td API - compilation")
+TEST("td API - compilation", exclusive)
 {
     /// Aims to cover the entire API surface, making compilation or logic errors visible
     /// Little to no asserts
@@ -79,7 +79,7 @@ TEST("td API - compilation")
                 td::submit(s1, +[] {});
                 td::submit(s1, fun);
 
-                foo f;
+                // foo f;
                 // auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
 
                 // With arguments
@@ -148,7 +148,7 @@ TEST("td API - compilation")
                 td::submit_n(s1, [](auto i) { gSink += i; }, 50);
 
                 std::array<int, 50> values;
-                td::submit_each_ref(s1, [](int& val) { ++val; }, cc::span(values.data(), values.size()));
+                td::submit_each_ref<int>(s1, [](int& val) { ++val; }, values);
 
                 td::submit_batched(s1,
                                    [](auto begin, auto end) {
@@ -165,7 +165,7 @@ TEST("td API - compilation")
                 auto s1 = td::submit_n([](auto i) { gSink += i; }, 50);
 
                 std::array<int, 50> values;
-                auto s2 = td::submit_each_ref([](int& val) { ++val; }, cc::span(values.data(), values.size()));
+                auto s2 = td::submit_each_ref<int>([](int& val) { ++val; }, values);
 
                 auto s3 = td::submit_batched(
                     [](auto begin, auto end) {
@@ -200,7 +200,7 @@ TEST("td API - compilation")
 }
 
 
-TEST("td API - consistency")
+TEST("td API - consistency", exclusive)
 {
     /// Basic consistency and sanity checks, WIP
 
@@ -217,7 +217,7 @@ TEST("td API - consistency")
         auto const main_thread_id = std::this_thread::get_id();
 
         // Staying on the main thread when using pinned wait
-        auto const num_tasks = td::system::hardware_concurrency * 50;
+        auto const num_tasks = td::system::num_logical_cores() * 50;
         for (auto _ = 0; _ < 50; ++_)
         {
             auto s1 = td::submit_n([](auto) { ++gSink; }, num_tasks);
@@ -309,8 +309,7 @@ TEST("td API - consistency")
             for (auto v : values)
                 CHECK(v == 0);
 
-            // TODO: cc:span from containers (deduction guide currently missing)
-            auto s = td::submit_each_ref([](int& v) { v = 1; }, cc::span{values.data(), values.size()});
+            auto s = td::submit_each_ref<int>([](int& v) { v = 1; }, values);
 
             td::wait_for(s);
 

@@ -31,3 +31,6 @@
 [submodule "extern/rich-log"]
 	path = extern/rich-log
 	url = git@github.com:project-arcana/rich-log.git
+[submodule "extern/arcana-incubator"]
+	path = extern/arcana-incubator
+	url = git@github.com:project-arcana/arcana-incubator.git
