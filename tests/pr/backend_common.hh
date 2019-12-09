@@ -60,6 +60,12 @@ inline auto const get_backend_config = [] {
     return config;
 };
 
+struct global_data
+{
+    tg::mat4 cam_vp;
+    float runtime;
+};
+
 struct model_matrix_data
 {
     static constexpr auto num_instances = 128;

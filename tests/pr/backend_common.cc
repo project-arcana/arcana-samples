@@ -206,7 +206,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         {
             cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
             {
-                // Argument 0, camera CBV
+                // Argument 0, global CBV
                 {
                     arg::shader_argument_shape arg_shape;
                     arg_shape.has_cb = true;
@@ -252,7 +252,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         {
             cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
             {
-                // Argument 0, blit target SRV
+                // Argument 0, global CBV + blit target SRV + blit sampler
                 {
                     arg::shader_argument_shape arg_shape;
                     arg_shape.has_cb = false;
@@ -291,7 +291,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             srv_elems.emplace_back().init_as_tex2d(resources.material, format::rgba8un);
             resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
         }
-        resources.cb_camdata = backend.createMappedBuffer(sizeof(tg::mat4));
+        resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
         std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
 
         resources.cb_modeldata = backend.createMappedBuffer(sizeof(pr_test::model_matrix_data));
@@ -391,8 +391,10 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                 // Data upload
                 {
-                    auto const vp = pr_test::get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
-                    std::memcpy(cb_camdata_map, &vp, sizeof(vp));
+                    pr_test::global_data camdata;
+                    camdata.cam_vp = pr_test::get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
+                    camdata.runtime = static_cast<float>(run_time);
+                    std::memcpy(cb_camdata_map, &camdata, sizeof(camdata));
 
                     model_data->fill(run_time);
                     std::memcpy(cb_modeldata_map, model_data, sizeof(pr_test::model_matrix_data));

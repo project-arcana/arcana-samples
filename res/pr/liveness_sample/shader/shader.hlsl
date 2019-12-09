@@ -16,6 +16,7 @@ struct vs_out
 struct CameraConstants
 {
     float4x4 view_proj;
+    float runtime;
 };
 
 struct ModelConstants
