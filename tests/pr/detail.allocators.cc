@@ -77,7 +77,7 @@ TEST("pr backend detail - spmc_cache")
 
     struct functor
     {
-        size_t hash(key const& k) const { return pr::backend::hash::detail::hash(k.val); }
+        cc::hash_t hash(key const& k) const { return cc::make_hash(k.val); }
         bool compare(key const& lhs, key const& rhs) const { return lhs.val == rhs.val; }
     };
 
