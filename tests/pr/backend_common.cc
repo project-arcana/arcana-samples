@@ -48,8 +48,7 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
             auto const custom_offset = row_pitch * command.dest_height;
             accumulated_offset += custom_offset;
 
-            inc::assets::copy_subdata(img_data, upload_buffer_map + command.source_offset, row_pitch, command.dest_width * bytes_per_pixel,
-                                              command.dest_height);
+            inc::assets::copy_subdata(img_data, upload_buffer_map + command.source_offset, row_pitch, command.dest_width * bytes_per_pixel, command.dest_height);
         }
     }
 }
@@ -101,7 +100,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     {
         struct resources_t
         {
-            handle::resource material = handle::null_resource;
+            handle::resource mat_albedo = handle::null_resource;
+            handle::resource mat_normal = handle::null_resource;
             handle::resource vertex_buffer = handle::null_resource;
             handle::resource index_buffer = handle::null_resource;
             unsigned num_indices = 0;
@@ -138,26 +138,31 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             command_stream_writer writer(buffer, buffer_size);
 
 
-            {
+            auto const load_texture = [&](char const* path) -> handle::resource {
                 inc::assets::image_size img_size;
-                auto const img_data = inc::assets::load_image(pr_test::sample_texture_path, img_size);
+                auto const img_data = inc::assets::load_image(path, img_size);
                 CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
                 CC_DEFER { inc::assets::free(img_data); };
 
-                resources.material = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
+                auto const res_handle = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
 
                 ng_upbuffer_material = backend.createMappedBuffer(pr_test::get_mipmap_upload_size(format::rgba8un, img_size));
 
 
                 {
                     cmd::transition_resources transition_cmd;
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.material, resource_state::copy_dest});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{res_handle, resource_state::copy_dest});
                     writer.add_command(transition_cmd);
                 }
 
-                pr_test::copy_mipmaps_to_texture(writer, ng_upbuffer_material, backend.getMappedMemory(ng_upbuffer_material), resources.material,
+                pr_test::copy_mipmaps_to_texture(writer, ng_upbuffer_material, backend.getMappedMemory(ng_upbuffer_material), res_handle,
                                                  format::rgba8un, img_size, img_data, sample_config.align_mip_rows);
-            }
+
+                return res_handle;
+            };
+
+            resources.mat_albedo = load_texture(pr_test::sample_albedo_path);
+            resources.mat_normal = load_texture(pr_test::sample_normal_path);
 
             // create vertex and index buffer
             {
@@ -193,7 +198,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 cmd::transition_resources transition_cmd;
                 transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.vertex_buffer, resource_state::vertex_buffer});
                 transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.index_buffer, resource_state::index_buffer});
-                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.material, resource_state::shader_resource});
+                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_albedo, resource_state::shader_resource});
+                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_normal, resource_state::shader_resource});
                 writer.add_command(transition_cmd);
 
                 auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
@@ -220,7 +226,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 {
                     arg::shader_argument_shape arg_shape;
                     arg_shape.has_cb = true;
-                    arg_shape.num_srvs = 1;
+                    arg_shape.num_srvs = 2;
                     arg_shape.num_uavs = 0;
                     arg_shape.num_samplers = 1;
                     payload_shape.push_back(arg_shape);
@@ -245,8 +251,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             config.samples = msaa_samples;
 
             resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)},
-                                                               arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape,
-                                                               shader_stages, config);
+                                                               arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, shader_stages, config);
         }
 
         {
@@ -288,7 +293,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             // mat_sampler.min_lod = 8.f;
 
             cc::capped_vector<shader_view_element, 2> srv_elems;
-            srv_elems.emplace_back().init_as_tex2d(resources.material, format::rgba8un);
+            srv_elems.emplace_back().init_as_tex2d(resources.mat_albedo, format::rgba8un);
+            srv_elems.emplace_back().init_as_tex2d(resources.mat_normal, format::rgba8un);
             resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
         }
         resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
@@ -518,7 +524,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
 
         backend.flushGPU();
-        backend.free(resources.material);
+        backend.free(resources.mat_albedo);
+        backend.free(resources.mat_normal);
         backend.free(resources.vertex_buffer);
         backend.free(resources.index_buffer);
         backend.free(resources.pso_render);
