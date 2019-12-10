@@ -166,7 +166,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
             // create vertex and index buffer
             {
-                auto const mesh_data = inc::assets::load_obj_mesh(pr_test::sample_mesh_path);
+                auto const mesh_data = pr_test::sample_mesh_binary ? inc::assets::load_binary_mesh(pr_test::sample_mesh_path)
+                                                                   : inc::assets::load_obj_mesh(pr_test::sample_mesh_path);
+
                 resources.num_indices = unsigned(mesh_data.indices.size());
 
                 auto const vert_size = mesh_data.get_vertex_size_bytes();

@@ -40,7 +40,9 @@ inline auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned i
            * tg::scaling(model_scale, model_scale, model_scale);
 };
 
-inline constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/material_ball.obj";
+inline constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/ball.mesh";
+inline constexpr auto sample_mesh_binary = true;
+
 inline constexpr auto sample_albedo_path = "res/pr/liveness_sample/texture/ball/albedo.png";
 inline constexpr auto sample_normal_path = "res/pr/liveness_sample/texture/ball/normal.png";
 inline constexpr auto num_render_threads = 8;
