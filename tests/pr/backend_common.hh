@@ -34,7 +34,7 @@ inline auto const get_view_projection_matrix
     = [](double runtime, int w, int h) -> tg::mat4 { return get_projection_matrix(w, h) * get_view_matrix(runtime); };
 
 inline auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
-    constexpr auto model_scale = .1f;
+    constexpr auto model_scale = .21f;
     return tg::translation(pos + tg::vec3(index % 9, index % 6, index % 9))
            * tg::rotation_y(tg::radians((float(runtime * 2.) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
            * tg::scaling(model_scale, model_scale, model_scale);
