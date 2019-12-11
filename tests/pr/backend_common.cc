@@ -102,6 +102,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         {
             handle::resource mat_albedo = handle::null_resource;
             handle::resource mat_normal = handle::null_resource;
+            handle::resource mat_metallic = handle::null_resource;
+            handle::resource mat_roughness = handle::null_resource;
+
             handle::resource vertex_buffer = handle::null_resource;
             handle::resource index_buffer = handle::null_resource;
             unsigned num_indices = 0;
@@ -163,6 +166,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
             resources.mat_albedo = load_texture(pr_test::sample_albedo_path);
             resources.mat_normal = load_texture(pr_test::sample_normal_path);
+            resources.mat_metallic = load_texture(pr_test::sample_metallic_path);
+            resources.mat_roughness = load_texture(pr_test::sample_roughness_path);
 
             // create vertex and index buffer
             {
@@ -197,12 +202,21 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
             // transition resources, record and free the upload command list, and upload buffers
             {
-                cmd::transition_resources transition_cmd;
-                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.vertex_buffer, resource_state::vertex_buffer});
-                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.index_buffer, resource_state::index_buffer});
-                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_albedo, resource_state::shader_resource});
-                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_normal, resource_state::shader_resource});
-                writer.add_command(transition_cmd);
+                {
+                    cmd::transition_resources transition_cmd;
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.vertex_buffer, resource_state::vertex_buffer});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.index_buffer, resource_state::index_buffer});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_albedo, resource_state::shader_resource});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_normal, resource_state::shader_resource});
+                    writer.add_command(transition_cmd);
+                }
+
+                {
+                    cmd::transition_resources transition_cmd;
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_metallic, resource_state::shader_resource});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_roughness, resource_state::shader_resource});
+                    writer.add_command(transition_cmd);
+                }
 
                 auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
                 backend.submit(cc::span{copy_cmd_list});
@@ -224,11 +238,11 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     payload_shape.push_back(arg_shape);
                 }
 
-                // Argument 1, pixel shader SRV and model matrix CBV
+                // Argument 1, pixel shader SRVs and model matrix CBV
                 {
                     arg::shader_argument_shape arg_shape;
                     arg_shape.has_cb = true;
-                    arg_shape.num_srvs = 2;
+                    arg_shape.num_srvs = 4;
                     arg_shape.num_uavs = 0;
                     arg_shape.num_samplers = 1;
                     payload_shape.push_back(arg_shape);
@@ -294,9 +308,11 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             mat_sampler.init_default(sampler_filter::min_mag_mip_linear);
             // mat_sampler.min_lod = 8.f;
 
-            cc::capped_vector<shader_view_element, 2> srv_elems;
+            cc::capped_vector<shader_view_element, 4> srv_elems;
             srv_elems.emplace_back().init_as_tex2d(resources.mat_albedo, format::rgba8un);
             srv_elems.emplace_back().init_as_tex2d(resources.mat_normal, format::rgba8un);
+            srv_elems.emplace_back().init_as_tex2d(resources.mat_metallic, format::rgba8un);
+            srv_elems.emplace_back().init_as_tex2d(resources.mat_roughness, format::rgba8un);
             resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
         }
         resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
@@ -400,7 +416,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 // Data upload
                 {
                     pr_test::global_data camdata;
-                    camdata.cam_vp = pr_test::get_view_projection_matrix(run_time, window.getWidth(), window.getHeight());
+                    camdata.cam_pos = pr_test::get_cam_pos(run_time);
+                    camdata.cam_vp = pr_test::get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
                     camdata.runtime = static_cast<float>(run_time);
                     std::memcpy(cb_camdata_map, &camdata, sizeof(camdata));
 

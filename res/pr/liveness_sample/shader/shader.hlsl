@@ -14,41 +14,49 @@ struct vs_out
     float2 Texcoord : VO_UV;
 };
 
-struct CameraConstants
+struct camera_constants
 {
     float4x4 view_proj;
+    float3 cam_pos;
     float runtime;
 };
 
-struct ModelConstants
+struct model_constants
 {
     float4x4 model;
 };
+
+static const float PI = 3.141592;
+static const float Epsilon = 0.00001;
+// Constant normal incidence Fresnel factor for all dielectrics.
+static const float3 Fdielectric = 0.04;
 
 SamplerState g_sampler                              : register(s0, space1);
 
 Texture2D<float4> g_albedo                          : register(t0, space1);
 Texture2D<float4> g_normal                          : register(t1, space1);
+Texture2D<float4> g_metallic                        : register(t2, space1);
+Texture2D<float4> g_roughness                       : register(t3, space1);
 
-ConstantBuffer<CameraConstants> g_FrameData         : register(b0, space0);
-ConstantBuffer<ModelConstants> g_ModelData          : register(b0, space1);
+ConstantBuffer<camera_constants> g_frame_data       : register(b0, space0);
+ConstantBuffer<model_constants> g_model_data        : register(b0, space1);
 
 
-vs_out mainVS(vs_in In)
+vs_out main_vs(vs_in v_in)
 {
     vs_out Out;
 
-    const float4x4 mvp = mul(g_FrameData.view_proj, g_ModelData.model);
-    Out.SV_P = mul(mvp, float4(In.P, 1.0));
-    Out.WorldPos = mul(g_ModelData.model, float4(In.P, 1.0)).xyz;
-    float3 N = normalize(mul((float3x3)g_ModelData.model, In.N));
-    Out.Texcoord = In.Texcoord;
+    const float4x4 mvp = mul(g_frame_data.view_proj, g_model_data.model);
+    Out.SV_P = mul(mvp, float4(v_in.P, 1.0));
+    Out.WorldPos = mul(g_model_data.model, float4(v_in.P, 1.0)).xyz;
+    float3 N = normalize(mul((float3x3)g_model_data.model, v_in.N));
+    Out.Texcoord = v_in.Texcoord;
     
-    float3 tangent = mul((float3x3)g_ModelData.model, In.Tangent.xyz);
+    float3 tangent = mul((float3x3)g_model_data.model, v_in.Tangent.xyz);
     // gram-schmidt re-orthogonalization
-    tangent = normalize(tangent) - dot(normalize(tangent), In.N) * In.N;
+    tangent = normalize(tangent) - dot(normalize(tangent), v_in.N) * v_in.N;
 
-    float3 bitangent = mul((float3x3)g_ModelData.model, cross(tangent, In.N));
+    float3 bitangent = mul((float3x3)g_model_data.model, cross(tangent, v_in.N));
     Out.TBN = transpose(float3x3(normalize(tangent), normalize(bitangent), normalize(N))); 
 
     return Out;
@@ -60,19 +68,98 @@ float get_pointlight_contrib(float3 normal, float3 worldpos, float3 lightpos)
     return saturate(dot(normal, L));
 }
 
-float4 mainPS(vs_out In) : SV_TARGET
+// GGX/Towbridge-Reitz normal distribution function.
+// Uses Disney's reparametrization of alpha = roughness^2.
+float ndfGGX(float cosLh, float roughness)
 {
-    float3 N = g_normal.Sample(g_sampler, In.Texcoord).rgb;
-    N = N * 2.f - 1.f;
-    N = normalize(mul(In.TBN, N));
+	float alpha   = roughness * roughness;
+	float alphaSq = alpha * alpha;
+
+	float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
+	return alphaSq / (PI * denom * denom);
+}
+
+// Single term for separable Schlick-GGX below.
+float gaSchlickG1(float cosTheta, float k)
+{
+	return cosTheta / (cosTheta * (1.0 - k) + k);
+}
+
+// Schlick-GGX approximation of geometric attenuation function using Smith's method.
+float gaSchlickGGX(float cosLi, float cosLo, float roughness)
+{
+	float r = roughness + 1.0;
+	float k = (r * r) / 8.0; // Epic suggests using this roughness remapping for analytic lights.
+	return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
+}
+
+// Shlick's approximation of the Fresnel factor.
+float3 fresnelSchlick(float3 F0, float cosTheta)
+{
+	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+float4 main_ps(vs_out p_in) : SV_TARGET
+{
+    float3 N = normalize(2.0 * g_normal.Sample(g_sampler, p_in.Texcoord).rgb - 1.0);
+    N = normalize(mul(p_in.TBN, N));
+
+    const float3 Lo = normalize(g_frame_data.cam_pos - p_in.WorldPos);
     
-    const float3 albedo = g_albedo.Sample(g_sampler, In.Texcoord).rgb;
+    const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
+    const float metalness = g_metallic.Sample(g_sampler, p_in.Texcoord).r;
+    const float roughness = g_roughness.Sample(g_sampler, p_in.Texcoord).r;
 
-    float light_intensity = get_pointlight_contrib(N, In.WorldPos, float3(-2, 2, 3));
-    light_intensity += get_pointlight_contrib(N, In.WorldPos, float3(3, 2, -2));
-    light_intensity += get_pointlight_contrib(N, In.WorldPos, float3(3, 3, 3));
+    // Angle between surface normal and outgoing light direction.
+	float cosLo = max(0.0, dot(N, Lo));
+		
+	// Specular reflection vector.
+	float3 Lr = 2.0 * cosLo * N - Lo;
 
-    light_intensity = max(light_intensity, .15);
+	// Fresnel reflectance at normal incidence (for metals use albedo color).
+	float3 F0 = lerp(Fdielectric, albedo, metalness);
 
-    return float4(albedo * (light_intensity), 1.0);
+    float3 directLighting = 0.0;
+
+        float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
+
+		float3 Lradiance = 1.0;
+
+		// Half-vector between Li and Lo.
+		float3 Lh = normalize(Li + Lo);
+
+		// Calculate angles between surface normal and various light vectors.
+		float cosLi = max(0.0, dot(N, Li));
+		float cosLh = max(0.0, dot(N, Lh));
+
+		// Calculate Fresnel term for direct lighting. 
+		float3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+		// Calculate normal distribution for specular BRDF.
+		float D = ndfGGX(cosLh, roughness);
+		// Calculate geometric attenuation for specular BRDF.
+		float G = gaSchlickGGX(cosLi, cosLo, roughness);
+
+		// Diffuse scattering happens due to light being refracted multiple times by a dielectric medium.
+		// Metals on the other hand either reflect or absorb energy, so diffuse contribution is always zero.
+		// To be energy conserving we must scale diffuse BRDF contribution based on Fresnel factor & metalness.
+		float3 kd = lerp(float3(1, 1, 1) - F, float3(0, 0, 0), metalness);
+
+		// Lambert diffuse BRDF.
+		// We don't scale by 1/PI for lighting & material units to be more convenient.
+		// See: https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
+		float3 diffuseBRDF = kd * albedo;
+
+		// Cook-Torrance specular microfacet BRDF.
+		float3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
+
+		// Total contribution for this light.
+		directLighting += (diffuseBRDF + specularBRDF) * Lradiance * cosLi;
+
+   // float light_intensity = get_pointlight_contrib(N, p_in.WorldPos, float3(-2, 2, 3));
+    //light_intensity += get_pointlight_contrib(N, p_in.WorldPos, float3(3, 2, -2));
+   // light_intensity += get_pointlight_contrib(N, p_in.WorldPos, float3(3, 3, 3));
+
+   // light_intensity = max(light_intensity, .15);
+
+    return float4(directLighting, 1.0);
 } 
