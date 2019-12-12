@@ -284,7 +284,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         {
             sampler_config lut_sampler;
-            lut_sampler.init_default(sampler_filter::min_mag_mip_linear);
+            lut_sampler.init_default(sampler_filter::min_mag_mip_linear, 1);
+            lut_sampler.address_u = sampler_address_mode::clamp;
+            lut_sampler.address_v = sampler_address_mode::clamp;
 
             cc::capped_vector<shader_view_element, 3> srv_elems;
             srv_elems.emplace_back().init_as_texcube(resources.ibl_specular, format::rgba16f);
@@ -306,8 +308,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         auto const on_resize_func = [&]() {
             backend.flushGPU();
             auto const backbuffer_size = backend.getBackbufferSize();
-            auto const w = backbuffer_size.width;
-            auto const h = backbuffer_size.height;
+            auto const w = static_cast<unsigned>(backbuffer_size.width);
+            auto const h = static_cast<unsigned>(backbuffer_size.height);
             std::cout << "backbuffer resize to " << w << "x" << h << std::endl;
 
             backend.free(resources.depthbuffer);
@@ -431,10 +433,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                         {
                             cmd::draw cmd_draw;
-                            cmd_draw.num_indices = resources.num_indices;
-                            cmd_draw.index_buffer = resources.index_buffer;
-                            cmd_draw.vertex_buffer = resources.vertex_buffer;
-                            cmd_draw.pipeline_state = resources.pso_render;
+                            cmd_draw.init(resources.pso_render, resources.num_indices, resources.vertex_buffer, resources.index_buffer);
                             cmd_draw.add_shader_arg(resources.cb_camdata);
                             cmd_draw.add_shader_arg(resources.cb_modeldata, 0, resources.shaderview_render);
                             //                            cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, resources.shaderview_render_ibl});
@@ -484,10 +483,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                     {
                         cmd::draw cmd_draw;
-                        cmd_draw.num_indices = 3;
-                        cmd_draw.index_buffer = handle::null_resource;
-                        cmd_draw.vertex_buffer = handle::null_resource;
-                        cmd_draw.pipeline_state = resources.pso_blit;
+                        cmd_draw.init(resources.pso_blit, 3);
                         cmd_draw.add_shader_arg(handle::null_resource, 0, resources.shaderview_blit);
                         cmd_writer.add_command(cmd_draw);
                     }
