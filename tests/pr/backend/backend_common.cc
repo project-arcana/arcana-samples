@@ -97,7 +97,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                 {
                     cmd::transition_resources transition_cmd;
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{res_handle, resource_state::copy_dest});
+                    transition_cmd.add(res_handle, resource_state::copy_dest);
                     writer.add_command(transition_cmd);
                 }
 
@@ -132,8 +132,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                 {
                     cmd::transition_resources transition_cmd;
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.vertex_buffer, resource_state::copy_dest});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.index_buffer, resource_state::copy_dest});
+                    transition_cmd.add(resources.vertex_buffer, resource_state::copy_dest);
+                    transition_cmd.add(resources.index_buffer, resource_state::copy_dest);
                     writer.add_command(transition_cmd);
                 }
 
@@ -152,25 +152,25 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             {
                 {
                     cmd::transition_resources transition_cmd;
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.vertex_buffer, resource_state::vertex_buffer});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.index_buffer, resource_state::index_buffer});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_albedo, resource_state::shader_resource});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_normal, resource_state::shader_resource});
+                    transition_cmd.add(resources.vertex_buffer, resource_state::vertex_buffer);
+                    transition_cmd.add(resources.index_buffer, resource_state::index_buffer);
+                    transition_cmd.add(resources.mat_albedo, resource_state::shader_resource);
+                    transition_cmd.add(resources.mat_normal, resource_state::shader_resource);
                     writer.add_command(transition_cmd);
                 }
 
                 {
                     cmd::transition_resources transition_cmd;
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_metallic, resource_state::shader_resource});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_roughness, resource_state::shader_resource});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.ibl_lut, resource_state::shader_resource});
+                    transition_cmd.add(resources.mat_metallic, resource_state::shader_resource);
+                    transition_cmd.add(resources.mat_roughness, resource_state::shader_resource);
+                    transition_cmd.add(resources.ibl_lut, resource_state::shader_resource);
                     writer.add_command(transition_cmd);
                 }
 
                 {
-                    cmd::transition_resources transition_cmd;
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.ibl_specular, resource_state::shader_resource});
-                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.ibl_irradiance, resource_state::shader_resource});
+                    //                    cmd::transition_resources transition_cmd;
+                    //                    transition_cmd.add(resources.ibl_specular, resource_state::shader_resource);
+                    //                    transition_cmd.add(resources.ibl_irradiance, resource_state::shader_resource);
                     //                    writer.add_command(transition_cmd);
                 }
 
@@ -332,8 +332,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 command_stream_writer writer(writer_mem, sizeof(writer_mem));
 
                 cmd::transition_resources transition_cmd;
-                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.depthbuffer, resource_state::depth_write});
-                transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::render_target});
+                transition_cmd.add(resources.depthbuffer, resource_state::depth_write);
+                transition_cmd.add(resources.colorbuffer, resource_state::render_target);
                 writer.add_command(transition_cmd);
 
                 auto const cl = backend.recordCommandList(writer.buffer(), writer.size());
@@ -418,19 +418,14 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         if (is_first_batch)
                         {
                             cmd::transition_resources cmd_trans;
-                            cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::render_target});
+                            cmd_trans.add(resources.colorbuffer, resource_state::render_target);
                             cmd_writer.add_command(cmd_trans);
                         }
                         {
                             cmd::begin_render_pass cmd_brp;
                             cmd_brp.viewport = backend.getBackbufferSize();
-
-                            cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, clear_or_load});
-                            cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f, msaa_enabled);
-
-                            cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, clear_or_load};
-                            cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u, msaa_enabled);
-
+                            cmd_brp.add_2d_rt(resources.colorbuffer, format::rgba16f, clear_or_load, msaa_enabled);
+                            cmd_brp.set_2d_depth_stencil(resources.depthbuffer, format::depth24un_stencil8u, clear_or_load, msaa_enabled);
                             cmd_writer.add_command(cmd_brp);
                         }
 
@@ -440,8 +435,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                             cmd_draw.index_buffer = resources.index_buffer;
                             cmd_draw.vertex_buffer = resources.vertex_buffer;
                             cmd_draw.pipeline_state = resources.pso_render;
-                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_camdata, 0, handle::null_shader_view});
-                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_modeldata, 0, resources.shaderview_render});
+                            cmd_draw.add_shader_arg(resources.cb_camdata);
+                            cmd_draw.add_shader_arg(resources.cb_modeldata, 0, resources.shaderview_render);
                             //                            cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, resources.shaderview_render_ibl});
 
                             for (auto inst = start; inst < end; ++inst)
@@ -474,17 +469,16 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                     {
                         cmd::transition_resources cmd_trans;
-                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::render_target});
-                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::shader_resource});
+                        cmd_trans.add(ng_backbuffer, resource_state::render_target);
+                        cmd_trans.add(resources.colorbuffer, resource_state::shader_resource);
                         cmd_writer.add_command(cmd_trans);
                     }
 
                     {
                         cmd::begin_render_pass cmd_brp;
                         cmd_brp.viewport = backend.getBackbufferSize();
-                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, rt_clear_type::clear});
-                        cmd_brp.render_targets.back().sve.init_as_backbuffer(ng_backbuffer);
-                        cmd_brp.depth_target.sve.init_as_null();
+                        cmd_brp.add_backbuffer_rt(ng_backbuffer);
+                        cmd_brp.set_null_depth_stencil();
                         cmd_writer.add_command(cmd_brp);
                     }
 
@@ -494,7 +488,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         cmd_draw.index_buffer = handle::null_resource;
                         cmd_draw.vertex_buffer = handle::null_resource;
                         cmd_draw.pipeline_state = resources.pso_blit;
-                        cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, resources.shaderview_blit});
+                        cmd_draw.add_shader_arg(handle::null_resource, 0, resources.shaderview_blit);
                         cmd_writer.add_command(cmd_draw);
                     }
 
@@ -505,7 +499,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                     {
                         cmd::transition_resources cmd_trans;
-                        cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{ng_backbuffer, resource_state::present});
+                        cmd_trans.add(ng_backbuffer, resource_state::present);
                         cmd_writer.add_command(cmd_trans);
                     }
                     auto const present_list = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
