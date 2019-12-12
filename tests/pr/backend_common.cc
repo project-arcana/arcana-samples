@@ -10,8 +10,9 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
                                       pr::backend::handle::resource dest_texture,
                                       pr::backend::format format,
                                       const inc::assets::image_size& img_size,
-                                      const inc::assets::image_data& img_data,
-                                      bool use_d3d12_per_row_alingment)
+                                      inc::assets::image_data& img_data,
+                                      bool use_d3d12_per_row_alingment,
+                                      bool limit_to_first_mip)
 {
     using namespace pr::backend;
     auto const bytes_per_pixel = detail::pr_format_size_bytes(format);
@@ -21,9 +22,9 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
     command.source = upload_buffer;
     command.destination = dest_texture;
     command.texture_format = format;
-    command.dest_mip_size = img_size.num_mipmaps;
+    command.dest_mip_size = limit_to_first_mip ? 1 : img_size.num_mipmaps;
 
-    auto accumulated_offset = 0u;
+    auto accumulated_offset_bytes = 0u;
 
     for (auto a = 0u; a < img_size.array_size; ++a)
     {
@@ -31,24 +32,33 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
 
         // copy all the mip slices into the offsets specified by the footprint structure
         //
-        for (auto mip = 0u; mip < img_size.num_mipmaps; ++mip)
+        for (auto mip = 0u; mip < command.dest_mip_size; ++mip)
         {
             auto const mip_width = cc::max(unsigned(tg::floor(img_size.width / tg::pow(2.f, float(mip)))), 1u);
             auto const mip_height = cc::max(unsigned(tg::floor(img_size.height / tg::pow(2.f, float(mip)))), 1u);
 
             command.dest_width = mip_width;
             command.dest_height = mip_height;
-            command.source_offset = accumulated_offset;
+            command.source_offset = accumulated_offset_bytes;
             command.dest_mip_index = mip;
 
             writer.add_command(command);
 
-            // MIP maps are 256-byte aligned per row
-            auto const row_pitch = use_d3d12_per_row_alingment ? mem::align_up(bytes_per_pixel * command.dest_width, 256) : bytes_per_pixel * command.dest_width;
-            auto const custom_offset = row_pitch * command.dest_height;
-            accumulated_offset += custom_offset;
+            auto const mip_row_size_bytes = bytes_per_pixel * command.dest_width;
+            auto mip_row_stride_bytes = mip_row_size_bytes;
 
-            inc::assets::copy_subdata(img_data, upload_buffer_map + command.source_offset, row_pitch, command.dest_width * bytes_per_pixel, command.dest_height);
+            if (use_d3d12_per_row_alingment)
+                // MIP maps are 256-byte aligned per row in d3d12
+                mip_row_stride_bytes = mem::align_up(mip_row_stride_bytes, 256);
+
+            auto const mip_offset_bytes = mip_row_stride_bytes * command.dest_height;
+            accumulated_offset_bytes += mip_offset_bytes;
+
+            inc::assets::rowwise_copy(img_data, upload_buffer_map + command.source_offset, mip_row_stride_bytes, mip_row_size_bytes, command.dest_height);
+
+            // if applicable, write the next mip level
+            if (mip + 1 < command.dest_mip_size)
+                inc::assets::write_mipmap(img_data, command.dest_width, command.dest_height);
         }
     }
 }
@@ -86,6 +96,43 @@ unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::
     return res_bytes;
 }
 
+
+pr::backend::format pr_test::get_texture_format(bool hdr, unsigned num_channels)
+{
+    using pf = pr::backend::format;
+    if (hdr)
+    {
+        switch (num_channels)
+        {
+        case 4:
+        default:
+            return pf::rgba16f;
+        case 3:
+            return pf::rgb16f;
+        case 2:
+            return pf::rg16f;
+        case 1:
+            return pf::r16f;
+        }
+    }
+    else
+    {
+        switch (num_channels)
+        {
+        case 4:
+        default:
+            return pf::rgba8un;
+        case 3:
+            return pf::rgb8u;
+        case 2:
+            return pf::rg8u;
+        case 1:
+            return pf::r8u;
+        }
+    }
+}
+
+
 void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backend_config& config, sample_config const& sample_config)
 {
 #define msaa_enabled false
@@ -105,6 +152,10 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             handle::resource mat_metallic = handle::null_resource;
             handle::resource mat_roughness = handle::null_resource;
 
+            handle::resource ibl_specular = handle::null_resource;
+            handle::resource ibl_irradiance = handle::null_resource;
+            handle::resource ibl_lut = handle::null_resource;
+
             handle::resource vertex_buffer = handle::null_resource;
             handle::resource index_buffer = handle::null_resource;
             unsigned num_indices = 0;
@@ -114,6 +165,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
             handle::pipeline_state pso_render = handle::null_pipeline_state;
             handle::shader_view shaderview_render = handle::null_shader_view;
+            handle::shader_view shaderview_render_ibl = handle::null_shader_view;
+
             handle::resource depthbuffer = handle::null_resource;
             handle::resource colorbuffer = handle::null_resource;
 
@@ -126,7 +179,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         // Resource setup
         //
         {
-            cc::capped_vector<handle::resource, 10> upload_buffers;
+            cc::capped_vector<handle::resource, 15> upload_buffers;
             CC_DEFER
             {
                 for (auto ub : upload_buffers)
@@ -140,15 +193,16 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             command_stream_writer writer(buffer, buffer_size);
 
 
-            auto const load_texture = [&](char const* path) -> handle::resource {
+            auto const load_texture = [&](char const* path, int num_channels = 4, bool hdr = false, bool first_mip_only = false) -> handle::resource {
                 inc::assets::image_size img_size;
-                auto const img_data = inc::assets::load_image(path, img_size);
+                auto img_data = inc::assets::load_image(path, img_size, num_channels, hdr);
                 CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
                 CC_DEFER { inc::assets::free(img_data); };
 
-                auto const res_handle = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
+                auto const format = pr_test::get_texture_format(hdr, num_channels);
+                auto const res_handle = backend.createTexture(format, img_size.width, img_size.height, img_size.num_mipmaps);
 
-                auto const upbuff_handle = backend.createMappedBuffer(pr_test::get_mipmap_upload_size(format::rgba8un, img_size));
+                auto const upbuff_handle = backend.createMappedBuffer(pr_test::get_mipmap_upload_size(format, img_size));
                 upload_buffers.push_back(upbuff_handle);
 
 
@@ -158,8 +212,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     writer.add_command(transition_cmd);
                 }
 
-                pr_test::copy_mipmaps_to_texture(writer, upbuff_handle, backend.getMappedMemory(upbuff_handle), res_handle,
-                                                 format::rgba8un, img_size, img_data, sample_config.align_mip_rows);
+                pr_test::copy_mipmaps_to_texture(writer, upbuff_handle, backend.getMappedMemory(upbuff_handle), res_handle, format, img_size,
+                                                 img_data, sample_config.align_mip_rows, first_mip_only);
 
                 return res_handle;
             };
@@ -168,6 +222,10 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             resources.mat_normal = load_texture(pr_test::sample_normal_path);
             resources.mat_metallic = load_texture(pr_test::sample_metallic_path);
             resources.mat_roughness = load_texture(pr_test::sample_roughness_path);
+
+            resources.ibl_lut = load_texture("res/pr/liveness_sample/texture/brdf_lut.png", 2, true, true); // backend.createTexture(format::rg16f, 256, 256, 1);
+            resources.ibl_specular = backend.createTexture(format::rgba16f, 256, 256, 0, texture_dimension::t2d, 6);
+            resources.ibl_irradiance = backend.createTexture(format::rgba16f, 256, 256, 1, texture_dimension::t2d, 6);
 
             // create vertex and index buffer
             {
@@ -191,8 +249,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 }
 
                 auto const mesh_upbuff = backend.createMappedBuffer(vert_size + ind_size);
-                upload_buffers.push_back(mesh_upbuff);
                 std::byte* const upload_mapped = backend.getMappedMemory(mesh_upbuff);
+                upload_buffers.push_back(mesh_upbuff);
 
                 std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
                 std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
@@ -216,7 +274,15 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     cmd::transition_resources transition_cmd;
                     transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_metallic, resource_state::shader_resource});
                     transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.mat_roughness, resource_state::shader_resource});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.ibl_lut, resource_state::shader_resource});
                     writer.add_command(transition_cmd);
+                }
+
+                {
+                    cmd::transition_resources transition_cmd;
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.ibl_specular, resource_state::shader_resource});
+                    transition_cmd.transitions.push_back(cmd::transition_resources::transition_info{resources.ibl_irradiance, resource_state::shader_resource});
+                    //                    writer.add_command(transition_cmd);
                 }
 
                 auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
@@ -227,7 +293,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         }
 
         {
-            cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
+            cc::capped_vector<arg::shader_argument_shape, limits::max_shader_arguments> payload_shape;
             {
                 // Argument 0, global CBV
                 {
@@ -248,6 +314,16 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     arg_shape.num_samplers = 1;
                     payload_shape.push_back(arg_shape);
                 }
+
+                // Argument 2, IBL SRVs and LUT sampler
+                //                {
+                //                    arg::shader_argument_shape arg_shape;
+                //                    arg_shape.has_cb = false;
+                //                    arg_shape.num_srvs = 3;
+                //                    arg_shape.num_uavs = 0;
+                //                    arg_shape.num_samplers = 1;
+                //                    payload_shape.push_back(arg_shape);
+                //                }
             }
 
             auto const vertex_binary = pr::backend::detail::unique_buffer::create_from_binary_file(sample_config.path_render_vs);
@@ -272,7 +348,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         }
 
         {
-            cc::capped_vector<arg::shader_argument_shape, 4> payload_shape;
+            cc::capped_vector<arg::shader_argument_shape, limits::max_shader_arguments> payload_shape;
             {
                 // Argument 0, global CBV + blit target SRV + blit sampler
                 {
@@ -306,7 +382,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         {
             sampler_config mat_sampler;
-            mat_sampler.init_default(sampler_filter::min_mag_mip_linear);
+            mat_sampler.init_default(sampler_filter::anisotropic);
             // mat_sampler.min_lod = 8.f;
 
             cc::capped_vector<shader_view_element, 4> srv_elems;
@@ -316,6 +392,19 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             srv_elems.emplace_back().init_as_tex2d(resources.mat_roughness, format::rgba8un);
             resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
         }
+
+        {
+            sampler_config lut_sampler;
+            lut_sampler.init_default(sampler_filter::min_mag_mip_linear);
+
+            cc::capped_vector<shader_view_element, 3> srv_elems;
+            srv_elems.emplace_back().init_as_texcube(resources.ibl_specular, format::rgba16f);
+            srv_elems.emplace_back().init_as_texcube(resources.ibl_irradiance, format::rgba16f);
+            srv_elems.emplace_back().init_as_tex2d(resources.ibl_lut, format::rg16f);
+
+            resources.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
+        }
+
         resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
         std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
 
@@ -443,31 +532,34 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                             cmd_trans.transitions.push_back(cmd::transition_resources::transition_info{resources.colorbuffer, resource_state::render_target});
                             cmd_writer.add_command(cmd_trans);
                         }
-
-                        cmd::begin_render_pass cmd_brp;
-                        cmd_brp.viewport = backend.getBackbufferSize();
-
-                        cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, clear_or_load});
-                        cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f, msaa_enabled);
-
-                        cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, clear_or_load};
-                        cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u, msaa_enabled);
-
-                        cmd_writer.add_command(cmd_brp);
-
-
-                        cmd::draw cmd_draw;
-                        cmd_draw.num_indices = resources.num_indices;
-                        cmd_draw.index_buffer = resources.index_buffer;
-                        cmd_draw.vertex_buffer = resources.vertex_buffer;
-                        cmd_draw.pipeline_state = resources.pso_render;
-                        cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_camdata, 0, handle::null_shader_view});
-                        cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_modeldata, 0, resources.shaderview_render});
-
-                        for (auto inst = start; inst < end; ++inst)
                         {
-                            cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(pr_test::model_matrix_data::padded_instance) * inst;
-                            cmd_writer.add_command(cmd_draw);
+                            cmd::begin_render_pass cmd_brp;
+                            cmd_brp.viewport = backend.getBackbufferSize();
+
+                            cmd_brp.render_targets.push_back(cmd::begin_render_pass::render_target_info{{}, {0.f, 0.f, 0.f, 1.f}, clear_or_load});
+                            cmd_brp.render_targets.back().sve.init_as_tex2d(resources.colorbuffer, format::rgba16f, msaa_enabled);
+
+                            cmd_brp.depth_target = cmd::begin_render_pass::depth_stencil_info{{}, 1.f, 0, clear_or_load};
+                            cmd_brp.depth_target.sve.init_as_tex2d(resources.depthbuffer, format::depth24un_stencil8u, msaa_enabled);
+
+                            cmd_writer.add_command(cmd_brp);
+                        }
+
+                        {
+                            cmd::draw cmd_draw;
+                            cmd_draw.num_indices = resources.num_indices;
+                            cmd_draw.index_buffer = resources.index_buffer;
+                            cmd_draw.vertex_buffer = resources.vertex_buffer;
+                            cmd_draw.pipeline_state = resources.pso_render;
+                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_camdata, 0, handle::null_shader_view});
+                            cmd_draw.shader_arguments.push_back(shader_argument{resources.cb_modeldata, 0, resources.shaderview_render});
+                            //                            cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, resources.shaderview_render_ibl});
+
+                            for (auto inst = start; inst < end; ++inst)
+                            {
+                                cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(pr_test::model_matrix_data::padded_instance) * inst;
+                                cmd_writer.add_command(cmd_draw);
+                            }
                         }
 
                         cmd_writer.add_command(cmd::end_render_pass{});
@@ -487,11 +579,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     {
                         // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
                         td::wait_for(render_sync);
-                        for (auto const cl : render_cmd_lists)
-                        {
-                            if (cl.is_valid())
-                                backend.discard(cl);
-                        }
+                        backend.discard(render_cmd_lists);
                         continue;
                     }
 
