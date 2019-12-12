@@ -1,4 +1,4 @@
-#include "backend_common.hh"
+#include "sample.hh"
 
 #include <iostream>
 
@@ -82,7 +82,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             command_stream_writer writer(buffer, buffer_size);
 
 
-            auto const load_texture = [&](char const* path, int num_channels = 4, bool hdr = false, bool first_mip_only = false) -> handle::resource {
+            auto const load_texture = [&](char const* path, unsigned num_channels = 4, bool hdr = false, bool first_mip_only = false) -> handle::resource {
                 inc::assets::image_size img_size;
                 auto img_data = inc::assets::load_image(path, img_size, num_channels, hdr);
                 CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");

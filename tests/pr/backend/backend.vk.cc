@@ -1,7 +1,7 @@
 #ifdef PR_BACKEND_VULKAN
 #include <nexus/test.hh>
 
-#include "backend_common.hh"
+#include "sample.hh"
 
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 

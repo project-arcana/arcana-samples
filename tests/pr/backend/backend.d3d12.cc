@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include "backend_common.hh"
+#include "sample.hh"
 
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
