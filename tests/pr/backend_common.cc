@@ -126,12 +126,11 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         // Resource setup
         //
         {
-            handle::resource ng_upbuffer_material;
-            handle::resource ng_upbuff;
+            cc::capped_vector<handle::resource, 10> upload_buffers;
             CC_DEFER
             {
-                backend.free(ng_upbuffer_material);
-                backend.free(ng_upbuff);
+                for (auto ub : upload_buffers)
+                    backend.free(ub);
             };
 
             auto const buffer_size = 1024ull * 16;
@@ -149,7 +148,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                 auto const res_handle = backend.createTexture2D(format::rgba8un, img_size.width, img_size.height, img_size.num_mipmaps);
 
-                ng_upbuffer_material = backend.createMappedBuffer(pr_test::get_mipmap_upload_size(format::rgba8un, img_size));
+                auto const upbuff_handle = backend.createMappedBuffer(pr_test::get_mipmap_upload_size(format::rgba8un, img_size));
+                upload_buffers.push_back(upbuff_handle);
 
 
                 {
@@ -158,7 +158,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     writer.add_command(transition_cmd);
                 }
 
-                pr_test::copy_mipmaps_to_texture(writer, ng_upbuffer_material, backend.getMappedMemory(ng_upbuffer_material), res_handle,
+                pr_test::copy_mipmaps_to_texture(writer, upbuff_handle, backend.getMappedMemory(upbuff_handle), res_handle,
                                                  format::rgba8un, img_size, img_data, sample_config.align_mip_rows);
 
                 return res_handle;
@@ -190,14 +190,15 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     writer.add_command(transition_cmd);
                 }
 
-                ng_upbuff = backend.createMappedBuffer(vert_size + ind_size);
-                std::byte* const upload_mapped = backend.getMappedMemory(ng_upbuff);
+                auto const mesh_upbuff = backend.createMappedBuffer(vert_size + ind_size);
+                upload_buffers.push_back(mesh_upbuff);
+                std::byte* const upload_mapped = backend.getMappedMemory(mesh_upbuff);
 
                 std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
                 std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
 
-                writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, ng_upbuff, 0, vert_size});
-                writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, ng_upbuff, vert_size, ind_size});
+                writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, mesh_upbuff, 0, vert_size});
+                writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, mesh_upbuff, vert_size, ind_size});
             }
 
             // transition resources, record and free the upload command list, and upload buffers
@@ -545,6 +546,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         backend.flushGPU();
         backend.free(resources.mat_albedo);
         backend.free(resources.mat_normal);
+        backend.free(resources.mat_metallic);
+        backend.free(resources.mat_roughness);
         backend.free(resources.vertex_buffer);
         backend.free(resources.index_buffer);
         backend.free(resources.pso_render);
