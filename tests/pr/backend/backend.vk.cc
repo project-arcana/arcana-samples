@@ -11,7 +11,7 @@ TEST("pr::backend::vk liveness", disabled, exclusive)
 {
    // td::native::thread_sleep(15000);
 
-    td::launch([&] {
+    td::launch_singlethreaded([&] {
         pr::backend::vk::BackendVulkan backend;
 
         pr_test::sample_config sample_conf;

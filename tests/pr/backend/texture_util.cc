@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include <clean-core/utility.hh>
+#include <clean-core/macros.hh>
 
 #include <typed-geometry/tg.hh>
 
@@ -17,7 +18,11 @@ pr::backend::detail::unique_buffer pr_test::get_shader_binary(const char* name, 
     {
         va_list args;
         va_start(args, name);
+#ifdef CC_COMPILER_MSVC
         ::vsprintf_s(name_formatted, 1024, name, args);
+#else
+        std::vsnprintf(name_formatted, 1024, name, args);
+#endif
         va_end(args);
     }
 
