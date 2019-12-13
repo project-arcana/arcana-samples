@@ -20,9 +20,14 @@
 ::                              -fvk-[X]-shift [Y] all
 ::                              Same as above, but applies to all spaces at once
 
-.\dxc_bin\dxc.exe .\shader.hlsl -T ps_6_0 -E main_ps -spirv -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\spirv\pixel.spv
-.\dxc_bin\dxc.exe .\shader.hlsl -T vs_6_0 -E main_vs -spirv -fvk-invert-y -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\spirv\vertex.spv
+.\dxc_bin\dxc.exe .\shader.hlsl -T ps_6_0 -E main_ps -spirv -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\pixel.spv
+.\dxc_bin\dxc.exe .\shader.hlsl -T vs_6_0 -E main_vs -spirv -fvk-invert-y -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\vertex.spv
 
-.\dxc_bin\dxc.exe .\shader_blit_fs.hlsl -T ps_6_0 -E main_ps -spirv -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\spirv\pixel_blit.spv
-.\dxc_bin\dxc.exe .\shader_blit_fs.hlsl -T vs_6_0 -E main_vs -spirv -fvk-invert-y -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\spirv\vertex_blit.spv
+.\dxc_bin\dxc.exe .\shader_blit_fs.hlsl -T ps_6_0 -E main_ps -spirv -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\blit_pixel.spv
+.\dxc_bin\dxc.exe .\shader_blit_fs.hlsl -T vs_6_0 -E main_vs -spirv -fvk-invert-y -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\blit_vertex.spv
+
+.\dxc_bin\dxc.exe .\mipgen.hlsl -T cs_6_0 -E main_cs -spirv -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\mipgen.spv
+.\dxc_bin\dxc.exe .\mipgen_gamma.hlsl -T cs_6_0 -E main_cs -spirv -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\mipgen_gamma.spv
+.\dxc_bin\dxc.exe .\mipgen_array.hlsl -T cs_6_0 -E main_cs -spirv -fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\mipgen_array.spv
+
 pause
