@@ -118,7 +118,7 @@ void pr_test::mip_generation_resources::generate_mips(command_stream_writer& wri
         shader_view_element sve_uav = sve;
         sve_uav.texture_info.mip_start = level;
 
-        auto const sv = backend->createShaderView(cc::span{sve}, cc::span{sve_uav}, {});
+        auto const sv = backend->createShaderView(cc::span{sve}, cc::span{sve_uav}, {}, true);
         mip_shader_views.push_back(sv);
 
         cc::capped_vector<cmd::transition_image_slices::slice_transition_info, max_array_size> pre_dispatch;
