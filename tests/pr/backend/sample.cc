@@ -109,8 +109,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             return res_handle;
         };
 
-
-        resources.mat_albedo = load_texture(pr_test::sample_albedo_path); // mipgen_resources.load_texture(writer, pr_test::sample_albedo_path, true);//
+        //        resources.mat_albedo = load_texture(pr_test::sample_albedo_path);
+        resources.mat_albedo = mipgen_resources.load_texture(writer, pr_test::sample_albedo_path, true);
         resources.mat_normal = load_texture(pr_test::sample_normal_path);
         resources.mat_metallic = load_texture(pr_test::sample_metallic_path);
         resources.mat_roughness = load_texture(pr_test::sample_roughness_path);

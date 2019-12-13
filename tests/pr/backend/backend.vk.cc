@@ -3,10 +3,14 @@
 
 #include "sample.hh"
 
+#include <task-dispatcher/native/thread.hh>
+
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 
 TEST("pr::backend::vk liveness", disabled, exclusive)
 {
+   // td::native::thread_sleep(15000);
+
     td::launch([&] {
         pr::backend::vk::BackendVulkan backend;
 

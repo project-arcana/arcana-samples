@@ -12,8 +12,8 @@ using namespace pr::backend;
 
 void pr_test::mip_generation_resources::initialize(pr::backend::Backend& backend, const char* shader_ending, bool align_rows)
 {
-    upload_buffers.reserve(20);
-    mip_shader_views.reserve(1500);
+    upload_buffers.reserve(500);
+    mip_shader_views.reserve(2500);
     align_mip_rows = align_rows;
     this->backend = &backend;
 
