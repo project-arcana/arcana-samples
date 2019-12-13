@@ -28,10 +28,7 @@ inline auto const get_backend_config = [] {
 struct sample_config
 {
     char const* window_title;
-    char const* path_render_vs;
-    char const* path_render_ps;
-    char const* path_blit_vs;
-    char const* path_blit_ps;
+    char const* shader_ending;
 
     /// whether to align MIP rows by 256 bytes (D3D12: yes, Vulkan: no)
     bool align_mip_rows;

@@ -1,5 +1,8 @@
 #include "texture_util.hh"
 
+#include <cstdarg>
+#include <cstdio>
+
 #include <clean-core/utility.hh>
 
 #include <typed-geometry/tg.hh>
@@ -7,6 +10,19 @@
 #include <phantasm-renderer/backend/command_stream.hh>
 #include <phantasm-renderer/backend/detail/byte_util.hh>
 #include <phantasm-renderer/backend/detail/format_size.hh>
+
+pr::backend::detail::unique_buffer pr_test::get_shader_binary(const char* name, ...)
+{
+    char name_formatted[1024];
+    {
+        va_list args;
+        va_start(args, name);
+        ::vsprintf_s(name_formatted, 1024, name, args);
+        va_end(args);
+    }
+
+    return pr::backend::detail::unique_buffer::create_from_binary_file(name_formatted);
+}
 
 void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer,
                                       pr::backend::handle::resource upload_buffer,
@@ -67,7 +83,7 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
     }
 }
 
-unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::assets::image_size& img_size)
+unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::assets::image_size& img_size, bool no_mips)
 {
     using namespace pr::backend;
     auto const bytes_per_pixel = detail::pr_format_size_bytes(format);
@@ -75,7 +91,8 @@ unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::
 
     for (auto a = 0u; a < img_size.array_size; ++a)
     {
-        for (auto mip = 0u; mip < img_size.num_mipmaps; ++mip)
+        auto const num_mips = no_mips ? 1 : img_size.num_mipmaps;
+        for (auto mip = 0u; mip < num_mips; ++mip)
         {
             auto const mip_width = cc::max(unsigned(tg::floor(img_size.width / tg::pow(2.f, float(mip)))), 1u);
             auto const mip_height = cc::max(unsigned(tg::floor(img_size.height / tg::pow(2.f, float(mip)))), 1u);
@@ -85,17 +102,6 @@ unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::
             res_bytes += custom_offset;
         }
     }
-
-    //    uint32_t num_rows[D3D12_REQ_MIP_LEVELS] = {0};
-    //    UINT64 row_sizes_in_bytes[D3D12_REQ_MIP_LEVELS] = {0};
-    //    D3D12_PLACED_SUBRESOURCE_FOOTPRINT placed_subres_tex2d[D3D12_REQ_MIP_LEVELS];
-    //    size_t res;
-    //    {
-    //        auto const res_desc = CD3DX12_RESOURCE_DESC::Tex2D(util::to_dxgi_format(format), img_size.width, img_size.height, 1, UINT16(img_size.num_mipmaps));
-    //        device.GetCopyableFootprints(&res_desc, 0, img_size.num_mipmaps, 0, placed_subres_tex2d, num_rows, row_sizes_in_bytes, &res);
-    //    }
-
-    //    std::cout << "Custom: " << res_bytes << ", D3D12: " << res << std::endl;
 
     return res_bytes;
 }

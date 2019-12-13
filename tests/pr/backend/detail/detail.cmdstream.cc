@@ -6,27 +6,32 @@
 
 #include <phantasm-renderer/backend/command_stream.hh>
 
+using namespace pr::backend;
+
+namespace
+{
+struct callback
+{
+    int num_beg_rp = 0;
+    int num_draw = 0;
+    int num_transition = 0;
+    int num_end_rp = 0;
+
+    void execute(cmd::begin_render_pass const&) { ++num_beg_rp; }
+    void execute(cmd::draw const&) { ++num_draw; }
+    void execute(cmd::transition_resources const&) { ++num_transition; }
+    void execute(cmd::end_render_pass const&) { ++num_end_rp; }
+
+    template <class CmdT>
+    void execute(CmdT const&)
+    {
+        // catch-all for additional commands
+    }
+};
+}
+
 FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
 {
-    using namespace pr::backend;
-
-    struct callback
-    {
-        int num_beg_rp = 0;
-        int num_draw = 0;
-        int num_transition = 0;
-        int num_end_rp = 0;
-
-        void execute(cmd::begin_render_pass const&) { ++num_beg_rp; }
-        void execute(cmd::draw const&) { ++num_draw; }
-        void execute(cmd::transition_resources const&) { ++num_transition; }
-        void execute(cmd::end_render_pass const&) { ++num_end_rp; }
-
-        void execute(cmd::copy_buffer const&) {}
-        void execute(cmd::copy_buffer_to_texture const&) {}
-        void execute(cmd::dispatch const&) {}
-    };
-
     constexpr size_t buffer_size = 1024 * 1024;
 
     constexpr auto max_num_cmds = 2000u;

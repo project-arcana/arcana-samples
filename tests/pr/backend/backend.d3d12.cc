@@ -15,10 +15,7 @@ TEST("pr::backend::d3d12 liveness", disabled, exclusive)
 
         pr_test::sample_config sample_conf;
         sample_conf.window_title = "pr::backend::d3d12 liveness";
-        sample_conf.path_render_vs = "res/pr/liveness_sample/shader/dxil/vertex.dxil";
-        sample_conf.path_render_ps = "res/pr/liveness_sample/shader/dxil/pixel.dxil";
-        sample_conf.path_blit_vs = "res/pr/liveness_sample/shader/dxil/blit_vertex.dxil";
-        sample_conf.path_blit_ps = "res/pr/liveness_sample/shader/dxil/blit_pixel.dxil";
+        sample_conf.shader_ending = "dxil";
         sample_conf.align_mip_rows = true;
 
         pr_test::run_sample(backend, pr_test::get_backend_config(), sample_conf);
