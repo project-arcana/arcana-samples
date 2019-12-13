@@ -13,6 +13,7 @@ using namespace pr::backend;
 void pr_test::mip_generation_resources::initialize(pr::backend::Backend& backend, const char* shader_ending, bool align_rows)
 {
     upload_buffers.reserve(20);
+    mip_shader_views.reserve(1500);
     align_mip_rows = align_rows;
     this->backend = &backend;
 
@@ -46,7 +47,7 @@ handle::resource pr_test::mip_generation_resources::load_texture(command_stream_
     CC_DEFER { inc::assets::free(img_data); };
 
     auto const format = pr_test::get_texture_format(hdr, num_channels);
-    auto const res_handle = backend->createTexture(format, img_size.width, img_size.height, img_size.num_mipmaps);
+    auto const res_handle = backend->createTexture(format, img_size.width, img_size.height, img_size.num_mipmaps, texture_dimension::t2d, 1, true);
 
     auto const upbuff_handle = backend->createMappedBuffer(pr_test::get_mipmap_upload_size(format, img_size, true));
     upload_buffers.push_back(upbuff_handle);
@@ -96,6 +97,12 @@ void pr_test::mip_generation_resources::generate_mips(command_stream_writer& wri
             writer.add_command(tcmd);
     };
 
+
+    cmd::transition_resources starting_tcmd;
+    starting_tcmd.add(resource, resource_state::shader_resource);
+    writer.add_command(starting_tcmd);
+
+
     for (auto level = 1u, levelWidth = size.width / 2, levelHeight = size.height / 2; level < size.num_mipmaps; ++level, levelWidth /= 2, levelHeight /= 2)
     {
         shader_view_element sve;
@@ -108,7 +115,11 @@ void pr_test::mip_generation_resources::generate_mips(command_stream_writer& wri
             sve.texture_info.array_size = size.array_size;
         }
 
-        auto const sv = backend->createShaderView(cc::span{sve}, cc::span{sve}, {});
+        shader_view_element sve_uav = sve;
+        sve_uav.texture_info.mip_start = level;
+
+        auto const sv = backend->createShaderView(cc::span{sve}, cc::span{sve_uav}, {});
+        mip_shader_views.push_back(sv);
 
         cc::capped_vector<cmd::transition_image_slices::slice_transition_info, max_array_size> pre_dispatch;
         cc::capped_vector<cmd::transition_image_slices::slice_transition_info, max_array_size> post_dispatch;

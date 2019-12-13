@@ -15,6 +15,7 @@ struct mip_generation_resources
     void free(pr::backend::Backend& backend)
     {
         backend.free_range(upload_buffers);
+        backend.free_range(mip_shader_views);
         backend.free(pso_mipgen);
         backend.free(pso_mipgen_gamma);
         backend.free(pso_mipgen_array);
@@ -33,6 +34,7 @@ private:
     pr::backend::Backend* backend;
 
     cc::vector<pr::backend::handle::resource> upload_buffers;
+    cc::vector<pr::backend::handle::shader_view> mip_shader_views;
 };
 
 
