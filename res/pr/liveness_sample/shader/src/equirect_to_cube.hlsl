@@ -1,6 +1,3 @@
-// Physically Based Rendering
-// Copyright (c) 2017-2018 Michał Siejak
-
 // Converts equirectangular (lat-long) projection texture into a proper cubemap.
 
 static const float PI = 3.141592;
