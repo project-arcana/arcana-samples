@@ -21,10 +21,10 @@ struct mip_generation_resources
         backend.free(pso_mipgen_array);
     }
 
-    pr::backend::handle::resource load_texture(pr::backend::command_stream_writer& writer, char const* path, bool apply_gamma = false, unsigned num_channels = 4, bool hdr = false);
+    pr::backend::handle::resource load_texture(pr::backend::command_stream_writer& writer, char const* path, bool enable_mipmaps, bool apply_gamma = false, int num_channels = 4, bool hdr = false);
 
 private:
-    void generate_mips(pr::backend::command_stream_writer& writer, pr::backend::handle::resource resource, inc::assets::image_size const& size, bool apply_gamma);
+    void generate_mips(pr::backend::command_stream_writer& writer, pr::backend::handle::resource resource, inc::assets::image_size const& size, bool apply_gamma, pr::backend::format pf);
 
 private:
     pr::backend::handle::pipeline_state pso_mipgen;

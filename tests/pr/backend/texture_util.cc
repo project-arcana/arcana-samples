@@ -112,7 +112,7 @@ unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::
 }
 
 
-pr::backend::format pr_test::get_texture_format(bool hdr, unsigned num_channels)
+pr::backend::format pr_test::get_texture_format(bool hdr, int num_channels)
 {
     using pf = pr::backend::format;
     if (hdr)
@@ -122,8 +122,6 @@ pr::backend::format pr_test::get_texture_format(bool hdr, unsigned num_channels)
         case 4:
         default:
             return pf::rgba16f;
-        case 3:
-            return pf::rgb16f;
         case 2:
             return pf::rg16f;
         case 1:
@@ -137,12 +135,11 @@ pr::backend::format pr_test::get_texture_format(bool hdr, unsigned num_channels)
         case 4:
         default:
             return pf::rgba8un;
-        case 3:
-            return pf::rgb8u;
         case 2:
             return pf::rg8u;
         case 1:
             return pf::r8u;
         }
     }
+    CC_RUNTIME_ASSERT(false && "invalid channel amount");
 }

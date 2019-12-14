@@ -85,7 +85,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         command_stream_writer writer(buffer, buffer_size);
 
 
-        auto const load_texture = [&](char const* path, unsigned num_channels = 4, bool hdr = false, bool first_mip_only = false) -> handle::resource {
+        auto const load_texture = [&](char const* path, int num_channels = 4, bool hdr = false, bool first_mip_only = false) -> handle::resource {
             inc::assets::image_size img_size;
             auto img_data = inc::assets::load_image(path, img_size, num_channels, hdr);
             CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
@@ -110,12 +110,12 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         };
 
         //        resources.mat_albedo = load_texture(pr_test::sample_albedo_path);
-        resources.mat_albedo = mipgen_resources.load_texture(writer, pr_test::sample_albedo_path, true);
-        resources.mat_normal = load_texture(pr_test::sample_normal_path);
-        resources.mat_metallic = load_texture(pr_test::sample_metallic_path);
-        resources.mat_roughness = load_texture(pr_test::sample_roughness_path);
+        resources.mat_albedo = mipgen_resources.load_texture(writer, pr_test::sample_albedo_path, true, true, 4, false);
+        resources.mat_normal = mipgen_resources.load_texture(writer, pr_test::sample_normal_path, true, false, 4, false);
+        resources.mat_metallic = mipgen_resources.load_texture(writer, pr_test::sample_metallic_path, true, false, 4, false);
+        resources.mat_roughness = mipgen_resources.load_texture(writer, pr_test::sample_roughness_path, true, false, 4, false);
 
-        resources.ibl_lut = load_texture("res/pr/liveness_sample/texture/brdf_lut.png", 2, true, true);
+        resources.ibl_lut = mipgen_resources.load_texture(writer, "res/pr/liveness_sample/texture/brdf_lut.png", false, false, 2, true);
         resources.ibl_specular = backend.createTexture(format::rgba16f, 256, 256, 0, texture_dimension::t2d, 6);
         resources.ibl_irradiance = backend.createTexture(format::rgba16f, 256, 256, 1, texture_dimension::t2d, 6);
 
@@ -171,10 +171,10 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             }
 
             {
-                //                    cmd::transition_resources transition_cmd;
-                //                    transition_cmd.add(resources.ibl_specular, resource_state::shader_resource);
-                //                    transition_cmd.add(resources.ibl_irradiance, resource_state::shader_resource);
-                //                    writer.add_command(transition_cmd);
+                cmd::transition_resources transition_cmd;
+                transition_cmd.add(resources.ibl_specular, resource_state::shader_resource);
+                transition_cmd.add(resources.ibl_irradiance, resource_state::shader_resource);
+                writer.add_command(transition_cmd);
             }
 
             auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());

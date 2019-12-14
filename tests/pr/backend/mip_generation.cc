@@ -39,7 +39,7 @@ void pr_test::mip_generation_resources::initialize(pr::backend::Backend& backend
         = backend.createComputePipelineState(shader_payload, arg::shader_stage{sb_mipgen_array.get(), sb_mipgen_array.size(), shader_domain::compute});
 }
 
-handle::resource pr_test::mip_generation_resources::load_texture(command_stream_writer& writer, const char* path, bool apply_gamma, unsigned num_channels, bool hdr)
+handle::resource pr_test::mip_generation_resources::load_texture(command_stream_writer& writer, const char* path, bool enable_mipmaps, bool apply_gamma, int num_channels, bool hdr)
 {
     inc::assets::image_size img_size;
     auto img_data = inc::assets::load_image(path, img_size, num_channels, hdr);
@@ -47,7 +47,8 @@ handle::resource pr_test::mip_generation_resources::load_texture(command_stream_
     CC_DEFER { inc::assets::free(img_data); };
 
     auto const format = pr_test::get_texture_format(hdr, num_channels);
-    auto const res_handle = backend->createTexture(format, img_size.width, img_size.height, img_size.num_mipmaps, texture_dimension::t2d, 1, true);
+    auto const res_handle
+        = backend->createTexture(format, img_size.width, img_size.height, enable_mipmaps ? img_size.num_mipmaps : 1, texture_dimension::t2d, 1, true);
 
     auto const upbuff_handle = backend->createMappedBuffer(pr_test::get_mipmap_upload_size(format, img_size, true));
     upload_buffers.push_back(upbuff_handle);
@@ -60,12 +61,13 @@ handle::resource pr_test::mip_generation_resources::load_texture(command_stream_
 
     pr_test::copy_mipmaps_to_texture(writer, upbuff_handle, backend->getMappedMemory(upbuff_handle), res_handle, format, img_size, img_data, align_mip_rows, true);
 
-    generate_mips(writer, res_handle, img_size, apply_gamma);
+    if (enable_mipmaps)
+        generate_mips(writer, res_handle, img_size, apply_gamma, format);
 
     return res_handle;
 }
 
-void pr_test::mip_generation_resources::generate_mips(command_stream_writer& writer, handle::resource resource, const inc::assets::image_size& size, bool apply_gamma)
+void pr_test::mip_generation_resources::generate_mips(command_stream_writer& writer, handle::resource resource, const inc::assets::image_size& size, bool apply_gamma, format pf)
 {
     constexpr auto max_array_size = 16u;
 
@@ -106,7 +108,7 @@ void pr_test::mip_generation_resources::generate_mips(command_stream_writer& wri
     for (auto level = 1u, levelWidth = size.width / 2, levelHeight = size.height / 2; level < size.num_mipmaps; ++level, levelWidth /= 2, levelHeight /= 2)
     {
         shader_view_element sve;
-        sve.init_as_tex2d(resource, format::rgba8un);
+        sve.init_as_tex2d(resource, pf);
         sve.texture_info.mip_start = level - 1;
         sve.texture_info.mip_size = 1;
         if (size.array_size > 1)
