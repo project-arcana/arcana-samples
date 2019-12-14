@@ -27,7 +27,5 @@ void copy_data_to_texture(pr::backend::command_stream_writer& writer,
 
 unsigned get_mipmap_upload_size(pr::backend::format format, inc::assets::image_size const& img_size, bool no_mips = false);
 
-pr::backend::format get_texture_format(bool hdr, int num_channels);
-
 pr::backend::detail::unique_buffer get_shader_binary(const char* name, ...);
 }

@@ -40,9 +40,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         handle::resource mat_metallic = handle::null_resource;
         handle::resource mat_roughness = handle::null_resource;
 
-        handle::resource ibl_specular = handle::null_resource;
-        handle::resource ibl_irradiance = handle::null_resource;
-        handle::resource ibl_lut = handle::null_resource;
+//        handle::resource ibl_specular = handle::null_resource;
+//        handle::resource ibl_irradiance = handle::null_resource;
+//        handle::resource ibl_lut = handle::null_resource;
 
         handle::resource vertex_buffer = handle::null_resource;
         handle::resource index_buffer = handle::null_resource;
@@ -53,7 +53,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         handle::pipeline_state pso_render = handle::null_pipeline_state;
         handle::shader_view shaderview_render = handle::null_shader_view;
-        handle::shader_view shaderview_render_ibl = handle::null_shader_view;
+//        handle::shader_view shaderview_render_ibl = handle::null_shader_view;
 
         handle::resource depthbuffer = handle::null_resource;
         handle::resource colorbuffer = handle::null_resource;
@@ -67,7 +67,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     // Resource setup
     //
     {
-        pr_test::mip_generation_resources mipgen_resources;
+        pr_test::texture_creation_resources mipgen_resources;
         mipgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
         CC_DEFER { mipgen_resources.free(backend); };
 
@@ -84,14 +84,14 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         command_stream_writer writer(buffer, buffer_size);
 
-        resources.mat_albedo = mipgen_resources.load_texture(writer, pr_test::sample_albedo_path, true, true, 4, false);
-        resources.mat_normal = mipgen_resources.load_texture(writer, pr_test::sample_normal_path, true, false, 4, false);
-        resources.mat_metallic = mipgen_resources.load_texture(writer, pr_test::sample_metallic_path, true, false, 1, false);
-        resources.mat_roughness = mipgen_resources.load_texture(writer, pr_test::sample_roughness_path, true, false, 1, false);
+        resources.mat_albedo = mipgen_resources.load_texture(pr_test::sample_albedo_path, format::rgba8un, true, true);
+        resources.mat_normal = mipgen_resources.load_texture(pr_test::sample_normal_path, format::rgba8un, true, false);
+        resources.mat_metallic = mipgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, true, false);
+        resources.mat_roughness = mipgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, true, false);
 
-        resources.ibl_lut = mipgen_resources.load_texture(writer, "res/pr/liveness_sample/texture/brdf_lut.png", false, false, 2, true);
-        resources.ibl_specular = backend.createTexture(format::rgba16f, 256, 256, 0, texture_dimension::t2d, 6);
-        resources.ibl_irradiance = backend.createTexture(format::rgba16f, 256, 256, 1, texture_dimension::t2d, 6);
+        auto ibl_lut = backend.createTexture(format::rg16f, 256, 256, 1);
+        auto ibl_specular = mipgen_resources.load_environment_map_from_equirect("res/pr/liveness_sample/texture/ibl/shiodome_stairs.hdr");
+        auto ibl_irradiance = backend.createTexture(format::rgba16f, 256, 256, 1, texture_dimension::t2d, 6);
 
         // create vertex and index buffer
         {
@@ -140,14 +140,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 cmd::transition_resources transition_cmd;
                 transition_cmd.add(resources.mat_metallic, resource_state::shader_resource);
                 transition_cmd.add(resources.mat_roughness, resource_state::shader_resource);
-                transition_cmd.add(resources.ibl_lut, resource_state::shader_resource);
-                writer.add_command(transition_cmd);
-            }
-
-            {
-                cmd::transition_resources transition_cmd;
-                transition_cmd.add(resources.ibl_specular, resource_state::shader_resource);
-                transition_cmd.add(resources.ibl_irradiance, resource_state::shader_resource);
                 writer.add_command(transition_cmd);
             }
 
@@ -259,19 +251,19 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
     }
 
-    {
-        sampler_config lut_sampler;
-        lut_sampler.init_default(sampler_filter::min_mag_mip_linear, 1);
-        lut_sampler.address_u = sampler_address_mode::clamp;
-        lut_sampler.address_v = sampler_address_mode::clamp;
+//    {
+//        sampler_config lut_sampler;
+//        lut_sampler.init_default(sampler_filter::min_mag_mip_linear, 1);
+//        lut_sampler.address_u = sampler_address_mode::clamp;
+//        lut_sampler.address_v = sampler_address_mode::clamp;
 
-        cc::capped_vector<shader_view_element, 3> srv_elems;
-        srv_elems.emplace_back().init_as_texcube(resources.ibl_specular, format::rgba16f);
-        srv_elems.emplace_back().init_as_texcube(resources.ibl_irradiance, format::rgba16f);
-        srv_elems.emplace_back().init_as_tex2d(resources.ibl_lut, format::rg16f);
+//        cc::capped_vector<shader_view_element, 3> srv_elems;
+//        srv_elems.emplace_back().init_as_texcube(resources.ibl_specular, format::rgba16f);
+//        srv_elems.emplace_back().init_as_texcube(resources.ibl_irradiance, format::rgba16f);
+//        srv_elems.emplace_back().init_as_tex2d(resources.ibl_lut, format::rg16f);
 
-        resources.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
-    }
+//        resources.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
+//    }
 
     resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
     std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);

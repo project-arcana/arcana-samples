@@ -153,37 +153,3 @@ unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::
 
     return res_bytes;
 }
-
-
-pr::backend::format pr_test::get_texture_format(bool hdr, int num_channels)
-{
-    using pf = pr::backend::format;
-    if (hdr)
-    {
-        switch (num_channels)
-        {
-        case 4:
-        default:
-            return pf::rgba16f;
-        case 2:
-            return pf::rg16f;
-        case 1:
-            return pf::r16f;
-        }
-    }
-    else
-    {
-        switch (num_channels)
-        {
-        case 4:
-        default:
-            return pf::rgba8un;
-        case 2:
-            return pf::rg8un;
-        case 1:
-            return pf::r8un;
-        }
-    }
-    CC_RUNTIME_ASSERT(false && "invalid channel amount");
-    return pf::rgba8un;
-}
