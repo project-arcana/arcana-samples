@@ -84,32 +84,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         command_stream_writer writer(buffer, buffer_size);
 
-
-        auto const load_texture = [&](char const* path, int num_channels = 4, bool hdr = false, bool first_mip_only = false) -> handle::resource {
-            inc::assets::image_size img_size;
-            auto img_data = inc::assets::load_image(path, img_size, num_channels, hdr);
-            CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
-            CC_DEFER { inc::assets::free(img_data); };
-
-            auto const format = pr_test::get_texture_format(hdr, num_channels);
-            auto const res_handle = backend.createTexture(format, img_size.width, img_size.height, img_size.num_mipmaps);
-
-            auto const upbuff_handle = backend.createMappedBuffer(pr_test::get_mipmap_upload_size(format, img_size, first_mip_only));
-            upload_buffers.push_back(upbuff_handle);
-
-            {
-                cmd::transition_resources transition_cmd;
-                transition_cmd.add(res_handle, resource_state::copy_dest);
-                writer.add_command(transition_cmd);
-            }
-
-            pr_test::copy_mipmaps_to_texture(writer, upbuff_handle, backend.getMappedMemory(upbuff_handle), res_handle, format, img_size, img_data,
-                                             sample_config.align_mip_rows, first_mip_only);
-
-            return res_handle;
-        };
-
-        //        resources.mat_albedo = load_texture(pr_test::sample_albedo_path);
         resources.mat_albedo = mipgen_resources.load_texture(writer, pr_test::sample_albedo_path, true, true, 4, false);
         resources.mat_normal = mipgen_resources.load_texture(writer, pr_test::sample_normal_path, true, false, 4, false);
         resources.mat_metallic = mipgen_resources.load_texture(writer, pr_test::sample_metallic_path, true, false, 1, false);

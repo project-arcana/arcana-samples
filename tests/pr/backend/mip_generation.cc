@@ -39,16 +39,17 @@ void pr_test::mip_generation_resources::initialize(pr::backend::Backend& backend
         = backend.createComputePipelineState(shader_payload, arg::shader_stage{sb_mipgen_array.get(), sb_mipgen_array.size(), shader_domain::compute});
 }
 
-handle::resource pr_test::mip_generation_resources::load_texture(command_stream_writer& writer, const char* path, bool enable_mipmaps, bool apply_gamma, int num_channels, bool hdr)
+handle::resource pr_test::mip_generation_resources::load_texture(command_stream_writer& writer, const char* path, bool include_mipmaps, bool apply_gamma, int num_channels, bool hdr)
 {
     inc::assets::image_size img_size;
     auto img_data = inc::assets::load_image(path, img_size, num_channels, hdr);
-    CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
     CC_DEFER { inc::assets::free(img_data); };
+
+    CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
 
     auto const format = pr_test::get_texture_format(hdr, num_channels);
     auto const res_handle
-        = backend->createTexture(format, img_size.width, img_size.height, enable_mipmaps ? img_size.num_mipmaps : 1, texture_dimension::t2d, 1, true);
+        = backend->createTexture(format, img_size.width, img_size.height, include_mipmaps ? img_size.num_mipmaps : 1, texture_dimension::t2d, 1, true);
 
     auto const upbuff_handle = backend->createMappedBuffer(pr_test::get_mipmap_upload_size(format, img_size, true));
     upload_buffers.push_back(upbuff_handle);
@@ -59,9 +60,9 @@ handle::resource pr_test::mip_generation_resources::load_texture(command_stream_
         writer.add_command(transition_cmd);
     }
 
-    pr_test::copy_mipmaps_to_texture(writer, upbuff_handle, backend->getMappedMemory(upbuff_handle), res_handle, format, img_size, img_data, align_mip_rows, true);
+    pr_test::copy_data_to_texture(writer, upbuff_handle, backend->getMappedMemory(upbuff_handle), res_handle, format, img_size, img_data, align_mip_rows);
 
-    if (enable_mipmaps)
+    if (include_mipmaps)
         generate_mips(writer, res_handle, img_size, apply_gamma, format);
 
     return res_handle;

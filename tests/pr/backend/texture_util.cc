@@ -3,14 +3,16 @@
 #include <cstdarg>
 #include <cstdio>
 
-#include <clean-core/utility.hh>
 #include <clean-core/macros.hh>
+#include <clean-core/utility.hh>
 
 #include <typed-geometry/tg.hh>
 
 #include <phantasm-renderer/backend/command_stream.hh>
 #include <phantasm-renderer/backend/detail/byte_util.hh>
 #include <phantasm-renderer/backend/detail/format_size.hh>
+
+using namespace pr::backend;
 
 pr::backend::detail::unique_buffer pr_test::get_shader_binary(const char* name, ...)
 {
@@ -29,17 +31,15 @@ pr::backend::detail::unique_buffer pr_test::get_shader_binary(const char* name, 
     return pr::backend::detail::unique_buffer::create_from_binary_file(name_formatted);
 }
 
-void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer,
-                                      pr::backend::handle::resource upload_buffer,
-                                      std::byte* upload_buffer_map,
-                                      pr::backend::handle::resource dest_texture,
-                                      pr::backend::format format,
-                                      const inc::assets::image_size& img_size,
-                                      inc::assets::image_data& img_data,
-                                      bool use_d3d12_per_row_alingment,
-                                      bool limit_to_first_mip)
+void pr_test::copy_and_gen_mip_data_to_texture(pr::backend::command_stream_writer& writer,
+                                               pr::backend::handle::resource upload_buffer,
+                                               std::byte* upload_buffer_map,
+                                               pr::backend::handle::resource dest_texture,
+                                               pr::backend::format format,
+                                               const inc::assets::image_size& img_size,
+                                               inc::assets::image_data& img_data,
+                                               bool use_d3d12_per_row_alingment)
 {
-    using namespace pr::backend;
     auto const bytes_per_pixel = detail::pr_format_size_bytes(format);
 
     CC_RUNTIME_ASSERT(img_size.array_size == 1 && "array upload unimplemented");
@@ -47,7 +47,7 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
     command.source = upload_buffer;
     command.destination = dest_texture;
     command.texture_format = format;
-    command.dest_mip_size = limit_to_first_mip ? 1 : img_size.num_mipmaps;
+    command.dest_mip_size = img_size.num_mipmaps;
 
     auto accumulated_offset_bytes = 0u;
 
@@ -55,8 +55,6 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
     {
         command.dest_array_index = a;
 
-        // copy all the mip slices into the offsets specified by the footprint structure
-        //
         for (auto mip = 0u; mip < command.dest_mip_size; ++mip)
         {
             auto const mip_width = cc::max(unsigned(tg::floor(img_size.width / tg::pow(2.f, float(mip)))), 1u);
@@ -88,9 +86,54 @@ void pr_test::copy_mipmaps_to_texture(pr::backend::command_stream_writer& writer
     }
 }
 
+void pr_test::copy_data_to_texture(pr::backend::command_stream_writer& writer,
+                                   pr::backend::handle::resource upload_buffer,
+                                   std::byte* upload_buffer_map,
+                                   pr::backend::handle::resource dest_texture,
+                                   pr::backend::format format,
+                                   const inc::assets::image_size& img_size,
+                                   inc::assets::image_data const& img_data,
+                                   bool use_d3d12_per_row_alingment)
+{
+    auto const bytes_per_pixel = detail::pr_format_size_bytes(format);
+
+    CC_RUNTIME_ASSERT(img_size.array_size == 1 && "array upload unimplemented");
+    // NOTE: image_data is currently always a single array slice
+
+    cmd::copy_buffer_to_texture command;
+    command.source = upload_buffer;
+    command.destination = dest_texture;
+    command.texture_format = format;
+    command.dest_width = img_size.width;
+    command.dest_height = img_size.height;
+    command.dest_mip_index = 0;
+    command.dest_mip_size = 1;
+
+    auto accumulated_offset_bytes = 0u;
+
+    for (auto a = 0u; a < img_size.array_size; ++a)
+    {
+        command.dest_array_index = a;
+        command.source_offset = accumulated_offset_bytes;
+
+        writer.add_command(command);
+
+        auto const mip_row_size_bytes = bytes_per_pixel * command.dest_width;
+        auto mip_row_stride_bytes = mip_row_size_bytes;
+
+        if (use_d3d12_per_row_alingment)
+            // MIP maps are 256-byte aligned per row in d3d12
+            mip_row_stride_bytes = mem::align_up(mip_row_stride_bytes, 256);
+
+        auto const mip_offset_bytes = mip_row_stride_bytes * command.dest_height;
+        accumulated_offset_bytes += mip_offset_bytes;
+
+        inc::assets::rowwise_copy(img_data, upload_buffer_map + command.source_offset, mip_row_stride_bytes, mip_row_size_bytes, command.dest_height);
+    }
+}
+
 unsigned pr_test::get_mipmap_upload_size(pr::backend::format format, const inc::assets::image_size& img_size, bool no_mips)
 {
-    using namespace pr::backend;
     auto const bytes_per_pixel = detail::pr_format_size_bytes(format);
     auto res_bytes = 0u;
 
@@ -142,4 +185,5 @@ pr::backend::format pr_test::get_texture_format(bool hdr, int num_channels)
         }
     }
     CC_RUNTIME_ASSERT(false && "invalid channel amount");
+    return pf::rgba8un;
 }
