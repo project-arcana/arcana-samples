@@ -136,9 +136,9 @@ pr::backend::format pr_test::get_texture_format(bool hdr, int num_channels)
         default:
             return pf::rgba8un;
         case 2:
-            return pf::rg8u;
+            return pf::rg8un;
         case 1:
-            return pf::r8u;
+            return pf::r8un;
         }
     }
     CC_RUNTIME_ASSERT(false && "invalid channel amount");
