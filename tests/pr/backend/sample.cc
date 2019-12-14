@@ -112,8 +112,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         //        resources.mat_albedo = load_texture(pr_test::sample_albedo_path);
         resources.mat_albedo = mipgen_resources.load_texture(writer, pr_test::sample_albedo_path, true, true, 4, false);
         resources.mat_normal = mipgen_resources.load_texture(writer, pr_test::sample_normal_path, true, false, 4, false);
-        resources.mat_metallic = mipgen_resources.load_texture(writer, pr_test::sample_metallic_path, true, false, 4, false);
-        resources.mat_roughness = mipgen_resources.load_texture(writer, pr_test::sample_roughness_path, true, false, 4, false);
+        resources.mat_metallic = mipgen_resources.load_texture(writer, pr_test::sample_metallic_path, true, false, 1, false);
+        resources.mat_roughness = mipgen_resources.load_texture(writer, pr_test::sample_roughness_path, true, false, 1, false);
 
         resources.ibl_lut = mipgen_resources.load_texture(writer, "res/pr/liveness_sample/texture/brdf_lut.png", false, false, 2, true);
         resources.ibl_specular = backend.createTexture(format::rgba16f, 256, 256, 0, texture_dimension::t2d, 6);
@@ -280,8 +280,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         cc::capped_vector<shader_view_element, 4> srv_elems;
         srv_elems.emplace_back().init_as_tex2d(resources.mat_albedo, format::rgba8un);
         srv_elems.emplace_back().init_as_tex2d(resources.mat_normal, format::rgba8un);
-        srv_elems.emplace_back().init_as_tex2d(resources.mat_metallic, format::rgba8un);
-        srv_elems.emplace_back().init_as_tex2d(resources.mat_roughness, format::rgba8un);
+        srv_elems.emplace_back().init_as_tex2d(resources.mat_metallic, format::r8un);
+        srv_elems.emplace_back().init_as_tex2d(resources.mat_roughness, format::r8un);
         resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
     }
 

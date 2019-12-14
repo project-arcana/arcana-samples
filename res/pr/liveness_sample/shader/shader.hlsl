@@ -31,16 +31,16 @@ static const float Epsilon = 0.00001;
 // Constant normal incidence Fresnel factor for all dielectrics.
 static const float3 Fdielectric = 0.04;
 
-Texture2D<float4> g_albedo                          : register(t0, space1);
-Texture2D<float4> g_normal                          : register(t1, space1);
-Texture2D<float4> g_metallic                        : register(t2, space1);
-Texture2D<float4> g_roughness                       : register(t3, space1);
+Texture2D g_albedo                                  : register(t0, space1);
+Texture2D g_normal                                  : register(t1, space1);
+Texture2D g_metallic                                : register(t2, space1);
+Texture2D g_roughness                               : register(t3, space1);
 
 SamplerState g_sampler                              : register(s0, space1);
 
 // TextureCube g_ibl_specular                          : register(t0, space2);
 // TextureCube g_ibl_irradiance                        : register(t1, space2);
-// Texture2D<float4> g_ibl_specular_lut                : register(t2, space2);
+// Texture2D g_ibl_specular_lut                         : register(t2, space2);
 
 // SamplerState g_lut_sampler                          : register(s0, space2);
 

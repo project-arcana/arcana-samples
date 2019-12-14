@@ -10,7 +10,7 @@ struct vs_out
     float2 Texcoord     : TEXCOORD;
 };
 
-Texture2D<float4> g_texture                     : register(t0, space0);
+Texture2D g_texture                             : register(t0, space0);
 SamplerState g_sampler                          : register(s0, space0);
 
 vs_out main_vs(vs_in In)
