@@ -64,36 +64,33 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
     resources_t resources;
 
-    // Resource setup
+    // Texture setup
     //
     {
-        pr_test::texture_creation_resources mipgen_resources;
-        mipgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
-        CC_DEFER { mipgen_resources.free(backend); };
+        pr_test::texture_creation_resources texgen_resources;
+        texgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
 
-        cc::capped_vector<handle::resource, 15> upload_buffers;
-        CC_DEFER
-        {
-            for (auto ub : upload_buffers)
-                backend.free(ub);
-        };
+        resources.mat_albedo = texgen_resources.load_texture(pr_test::sample_albedo_path, format::rgba8un, true, true);
+        resources.mat_normal = texgen_resources.load_texture(pr_test::sample_normal_path, format::rgba8un, true, false);
+        resources.mat_metallic = texgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, true, false);
+        resources.mat_roughness = texgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, true, false);
+
+        resources.ibl_specular = texgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
+        resources.ibl_irradiance = texgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
+        resources.ibl_lut = texgen_resources.create_brdf_lut(256);
+
+        texgen_resources.free(backend);
+    }
+
+    // Mesh setup
+    {
+        cc::capped_vector<handle::resource, 1> upload_buffers;
 
         auto const buffer_size = 1024ull * 32;
         auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
         CC_DEFER { std::free(buffer); };
-
         command_stream_writer writer(buffer, buffer_size);
 
-        resources.mat_albedo = mipgen_resources.load_texture(pr_test::sample_albedo_path, format::rgba8un, true, true);
-        resources.mat_normal = mipgen_resources.load_texture(pr_test::sample_normal_path, format::rgba8un, true, false);
-        resources.mat_metallic = mipgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, true, false);
-        resources.mat_roughness = mipgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, true, false);
-
-        resources.ibl_specular = mipgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
-        resources.ibl_irradiance = mipgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
-        resources.ibl_lut = mipgen_resources.create_brdf_lut(256);
-
-        // create vertex and index buffer
         {
             auto const mesh_data = pr_test::sample_mesh_binary ? inc::assets::load_binary_mesh(pr_test::sample_mesh_path)
                                                                : inc::assets::load_obj_mesh(pr_test::sample_mesh_path);
@@ -106,12 +103,11 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             resources.vertex_buffer = backend.createBuffer(vert_size, resource_state::copy_dest, sizeof(inc::assets::simple_vertex));
             resources.index_buffer = backend.createBuffer(ind_size, resource_state::copy_dest, sizeof(int));
 
-
             {
-                cmd::transition_resources transition_cmd;
-                transition_cmd.add(resources.vertex_buffer, resource_state::copy_dest);
-                transition_cmd.add(resources.index_buffer, resource_state::copy_dest);
-                writer.add_command(transition_cmd);
+                cmd::transition_resources tcmd;
+                tcmd.add(resources.vertex_buffer, resource_state::copy_dest);
+                tcmd.add(resources.index_buffer, resource_state::copy_dest);
+                writer.add_command(tcmd);
             }
 
             auto const mesh_upbuff = backend.createMappedBuffer(vert_size + ind_size);
@@ -123,31 +119,22 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
             writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, mesh_upbuff, 0, vert_size});
             writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, mesh_upbuff, vert_size, ind_size});
-        }
-
-        // transition resources, record and free the upload command list, and upload buffers
-        {
-            {
-                cmd::transition_resources transition_cmd;
-                transition_cmd.add(resources.vertex_buffer, resource_state::vertex_buffer);
-                transition_cmd.add(resources.index_buffer, resource_state::index_buffer);
-                transition_cmd.add(resources.mat_albedo, resource_state::shader_resource);
-                transition_cmd.add(resources.mat_normal, resource_state::shader_resource);
-                writer.add_command(transition_cmd);
-            }
 
             {
-                cmd::transition_resources transition_cmd;
-                transition_cmd.add(resources.mat_metallic, resource_state::shader_resource);
-                transition_cmd.add(resources.mat_roughness, resource_state::shader_resource);
-                writer.add_command(transition_cmd);
+                cmd::transition_resources tcmd;
+                tcmd.add(resources.vertex_buffer, resource_state::vertex_buffer);
+                tcmd.add(resources.index_buffer, resource_state::index_buffer);
+                writer.add_command(tcmd);
             }
-
-            auto const copy_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
-            backend.submit(cc::span{copy_cmd_list});
         }
+
+        auto const setup_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
+        backend.submit(cc::span{setup_cmd_list});
 
         backend.flushGPU();
+
+        for (auto ub : upload_buffers)
+            backend.free(ub);
     }
 
     {
@@ -317,7 +304,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     double run_time = 0.0;
 
 
-    // cacheline-sized tasks call for desperate measures (macro)
+// cacheline-sized tasks call for desperate measures (macro)
 #define THREAD_BUFFER_SIZE (static_cast<size_t>(1024ull * 100))
 
     cc::array<std::byte*, pr_test::num_render_threads + 1> thread_cmd_buffer_mem;
