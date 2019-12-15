@@ -89,7 +89,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.mat_metallic = mipgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, true, false);
         resources.mat_roughness = mipgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, true, false);
 
-        resources.ibl_specular = mipgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/shiodome_stairs.hdr");
+        resources.ibl_specular = mipgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/hamarikyu_bridge.hdr");
         resources.ibl_irradiance = mipgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
         resources.ibl_lut = mipgen_resources.create_brdf_lut(256);
 
@@ -484,6 +484,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     backend.free(resources.mat_normal);
     backend.free(resources.mat_metallic);
     backend.free(resources.mat_roughness);
+    backend.free(resources.ibl_lut);
+    backend.free(resources.ibl_specular);
+    backend.free(resources.ibl_irradiance);
     backend.free(resources.vertex_buffer);
     backend.free(resources.index_buffer);
     backend.free(resources.pso_render);
@@ -494,4 +497,5 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     backend.free(resources.pso_blit);
     backend.free(resources.shaderview_blit);
     backend.free(resources.shaderview_render);
+    backend.free(resources.shaderview_render_ibl);
 }
