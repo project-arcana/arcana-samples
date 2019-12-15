@@ -121,7 +121,7 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
 {
     CC_ASSERT((apply_gamma ? include_mipmaps : true) && "gamma setting meaningless without mipmap generation");
 
-    flush_cmdstream(false);
+    flush_cmdstream(true);
 
     inc::assets::image_size img_size;
     inc::assets::image_data img_data;
@@ -283,7 +283,7 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
 
 handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_map(handle::resource filtered_specular_map)
 {
-    flush_cmdstream(false);
+    flush_cmdstream(true);
     constexpr auto cube_width = 32u;
     constexpr auto cube_height = 32u;
     auto const cube_num_mips = inc::assets::get_num_mip_levels(cube_width, cube_height);
@@ -330,7 +330,7 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
 
 handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned width_height)
 {
-    flush_cmdstream(false);
+    flush_cmdstream(true);
 
     auto const brdf_lut_handle = backend->createTexture(format::rg16f, width_height, width_height, 1, texture_dimension::t2d, 1, true);
 
