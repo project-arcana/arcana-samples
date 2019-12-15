@@ -17,15 +17,19 @@ struct texture_creation_resources
 
     pr::backend::handle::resource load_texture(char const* path, pr::backend::format format, bool include_mipmaps, bool apply_gamma = false);
 
-    pr::backend::handle::resource load_environment_map_from_equirect(char const* path);
-
     void finish_uploads() { flush_cmdstream(true); }
 
+public:
+    // IBL
+
+    pr::backend::handle::resource load_filtered_specular_map(char const* hdr_equirect_path);
+
+    pr::backend::handle::resource create_diffuse_irradiance_map(pr::backend::handle::resource filtered_specular_map);
+
+    pr::backend::handle::resource create_brdf_lut(unsigned width_height = 256);
+
 private:
-    void generate_mips(pr::backend::handle::resource resource,
-                       inc::assets::image_size const& size,
-                       bool apply_gamma,
-                       pr::backend::format pf);
+    void generate_mips(pr::backend::handle::resource resource, inc::assets::image_size const& size, bool apply_gamma, pr::backend::format pf);
 
     void flush_cmdstream(bool wait_gpu = false);
 
@@ -38,6 +42,9 @@ private:
     pr::backend::handle::pipeline_state pso_mipgen_array;
 
     pr::backend::handle::pipeline_state pso_equirect_to_cube;
+    pr::backend::handle::pipeline_state pso_specular_map_filter;
+    pr::backend::handle::pipeline_state pso_irradiance_map_gen;
+    pr::backend::handle::pipeline_state pso_brdf_lut_gen;
 
 
 private:

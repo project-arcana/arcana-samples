@@ -46,8 +46,6 @@ void pr_test::copy_and_gen_mip_data_to_texture(pr::backend::command_stream_write
     cmd::copy_buffer_to_texture command;
     command.source = upload_buffer;
     command.destination = dest_texture;
-    command.texture_format = format;
-    command.dest_mip_size = img_size.num_mipmaps;
 
     auto accumulated_offset_bytes = 0u;
 
@@ -55,7 +53,7 @@ void pr_test::copy_and_gen_mip_data_to_texture(pr::backend::command_stream_write
     {
         command.dest_array_index = a;
 
-        for (auto mip = 0u; mip < command.dest_mip_size; ++mip)
+        for (auto mip = 0u; mip < img_size.num_mipmaps; ++mip)
         {
             auto const mip_width = cc::max(unsigned(tg::floor(img_size.width / tg::pow(2.f, float(mip)))), 1u);
             auto const mip_height = cc::max(unsigned(tg::floor(img_size.height / tg::pow(2.f, float(mip)))), 1u);
@@ -80,7 +78,7 @@ void pr_test::copy_and_gen_mip_data_to_texture(pr::backend::command_stream_write
             inc::assets::rowwise_copy(img_data, upload_buffer_map + command.source_offset, mip_row_stride_bytes, mip_row_size_bytes, command.dest_height);
 
             // if applicable, write the next mip level
-            if (mip + 1 < command.dest_mip_size)
+            if (mip + 1 < img_size.num_mipmaps)
                 inc::assets::write_mipmap(img_data, command.dest_width, command.dest_height);
         }
     }
@@ -103,11 +101,9 @@ void pr_test::copy_data_to_texture(pr::backend::command_stream_writer& writer,
     cmd::copy_buffer_to_texture command;
     command.source = upload_buffer;
     command.destination = dest_texture;
-    command.texture_format = format;
     command.dest_width = img_size.width;
     command.dest_height = img_size.height;
     command.dest_mip_index = 0;
-    command.dest_mip_size = 1;
 
     auto accumulated_offset_bytes = 0u;
 

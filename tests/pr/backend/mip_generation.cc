@@ -14,6 +14,12 @@
 
 using namespace pr::backend;
 
+namespace
+{
+constexpr auto gc_ibl_cubemap_format = format::rgba16f;
+}
+
+
 void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backend, const char* shader_ending, bool align_rows)
 {
     resources_to_free.reserve(1000);
@@ -56,22 +62,42 @@ void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backe
 
     // load IBL preparation shaders
     {
-        cc::capped_vector<arg::shader_argument_shape, 1> shader_payload;
+        auto const sb_equirect_cube = get_shader_binary("res/pr/liveness_sample/shader/bin/equirect_to_cube.%s", shader_ending);
+        auto const sb_specular_map_filter = get_shader_binary("res/pr/liveness_sample/shader/bin/specular_map_filter.%s", shader_ending);
+        auto const sb_irradiance_map_filter = get_shader_binary("res/pr/liveness_sample/shader/bin/irradiance_map_filter.%s", shader_ending);
+        auto const sb_brdf_lut_gen = get_shader_binary("res/pr/liveness_sample/shader/bin/brdf_lut_gen.%s", shader_ending);
+
+        CC_RUNTIME_ASSERT(sb_equirect_cube.is_valid() && sb_specular_map_filter.is_valid() && sb_irradiance_map_filter.is_valid()
+                          && sb_brdf_lut_gen.is_valid() && "failed to load shaders");
+
+        cc::capped_vector<arg::shader_argument_shape, 1> arg_shape;
         {
             arg::shader_argument_shape shape;
             shape.has_cb = false;
             shape.num_srvs = 1;
             shape.num_uavs = 1;
             shape.num_samplers = 1;
-            shader_payload.push_back(shape);
+            arg_shape.push_back(shape);
         }
 
-        auto const sb_equirect_cube = get_shader_binary("res/pr/liveness_sample/shader/bin/equirect_to_cube.%s", shader_ending);
+        pso_equirect_to_cube
+            = backend.createComputePipelineState(arg_shape, arg::shader_stage{sb_equirect_cube.get(), sb_equirect_cube.size(), shader_domain::compute});
 
-        CC_RUNTIME_ASSERT(sb_equirect_cube.is_valid() && "failed to load shaders");
+        pso_specular_map_filter = backend.createComputePipelineState(
+            arg_shape, arg::shader_stage{sb_specular_map_filter.get(), sb_specular_map_filter.size(), shader_domain::compute}, true);
 
-        pso_equirect_to_cube = backend.createComputePipelineState(
-            shader_payload, arg::shader_stage{sb_equirect_cube.get(), sb_equirect_cube.size(), shader_domain::compute});
+        pso_irradiance_map_gen = backend.createComputePipelineState(
+            arg_shape, arg::shader_stage{sb_irradiance_map_filter.get(), sb_irradiance_map_filter.size(), shader_domain::compute});
+
+        cc::capped_vector<arg::shader_argument_shape, 1> arg_shape_single_uav;
+        {
+            arg::shader_argument_shape shape = {};
+            shape.num_uavs = 1;
+            arg_shape_single_uav.push_back(shape);
+        }
+
+        pso_brdf_lut_gen = backend.createComputePipelineState(
+            arg_shape_single_uav, arg::shader_stage{sb_brdf_lut_gen.get(), sb_brdf_lut_gen.size(), shader_domain::compute});
     }
 }
 
@@ -84,7 +110,11 @@ void pr_test::texture_creation_resources::free(Backend& backend)
     backend.free(pso_mipgen);
     backend.free(pso_mipgen_gamma);
     backend.free(pso_mipgen_array);
+
     backend.free(pso_equirect_to_cube);
+    backend.free(pso_specular_map_filter);
+    backend.free(pso_irradiance_map_gen);
+    backend.free(pso_brdf_lut_gen);
 }
 
 handle::resource pr_test::texture_creation_resources::load_texture(char const* path, pr::backend::format format, bool include_mipmaps, bool apply_gamma)
@@ -124,17 +154,20 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
     return res_handle;
 }
 
-handle::resource pr_test::texture_creation_resources::load_environment_map_from_equirect(const char* path)
+handle::resource pr_test::texture_creation_resources::load_filtered_specular_map(const char* hdr_equirect_path)
 {
     constexpr auto cube_width = 1024u;
     constexpr auto cube_height = 1024u;
+    auto const cube_num_mips = inc::assets::get_num_mip_levels(cube_width, cube_height);
 
-    auto const unfiltered_env_handle = backend->createTexture(format::rgba16f, cube_width, cube_height, 0, texture_dimension::t2d, 6, true);
+    auto const unfiltered_env_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, cube_num_mips, texture_dimension::t2d, 6, true);
     resources_to_free.push_back(unfiltered_env_handle);
 
-    // write unfiltered env_handle
+    auto const filtered_env_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, cube_num_mips, texture_dimension::t2d, 6, true);
+
+    // convert equirectangular map to cubemap
     {
-        auto const equirect_handle = load_texture(path, format::rgba32f, false);
+        auto const equirect_handle = load_texture(hdr_equirect_path, format::rgba32f, false);
         resources_to_free.push_back(equirect_handle);
 
         handle::shader_view sv;
@@ -143,7 +176,7 @@ handle::resource pr_test::texture_creation_resources::load_environment_map_from_
             sve_srv.init_as_tex2d(equirect_handle, format::rgba32f);
 
             shader_view_element sve_uav;
-            sve_uav.init_as_texcube(unfiltered_env_handle, format::rgba16f);
+            sve_uav.init_as_texcube(unfiltered_env_handle, gc_ibl_cubemap_format);
 
             sampler_config srv_sampler;
             srv_sampler.init_default(sampler_filter::min_mag_mip_linear);
@@ -166,6 +199,7 @@ handle::resource pr_test::texture_creation_resources::load_environment_map_from_
             cmd::dispatch dcmd;
             dcmd.init(pso_equirect_to_cube, cube_width / 32, cube_height / 32, 6);
             dcmd.add_shader_arg(handle::null_resource, 0, sv);
+            cmd_writer.add_command(dcmd);
         }
 
         // post transition
@@ -178,9 +212,158 @@ handle::resource pr_test::texture_creation_resources::load_environment_map_from_
 
     // generate mipmaps for the unfiltered envmap
     inc::assets::image_size env_size = {cube_width, cube_height, 0, 6};
-    generate_mips(unfiltered_env_handle, env_size, false, format::rgba16f);
+    generate_mips(unfiltered_env_handle, env_size, false, gc_ibl_cubemap_format);
 
-    return unfiltered_env_handle;
+    // generate pre-filtered specular cubemap
+    {
+        // pre transition
+        {
+            cmd::transition_resources tcmd;
+            tcmd.add(unfiltered_env_handle, resource_state::copy_src);
+            tcmd.add(filtered_env_handle, resource_state::copy_dest);
+            cmd_writer.add_command(tcmd);
+        }
+
+        // copy 0th mip to filtered cubemap
+        {
+            cmd::copy_texture ccmd;
+            ccmd.init_symmetric(unfiltered_env_handle, filtered_env_handle, cube_width, cube_height, 0, 0, 6);
+            cmd_writer.add_command(ccmd);
+        }
+
+        // post transition
+        {
+            cmd::transition_resources tcmd;
+            tcmd.add(unfiltered_env_handle, resource_state::shader_resource);
+            tcmd.add(filtered_env_handle, resource_state::unordered_access);
+            cmd_writer.add_command(tcmd);
+        }
+
+        // compute dispatch
+        {
+            shader_view_element sve_srv;
+            sve_srv.init_as_texcube(unfiltered_env_handle, gc_ibl_cubemap_format);
+
+            shader_view_element sve_uav;
+            sve_uav.init_as_texcube(filtered_env_handle, gc_ibl_cubemap_format);
+            sve_uav.texture_info.mip_size = 1;
+
+            sampler_config default_sampler;
+            default_sampler.init_default(sampler_filter::min_mag_mip_linear);
+
+
+            const float deltaRoughness = 1.0f / cc::max(float(cube_num_mips - 1), 1.0f);
+            for (auto level = 1u, size = 512u; level < cube_num_mips; ++level, size /= 2)
+            {
+                auto const num_groups = cc::max<unsigned>(1, size / 32);
+                float const spmapRoughness = level * deltaRoughness;
+
+                sve_uav.texture_info.mip_start = level;
+                auto const sv = backend->createShaderView(cc::span{sve_srv}, cc::span{sve_uav}, cc::span{default_sampler}, true);
+                shader_views_to_free.push_back(sv);
+
+                cmd::dispatch dcmd;
+                dcmd.init(pso_specular_map_filter, num_groups, num_groups, 6);
+                dcmd.add_shader_arg(handle::null_resource, 0, sv);
+                dcmd.write_root_constants(spmapRoughness);
+                cmd_writer.add_command(dcmd);
+            }
+        }
+
+        // post compute transition
+        {
+            cmd::transition_resources tcmd;
+            tcmd.add(filtered_env_handle, resource_state::shader_resource);
+            cmd_writer.add_command(tcmd);
+        }
+    }
+
+    return filtered_env_handle;
+}
+
+handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_map(handle::resource filtered_specular_map)
+{
+    flush_cmdstream(false);
+    constexpr auto cube_width = 32u;
+    constexpr auto cube_height = 32u;
+    auto const cube_num_mips = inc::assets::get_num_mip_levels(cube_width, cube_height);
+
+    auto const irradiance_map_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, cube_num_mips, texture_dimension::t2d, 6, true);
+
+    // prepare for UAV
+    {
+        cmd::transition_resources tcmd;
+        tcmd.add(irradiance_map_handle, resource_state::unordered_access);
+        cmd_writer.add_command(tcmd);
+    }
+
+    // dispatch
+    {
+        shader_view_element sve_uav;
+        sve_uav.init_as_texcube(irradiance_map_handle, gc_ibl_cubemap_format);
+
+        shader_view_element sve_srv;
+        sve_srv.init_as_texcube(filtered_specular_map, gc_ibl_cubemap_format);
+
+        sampler_config default_sampler;
+        default_sampler.init_default(sampler_filter::min_mag_mip_linear);
+
+        auto const sv = backend->createShaderView(cc::span{sve_srv}, cc::span{sve_uav}, cc::span{default_sampler}, true);
+        shader_views_to_free.push_back(sv);
+
+        cmd::dispatch dcmd;
+        dcmd.init(pso_irradiance_map_gen, cube_width / 32, cube_height / 32, 6);
+        dcmd.add_shader_arg(handle::null_resource, 0, sv);
+        cmd_writer.add_command(dcmd);
+    }
+
+    // prepare for SRV
+    {
+        cmd::transition_resources tcmd;
+        tcmd.add(irradiance_map_handle, resource_state::shader_resource);
+        cmd_writer.add_command(tcmd);
+    }
+
+
+    return irradiance_map_handle;
+}
+
+handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned width_height)
+{
+    flush_cmdstream(false);
+
+    auto const brdf_lut_handle = backend->createTexture(format::rg16f, width_height, width_height, 1, texture_dimension::t2d, 1, true);
+
+    // prepare for UAV
+    {
+        cmd::transition_resources tcmd;
+        tcmd.add(brdf_lut_handle, resource_state::unordered_access);
+        cmd_writer.add_command(tcmd);
+    }
+
+    // dispatch
+    {
+        shader_view_element sve_uav;
+        sve_uav.init_as_tex2d(brdf_lut_handle, format::rg16f);
+
+        auto const sv = backend->createShaderView({}, cc::span{sve_uav}, {}, true);
+        shader_views_to_free.push_back(sv);
+
+        cmd::dispatch dcmd;
+        dcmd.init(pso_brdf_lut_gen, width_height / 32, width_height / 32, 1);
+        dcmd.add_shader_arg(handle::null_resource, 0, sv);
+        cmd_writer.add_command(dcmd);
+    }
+
+    // prepare for SRV
+    {
+        cmd::transition_resources tcmd;
+        tcmd.add(brdf_lut_handle, resource_state::shader_resource);
+        cmd_writer.add_command(tcmd);
+    }
+
+
+    return brdf_lut_handle;
 }
 
 void pr_test::texture_creation_resources::generate_mips(handle::resource resource, const inc::assets::image_size& size, bool apply_gamma, format pf)

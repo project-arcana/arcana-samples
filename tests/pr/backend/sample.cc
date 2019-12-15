@@ -40,9 +40,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         handle::resource mat_metallic = handle::null_resource;
         handle::resource mat_roughness = handle::null_resource;
 
-//        handle::resource ibl_specular = handle::null_resource;
-//        handle::resource ibl_irradiance = handle::null_resource;
-//        handle::resource ibl_lut = handle::null_resource;
+        handle::resource ibl_specular = handle::null_resource;
+        handle::resource ibl_irradiance = handle::null_resource;
+        handle::resource ibl_lut = handle::null_resource;
 
         handle::resource vertex_buffer = handle::null_resource;
         handle::resource index_buffer = handle::null_resource;
@@ -53,7 +53,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         handle::pipeline_state pso_render = handle::null_pipeline_state;
         handle::shader_view shaderview_render = handle::null_shader_view;
-//        handle::shader_view shaderview_render_ibl = handle::null_shader_view;
+        handle::shader_view shaderview_render_ibl = handle::null_shader_view;
 
         handle::resource depthbuffer = handle::null_resource;
         handle::resource colorbuffer = handle::null_resource;
@@ -89,9 +89,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.mat_metallic = mipgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, true, false);
         resources.mat_roughness = mipgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, true, false);
 
-        auto ibl_lut = backend.createTexture(format::rg16f, 256, 256, 1);
-        auto ibl_specular = mipgen_resources.load_environment_map_from_equirect("res/pr/liveness_sample/texture/ibl/shiodome_stairs.hdr");
-        auto ibl_irradiance = backend.createTexture(format::rgba16f, 256, 256, 1, texture_dimension::t2d, 6);
+        resources.ibl_specular = mipgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/shiodome_stairs.hdr");
+        resources.ibl_irradiance = mipgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
+        resources.ibl_lut = mipgen_resources.create_brdf_lut(256);
 
         // create vertex and index buffer
         {
@@ -174,14 +174,14 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             }
 
             // Argument 2, IBL SRVs and LUT sampler
-            //                {
-            //                    arg::shader_argument_shape arg_shape;
-            //                    arg_shape.has_cb = false;
-            //                    arg_shape.num_srvs = 3;
-            //                    arg_shape.num_uavs = 0;
-            //                    arg_shape.num_samplers = 1;
-            //                    payload_shape.push_back(arg_shape);
-            //                }
+            {
+                arg::shader_argument_shape arg_shape;
+                arg_shape.has_cb = false;
+                arg_shape.num_srvs = 3;
+                arg_shape.num_uavs = 0;
+                arg_shape.num_samplers = 1;
+                payload_shape.push_back(arg_shape);
+            }
         }
 
         auto const vertex_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/vertex.%s", sample_config.shader_ending);
@@ -251,19 +251,19 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
     }
 
-//    {
-//        sampler_config lut_sampler;
-//        lut_sampler.init_default(sampler_filter::min_mag_mip_linear, 1);
-//        lut_sampler.address_u = sampler_address_mode::clamp;
-//        lut_sampler.address_v = sampler_address_mode::clamp;
+    {
+        sampler_config lut_sampler;
+        lut_sampler.init_default(sampler_filter::min_mag_mip_linear, 1);
+        lut_sampler.address_u = sampler_address_mode::clamp;
+        lut_sampler.address_v = sampler_address_mode::clamp;
 
-//        cc::capped_vector<shader_view_element, 3> srv_elems;
-//        srv_elems.emplace_back().init_as_texcube(resources.ibl_specular, format::rgba16f);
-//        srv_elems.emplace_back().init_as_texcube(resources.ibl_irradiance, format::rgba16f);
-//        srv_elems.emplace_back().init_as_tex2d(resources.ibl_lut, format::rg16f);
+        cc::capped_vector<shader_view_element, 3> srv_elems;
+        srv_elems.emplace_back().init_as_texcube(resources.ibl_specular, format::rgba16f);
+        srv_elems.emplace_back().init_as_texcube(resources.ibl_irradiance, format::rgba16f);
+        srv_elems.emplace_back().init_as_tex2d(resources.ibl_lut, format::rg16f);
 
-//        resources.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
-//    }
+        resources.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
+    }
 
     resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
     std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
@@ -405,7 +405,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         cmd_draw.init(resources.pso_render, resources.num_indices, resources.vertex_buffer, resources.index_buffer);
                         cmd_draw.add_shader_arg(resources.cb_camdata);
                         cmd_draw.add_shader_arg(resources.cb_modeldata, 0, resources.shaderview_render);
-                        //                            cmd_draw.shader_arguments.push_back(shader_argument{handle::null_resource, 0, resources.shaderview_render_ibl});
+                        cmd_draw.add_shader_arg(handle::null_resource, 0, resources.shaderview_render_ibl);
 
                         for (auto inst = start; inst < end; ++inst)
                         {
