@@ -22,6 +22,12 @@
 #include "mip_generation.hh"
 #include "sample_scene.hh"
 
+namespace
+{
+constexpr bool gc_enable_ibl = true;
+constexpr bool gc_enable_compute_mips = true;
+}
+
 void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backend_config& config, sample_config const& sample_config)
 {
 #define msaa_enabled false
@@ -70,14 +76,17 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         pr_test::texture_creation_resources texgen_resources;
         texgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
 
-        resources.mat_albedo = texgen_resources.load_texture(pr_test::sample_albedo_path, format::rgba8un, true, true);
-        resources.mat_normal = texgen_resources.load_texture(pr_test::sample_normal_path, format::rgba8un, true, false);
-        resources.mat_metallic = texgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, true, false);
-        resources.mat_roughness = texgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, true, false);
+        resources.mat_albedo = texgen_resources.load_texture(pr_test::sample_albedo_path, format::rgba8un, gc_enable_compute_mips, gc_enable_compute_mips);
+        resources.mat_normal = texgen_resources.load_texture(pr_test::sample_normal_path, format::rgba8un, gc_enable_compute_mips, false);
+        resources.mat_metallic = texgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, gc_enable_compute_mips, false);
+        resources.mat_roughness = texgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, gc_enable_compute_mips, false);
 
-        resources.ibl_specular = texgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
-        resources.ibl_irradiance = texgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
-        resources.ibl_lut = texgen_resources.create_brdf_lut(256);
+        if (gc_enable_ibl)
+        {
+            resources.ibl_specular = texgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
+            resources.ibl_irradiance = texgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
+            resources.ibl_lut = texgen_resources.create_brdf_lut(256);
+        }
 
         texgen_resources.free(backend);
     }
@@ -86,7 +95,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     {
         cc::capped_vector<handle::resource, 1> upload_buffers;
 
-        auto const buffer_size = 1024ull * 32;
+        auto const buffer_size = 1024ull * 2;
         auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
         CC_DEFER { std::free(buffer); };
         command_stream_writer writer(buffer, buffer_size);
@@ -161,6 +170,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             }
 
             // Argument 2, IBL SRVs and LUT sampler
+            if (gc_enable_ibl)
             {
                 arg::shader_argument_shape arg_shape;
                 arg_shape.has_cb = false;
@@ -172,7 +182,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         }
 
         auto const vertex_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/vertex.%s", sample_config.shader_ending);
-        auto const pixel_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/pixel.%s", sample_config.shader_ending);
+        auto const pixel_binary = gc_enable_ibl ? get_shader_binary("res/pr/liveness_sample/shader/bin/pixel.%s", sample_config.shader_ending)
+                                                : get_shader_binary("res/pr/liveness_sample/shader/bin/pixel_no_ibl.%s", sample_config.shader_ending);
 
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
@@ -238,6 +249,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
     }
 
+    if (gc_enable_ibl)
     {
         sampler_config lut_sampler;
         lut_sampler.init_default(sampler_filter::min_mag_mip_linear, 1);
@@ -392,7 +404,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                         cmd_draw.init(resources.pso_render, resources.num_indices, resources.vertex_buffer, resources.index_buffer);
                         cmd_draw.add_shader_arg(resources.cb_camdata);
                         cmd_draw.add_shader_arg(resources.cb_modeldata, 0, resources.shaderview_render);
-                        cmd_draw.add_shader_arg(handle::null_resource, 0, resources.shaderview_render_ibl);
+
+                        if constexpr (gc_enable_ibl)
+                            cmd_draw.add_shader_arg(handle::null_resource, 0, resources.shaderview_render_ibl);
 
                         for (auto inst = start; inst < end; ++inst)
                         {
@@ -471,9 +485,15 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     backend.free(resources.mat_normal);
     backend.free(resources.mat_metallic);
     backend.free(resources.mat_roughness);
-    backend.free(resources.ibl_lut);
-    backend.free(resources.ibl_specular);
-    backend.free(resources.ibl_irradiance);
+
+    if (gc_enable_ibl)
+    {
+        backend.free(resources.ibl_lut);
+        backend.free(resources.ibl_specular);
+        backend.free(resources.ibl_irradiance);
+        backend.free(resources.shaderview_render_ibl);
+    }
+
     backend.free(resources.vertex_buffer);
     backend.free(resources.index_buffer);
     backend.free(resources.pso_render);
@@ -484,5 +504,4 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     backend.free(resources.pso_blit);
     backend.free(resources.shaderview_blit);
     backend.free(resources.shaderview_render);
-    backend.free(resources.shaderview_render_ibl);
 }

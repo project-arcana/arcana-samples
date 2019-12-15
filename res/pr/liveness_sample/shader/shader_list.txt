@@ -1,5 +1,6 @@
 
 ps shader pixel
+ps shader_no_ibl pixel_no_ibl
 vs shader vertex
 
 ps shader_blit_fs blit_pixel

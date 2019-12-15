@@ -151,6 +151,12 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
     if (include_mipmaps)
         generate_mips(res_handle, img_size, apply_gamma, format);
 
+    {
+        cmd::transition_resources closing_tcmd;
+        closing_tcmd.add(res_handle, resource_state::shader_resource);
+        cmd_writer.add_command(closing_tcmd);
+    }
+
     return res_handle;
 }
 
@@ -450,10 +456,6 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
         // record post-dispatch barriers
         record_barriers(post_dispatch);
     }
-
-    cmd::transition_resources closing_tcmd;
-    closing_tcmd.add(resource, resource_state::shader_resource);
-    cmd_writer.add_command(closing_tcmd);
 }
 
 void pr_test::texture_creation_resources::flush_cmdstream(bool wait_gpu)
