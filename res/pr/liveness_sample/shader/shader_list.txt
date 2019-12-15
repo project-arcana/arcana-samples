@@ -9,3 +9,4 @@ cs mipgen mipgen
 cs mipgen_gamma mipgen_gamma
 cs mipgen_array mipgen_array
 cs equirect_to_cube equirect_to_cube
+cs specular_map_filter specular_map_filter
