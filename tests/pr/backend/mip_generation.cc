@@ -160,6 +160,10 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
     constexpr auto cube_height = 1024u;
     auto const cube_num_mips = inc::assets::get_num_mip_levels(cube_width, cube_height);
 
+    // this call full flushes, no need to do it ourselves
+    auto const equirect_handle = load_texture(hdr_equirect_path, format::rgba32f, false);
+    resources_to_free.push_back(equirect_handle);
+
     auto const unfiltered_env_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, cube_num_mips, texture_dimension::t2d, 6, true);
     resources_to_free.push_back(unfiltered_env_handle);
 
@@ -167,9 +171,6 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
 
     // convert equirectangular map to cubemap
     {
-        auto const equirect_handle = load_texture(hdr_equirect_path, format::rgba32f, false);
-        resources_to_free.push_back(equirect_handle);
-
         handle::shader_view sv;
         {
             shader_view_element sve_srv;
