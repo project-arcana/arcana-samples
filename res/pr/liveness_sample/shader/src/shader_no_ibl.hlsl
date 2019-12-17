@@ -1,11 +1,3 @@
-struct vs_in
-{
-    float3 P : POSITION;
-    float3 N : NORMAL;
-    float2 Texcoord : TEXCOORD;
-    float4 Tangent : TANGENT;
-};
-
 struct vs_out
 {
     float4 SV_P : SV_POSITION;
@@ -21,11 +13,6 @@ struct camera_constants
     float runtime;
 };
 
-struct model_constants
-{
-    float4x4 model;
-};
-
 static const float PI = 3.141592;
 static const float Epsilon = 0.00001;
 // Constant normal incidence Fresnel factor for all dielectrics.
@@ -39,28 +26,6 @@ Texture2D g_roughness                               : register(t3, space1);
 SamplerState g_sampler                              : register(s0, space1);
 
 ConstantBuffer<camera_constants> g_frame_data       : register(b0, space0);
-ConstantBuffer<model_constants> g_model_data        : register(b0, space1);
-
-
-vs_out main_vs(vs_in v_in)
-{
-    vs_out Out;
-
-    const float4x4 mvp = mul(g_frame_data.view_proj, g_model_data.model);
-    Out.SV_P = mul(mvp, float4(v_in.P, 1.0));
-    Out.WorldPos = mul(g_model_data.model, float4(v_in.P, 1.0)).xyz;
-    float3 N = normalize(mul((float3x3)g_model_data.model, v_in.N));
-    Out.Texcoord = v_in.Texcoord;
-    
-    float3 tangent = mul((float3x3)g_model_data.model, v_in.Tangent.xyz);
-    // gram-schmidt re-orthogonalization
-    tangent = normalize(tangent) - dot(normalize(tangent), v_in.N) * v_in.N;
-
-    float3 bitangent = mul((float3x3)g_model_data.model, cross(tangent, v_in.N));
-    Out.TBN = transpose(float3x3(normalize(tangent), normalize(bitangent), normalize(N))); 
-
-    return Out;
-}
 
 float get_pointlight_contrib(float3 normal, float3 worldpos, float3 lightpos)
 {
