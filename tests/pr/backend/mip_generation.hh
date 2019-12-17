@@ -17,7 +17,7 @@ struct texture_creation_resources
 
     pr::backend::handle::resource load_texture(char const* path, pr::backend::format format, bool include_mipmaps, bool apply_gamma = false);
 
-    void finish_uploads() { flush_cmdstream(true); }
+    void finish_uploads() { flush_cmdstream(true, true); }
 
 public:
     // IBL
@@ -31,7 +31,7 @@ public:
 private:
     void generate_mips(pr::backend::handle::resource resource, inc::assets::image_size const& size, bool apply_gamma, pr::backend::format pf);
 
-    void flush_cmdstream(bool wait_gpu = false);
+    void flush_cmdstream(bool dispatch, bool stall);
 
 private:
     pr::backend::Backend* backend = nullptr;
