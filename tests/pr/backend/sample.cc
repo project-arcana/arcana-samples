@@ -200,7 +200,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         config.samples = msaa_samples;
 
         resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)},
-                                                           arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, shader_stages, config);
+                                                           arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, false, shader_stages, config);
     }
 
     {
@@ -233,7 +233,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         config.cull = pr::cull_mode::front;
 
         resources.pso_blit
-            = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape, shader_stages, config);
+            = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape, false, shader_stages, config);
     }
 
     {
