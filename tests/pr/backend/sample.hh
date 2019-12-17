@@ -6,7 +6,7 @@
 
 namespace pr_test
 {
-inline constexpr auto num_render_threads = 8;
+inline constexpr auto num_render_threads = 16;
 
 inline auto const get_backend_config = [] {
     pr::backend::backend_config config;

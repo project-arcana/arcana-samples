@@ -331,7 +331,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
 
 // cacheline-sized tasks call for desperate measures (macro)
-#define THREAD_BUFFER_SIZE (static_cast<size_t>(1024ull * 100))
+#define THREAD_BUFFER_SIZE (static_cast<size_t>((sizeof(cmd::draw) * (pr_test::num_instances / pr_test::num_render_threads)) + 1024u))
 
     cc::array<std::byte*, pr_test::num_render_threads + 1> thread_cmd_buffer_mem;
 
@@ -375,18 +375,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
             if (backend.clearPendingResize())
                 on_resize_func();
-
-            // Data upload
-            {
-                pr_test::global_data camdata;
-                camdata.cam_pos = pr_test::get_cam_pos(run_time);
-                camdata.cam_vp = pr_test::get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
-                camdata.runtime = static_cast<float>(run_time);
-                std::memcpy(cb_camdata_map, &camdata, sizeof(camdata));
-
-                pr_test::fill_model_matrix_data(*model_data, run_time);
-                std::memcpy(cb_modeldata_map, model_data, sizeof(pr_test::model_matrix_data));
-            }
 
             cc::array<handle::command_list, pr_test::num_render_threads> render_cmd_lists;
             cc::fill(render_cmd_lists, handle::null_command_list);
@@ -436,7 +424,12 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 },
                 pr_test::num_instances, pr_test::num_render_threads);
 
+            auto modeldata_upload_sync
+                = td::submit_batched([&](unsigned start, unsigned end) { pr_test::fill_model_matrix_data(*model_data, run_time, start, end); },
+                                     pr_test::num_instances, pr_test::num_render_threads);
 
+
+            handle::command_list present_cmd_list;
             {
                 command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
 
@@ -482,13 +475,27 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     cmd_trans.add(ng_backbuffer, resource_state::present);
                     cmd_writer.add_command(cmd_trans);
                 }
-                auto const present_list = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
-
-                td::wait_for(render_sync);
-                backend.submit(render_cmd_lists);
-                backend.submit(cc::span{present_list});
+                present_cmd_list = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
             }
 
+            // Data upload
+            {
+                pr_test::global_data camdata;
+                camdata.cam_pos = pr_test::get_cam_pos(run_time);
+                camdata.cam_vp = pr_test::get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
+                camdata.runtime = static_cast<float>(run_time);
+                std::memcpy(cb_camdata_map, &camdata, sizeof(camdata));
+
+                td::wait_for(modeldata_upload_sync);
+                std::memcpy(cb_modeldata_map, model_data, sizeof(pr_test::model_matrix_data));
+            }
+
+            // CPU-sync and submit
+            td::wait_for(render_sync);
+            backend.submit(render_cmd_lists);
+            backend.submit(cc::span{present_cmd_list});
+
+            // present
             backend.present();
         }
     }
