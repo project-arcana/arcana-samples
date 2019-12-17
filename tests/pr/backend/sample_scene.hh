@@ -22,7 +22,7 @@ inline auto const get_view_projection_matrix
 
 inline auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
     constexpr auto model_scale = .21f;
-    return tg::translation(pos + tg::vec3(index % 9, index % 6, index % 9))
+    return tg::translation(pos + tg::vec3(float(index % 9), float(index % 6), float(index % 9)))
            * tg::rotation_y(tg::radians((float(runtime * 2.) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
            * tg::scaling(model_scale, model_scale, model_scale);
 };
@@ -42,19 +42,7 @@ struct global_data
     float runtime;
 };
 
-struct model_matrix_data
-{
-    static constexpr auto num_instances = 128;
-
-    struct padded_instance
-    {
-        tg::mat4 model_mat;
-        char padding[256 - sizeof(tg::mat4)];
-    };
-
-    static_assert(sizeof(padded_instance) == 256);
-    cc::array<padded_instance, num_instances> model_matrices;
-
-    void fill(double runtime);
-};
+static constexpr auto num_instances = 256;
+using model_matrix_data = cc::array<tg::mat4, num_instances>;
+void fill_model_matrix_data(model_matrix_data& data, double runtime);
 }

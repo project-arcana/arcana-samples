@@ -23,13 +23,15 @@ struct camera_constants
 
 struct model_constants
 {
-    float4x4 model;
+    uint model_mat_index;
 };
 
 static const float PI = 3.141592;
 static const float Epsilon = 0.00001;
 // Constant normal incidence Fresnel factor for all dielectrics.
 static const float3 Fdielectric = 0.04;
+
+StructuredBuffer<float4x4> g_model_matrices         : register(t0, space0);
 
 Texture2D g_albedo                                  : register(t0, space1);
 Texture2D g_normal                                  : register(t1, space1);
@@ -45,24 +47,25 @@ Texture2D g_ibl_specular_lut                        : register(t2, space2);
 SamplerState g_lut_sampler                          : register(s0, space2);
 
 ConstantBuffer<camera_constants> g_frame_data       : register(b0, space0);
-ConstantBuffer<model_constants> g_model_data        : register(b0, space1);
 
+[[vk::push_constant]] ConstantBuffer<model_constants> g_model_data        : register(b1, space0);
 
 vs_out main_vs(vs_in v_in)
 {
     vs_out Out;
 
-    const float4x4 mvp = mul(g_frame_data.view_proj, g_model_data.model);
+    const float4x4 model = g_model_matrices[g_model_data.model_mat_index];
+    const float4x4 mvp = mul(g_frame_data.view_proj, model);
     Out.SV_P = mul(mvp, float4(v_in.P, 1.0));
-    Out.WorldPos = mul(g_model_data.model, float4(v_in.P, 1.0)).xyz;
-    float3 N = normalize(mul((float3x3)g_model_data.model, v_in.N));
+    Out.WorldPos = mul(model, float4(v_in.P, 1.0)).xyz;
+    float3 N = normalize(mul((float3x3)model, v_in.N));
     Out.Texcoord = v_in.Texcoord;
     
-    float3 tangent = mul((float3x3)g_model_data.model, v_in.Tangent.xyz);
+    float3 tangent = mul((float3x3)model, v_in.Tangent.xyz);
     // gram-schmidt re-orthogonalization
     tangent = normalize(tangent) - dot(normalize(tangent), v_in.N) * v_in.N;
 
-    float3 bitangent = mul((float3x3)g_model_data.model, cross(tangent, v_in.N));
+    float3 bitangent = mul((float3x3)model, cross(tangent, v_in.N));
     Out.TBN = transpose(float3x3(normalize(tangent), normalize(bitangent), normalize(N))); 
 
     return Out;

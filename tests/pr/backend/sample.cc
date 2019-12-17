@@ -24,8 +24,8 @@
 
 namespace
 {
-constexpr bool gc_enable_ibl = 1;
-constexpr bool gc_enable_compute_mips = 1;
+constexpr bool gc_enable_ibl = 0;
+constexpr bool gc_enable_compute_mips = 0;
 }
 
 void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backend_config& config, sample_config const& sample_config)
@@ -55,10 +55,11 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         unsigned num_indices = 0;
 
         handle::resource cb_camdata = handle::null_resource;
-        handle::resource cb_modeldata = handle::null_resource;
+        handle::resource sb_modeldata = handle::null_resource;
 
         handle::pipeline_state pso_render = handle::null_pipeline_state;
         handle::shader_view shaderview_render = handle::null_shader_view;
+        handle::shader_view shaderview_render_vertex = handle::null_shader_view;
         handle::shader_view shaderview_render_ibl = handle::null_shader_view;
 
         handle::resource depthbuffer = handle::null_resource;
@@ -149,20 +150,20 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     {
         cc::capped_vector<arg::shader_argument_shape, limits::max_shader_arguments> payload_shape;
         {
-            // Argument 0, global CBV
+            // Argument 0, global CBV + model mat structured buffer
             {
                 arg::shader_argument_shape arg_shape;
                 arg_shape.has_cb = true;
-                arg_shape.num_srvs = 0;
+                arg_shape.num_srvs = 1;
                 arg_shape.num_uavs = 0;
                 arg_shape.num_samplers = 0;
                 payload_shape.push_back(arg_shape);
             }
 
-            // Argument 1, pixel shader SRVs and model matrix CBV
+            // Argument 1, pixel shader SRVs
             {
                 arg::shader_argument_shape arg_shape;
-                arg_shape.has_cb = true;
+                arg_shape.has_cb = false;
                 arg_shape.num_srvs = 4;
                 arg_shape.num_uavs = 0;
                 arg_shape.num_samplers = 1;
@@ -199,8 +200,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         pr::primitive_pipeline_config config;
         config.samples = msaa_samples;
 
-        resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)},
-                                                           arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, false, shader_stages, config);
+        resources.pso_render
+            = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)},
+                                          arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, true, shader_stages, config);
     }
 
     {
@@ -236,6 +238,12 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape, false, shader_stages, config);
     }
 
+    resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
+    std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
+
+    resources.sb_modeldata = backend.createMappedBuffer(sizeof(pr_test::model_matrix_data));
+    std::byte* const cb_modeldata_map = backend.getMappedMemory(resources.sb_modeldata);
+
     {
         sampler_config mat_sampler;
         mat_sampler.init_default(sampler_filter::anisotropic);
@@ -247,6 +255,18 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         srv_elems.emplace_back().init_as_tex2d(resources.mat_metallic, format::r8un);
         srv_elems.emplace_back().init_as_tex2d(resources.mat_roughness, format::r8un);
         resources.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
+    }
+
+    {
+        cc::capped_vector<shader_view_element, 1> srv_elems;
+        auto& srv = srv_elems.emplace_back();
+        srv.resource = resources.sb_modeldata;
+        srv.dimension = shader_view_dimension::buffer;
+        srv.buffer_info.num_elements = pr_test::num_instances;
+        srv.buffer_info.element_start = 0;
+        srv.buffer_info.element_stride_bytes = sizeof(tg::mat4);
+
+        resources.shaderview_render_vertex = backend.createShaderView(srv_elems, {}, {});
     }
 
     if (gc_enable_ibl)
@@ -263,12 +283,6 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         resources.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
     }
-
-    resources.cb_camdata = backend.createMappedBuffer(sizeof(pr_test::global_data));
-    std::byte* const cb_camdata_map = backend.getMappedMemory(resources.cb_camdata);
-
-    resources.cb_modeldata = backend.createMappedBuffer(sizeof(pr_test::model_matrix_data));
-    std::byte* const cb_modeldata_map = backend.getMappedMemory(resources.cb_modeldata);
 
     resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150, msaa_samples);
     resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150, msaa_samples);
@@ -370,7 +384,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 camdata.runtime = static_cast<float>(run_time);
                 std::memcpy(cb_camdata_map, &camdata, sizeof(camdata));
 
-                model_data->fill(run_time);
+                pr_test::fill_model_matrix_data(*model_data, run_time);
                 std::memcpy(cb_modeldata_map, model_data, sizeof(pr_test::model_matrix_data));
             }
 
@@ -402,15 +416,15 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                     {
                         cmd::draw cmd_draw;
                         cmd_draw.init(resources.pso_render, resources.num_indices, resources.vertex_buffer, resources.index_buffer);
-                        cmd_draw.add_shader_arg(resources.cb_camdata);
-                        cmd_draw.add_shader_arg(resources.cb_modeldata, 0, resources.shaderview_render);
+                        cmd_draw.add_shader_arg(resources.cb_camdata, 0, resources.shaderview_render_vertex);
+                        cmd_draw.add_shader_arg(handle::null_resource, 0, resources.shaderview_render);
 
                         if constexpr (gc_enable_ibl)
                             cmd_draw.add_shader_arg(handle::null_resource, 0, resources.shaderview_render_ibl);
 
                         for (auto inst = start; inst < end; ++inst)
                         {
-                            cmd_draw.shader_arguments[1].constant_buffer_offset = sizeof(pr_test::model_matrix_data::padded_instance) * inst;
+                            cmd_draw.write_root_constants(static_cast<unsigned>(inst));
                             cmd_writer.add_command(cmd_draw);
                         }
                     }
@@ -420,7 +434,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
                     render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                 },
-                pr_test::model_matrix_data::num_instances, pr_test::num_render_threads);
+                pr_test::num_instances, pr_test::num_render_threads);
 
 
             {
@@ -498,10 +512,11 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     backend.free(resources.index_buffer);
     backend.free(resources.pso_render);
     backend.free(resources.cb_camdata);
-    backend.free(resources.cb_modeldata);
+    backend.free(resources.sb_modeldata);
     backend.free(resources.colorbuffer);
     backend.free(resources.depthbuffer);
     backend.free(resources.pso_blit);
     backend.free(resources.shaderview_blit);
     backend.free(resources.shaderview_render);
+    backend.free(resources.shaderview_render_vertex);
 }
