@@ -424,9 +424,9 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 },
                 pr_test::num_instances, pr_test::num_render_threads);
 
-            auto modeldata_upload_sync
-                = td::submit_batched([&](unsigned start, unsigned end) { pr_test::fill_model_matrix_data(*model_data, run_time, start, end); },
-                                     pr_test::num_instances, pr_test::num_render_threads);
+            auto modeldata_upload_sync = td::submit_batched(
+                [&](unsigned start, unsigned end) { pr_test::fill_model_matrix_data(*model_data, static_cast<float>(run_time), start, end); },
+                pr_test::num_instances, pr_test::num_render_threads);
 
 
             handle::command_list present_cmd_list;
