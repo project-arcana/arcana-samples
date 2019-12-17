@@ -6,10 +6,15 @@
 
 namespace pr_test
 {
-inline auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100.f); };
+inline constexpr bool massive_sample = false;
+
+inline constexpr float cam_dist = massive_sample ? 1000.f : 10.f;
+
+inline auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100000.f); };
 
 inline auto const get_cam_pos = [](double runtime) -> tg::pos3 {
-    return tg::rotate_y(tg::pos3(1, 1.5f, 1) * 10.f, tg::radians(float(runtime * 0.05))) + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.125))) * 10.f, 0);
+    return tg::rotate_y(tg::pos3(1, 1.5f, 1) * cam_dist, tg::radians(float(runtime * 0.05)))
+           + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.125))) * cam_dist, 0);
 };
 
 inline auto const get_view_matrix = [](tg::pos3 const& cam_pos) -> tg::mat4 {
@@ -20,17 +25,11 @@ inline auto const get_view_matrix = [](tg::pos3 const& cam_pos) -> tg::mat4 {
 inline auto const get_view_projection_matrix
     = [](tg::pos3 const& cam_pos, int w, int h) -> tg::mat4 { return get_projection_matrix(w, h) * get_view_matrix(cam_pos); };
 
-inline auto const get_model_matrix = [](tg::vec3 pos, double runtime, unsigned index) -> tg::mat4 {
-    constexpr auto model_scale = .21f;
-    return tg::translation(pos + tg::vec3(float(index % 9), float(index % 6), float(index % 9)))
-           * tg::rotation_y(tg::radians((float(runtime * 2.) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
-           * tg::scaling(model_scale, model_scale, model_scale);
-};
 
-inline constexpr auto sample_mesh_path = "res/pr/liveness_sample/mesh/ball.mesh";
-inline constexpr auto sample_mesh_binary = true;
+inline constexpr auto sample_mesh_path = massive_sample ? "res/pr/liveness_sample/mesh/icosphere.obj" : "res/pr/liveness_sample/mesh/ball.mesh";
+inline constexpr auto sample_mesh_binary = massive_sample ? false : true;
 
-inline constexpr auto sample_albedo_path = "res/pr/liveness_sample/texture/ball/albedo.png";
+inline constexpr auto sample_albedo_path = massive_sample ? "res/pr/liveness_sample/texture/uv_checker.png" : "res/pr/liveness_sample/texture/ball/albedo.png";
 inline constexpr auto sample_normal_path = "res/pr/liveness_sample/texture/ball/normal.png";
 inline constexpr auto sample_metallic_path = "res/pr/liveness_sample/texture/ball/metallic.png";
 inline constexpr auto sample_roughness_path = "res/pr/liveness_sample/texture/ball/roughness.png";
@@ -42,7 +41,7 @@ struct global_data
     float runtime;
 };
 
-static constexpr auto num_instances = 256;
+static constexpr unsigned num_instances = massive_sample ? 1000000 : 256;
 using model_matrix_data = cc::array<tg::mat4, num_instances>;
 void fill_model_matrix_data(model_matrix_data& data, double runtime, unsigned from, unsigned to);
 }
