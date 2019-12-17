@@ -24,8 +24,8 @@
 
 namespace
 {
-constexpr bool gc_enable_ibl = true;
-constexpr bool gc_enable_compute_mips = true;
+constexpr bool gc_enable_ibl = 1;
+constexpr bool gc_enable_compute_mips = 1;
 }
 
 void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backend_config& config, sample_config const& sample_config)
