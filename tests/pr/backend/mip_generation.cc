@@ -99,11 +99,14 @@ void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backe
         pso_brdf_lut_gen = backend.createComputePipelineState(
             arg_shape_single_uav, arg::shader_stage{sb_brdf_lut_gen.get(), sb_brdf_lut_gen.size(), shader_domain::compute});
     }
+
+    backend.startForcedDiagnosticCapture();
 }
 
 void pr_test::texture_creation_resources::free(Backend& backend)
 {
     flush_cmdstream(true, true);
+    backend.endForcedDiagnosticCapture();
 
     std::free(commandstream_buffer);
 
@@ -140,6 +143,8 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
     auto const upbuff_handle = backend->createMappedBuffer(pr_test::get_mipmap_upload_size(format, img_size, true));
     resources_to_free.push_back(upbuff_handle);
 
+    cmd_writer.add_command(cmd::debug_marker{"load_texture"});
+
     {
         cmd::transition_resources transition_cmd;
         transition_cmd.add(res_handle, resource_state::copy_dest);
@@ -156,6 +161,8 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
         closing_tcmd.add(res_handle, resource_state::shader_resource);
         cmd_writer.add_command(closing_tcmd);
     }
+
+    cmd_writer.add_command(cmd::debug_marker{"load_texture end"});
 
     return res_handle;
 }
@@ -192,6 +199,7 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
             shader_views_to_free.push_back(sv);
         }
 
+        cmd_writer.add_command(cmd::debug_marker{"equirect to cubemap start"});
 
         // pre transition
         {
@@ -215,6 +223,8 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
             tcmd.add(unfiltered_env_handle, resource_state::shader_resource);
             cmd_writer.add_command(tcmd);
         }
+
+        cmd_writer.add_command(cmd::debug_marker{"equirect to cubemap end"});
     }
 
     // generate mipmaps for the unfiltered envmap
@@ -223,6 +233,7 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
 
     // generate pre-filtered specular cubemap
     {
+        cmd_writer.add_command(cmd::debug_marker{"specular cubemap pre-filter start"});
         // pre transition
         {
             cmd::transition_resources tcmd;
@@ -283,6 +294,7 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
             tcmd.add(filtered_env_handle, resource_state::shader_resource);
             cmd_writer.add_command(tcmd);
         }
+        cmd_writer.add_command(cmd::debug_marker{"specular cubemap pre-filter end"});
     }
 
     return filtered_env_handle;
@@ -293,10 +305,10 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
     flush_cmdstream(true, false);
     constexpr auto cube_width = 32u;
     constexpr auto cube_height = 32u;
-    auto const cube_num_mips = inc::assets::get_num_mip_levels(cube_width, cube_height);
 
-    auto const irradiance_map_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, cube_num_mips, texture_dimension::t2d, 6, true);
+    auto const irradiance_map_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, 1, texture_dimension::t2d, 6, true);
 
+    cmd_writer.add_command(cmd::debug_marker{"diffuse irradiance start"});
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
@@ -330,6 +342,7 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
         tcmd.add(irradiance_map_handle, resource_state::shader_resource);
         cmd_writer.add_command(tcmd);
     }
+    cmd_writer.add_command(cmd::debug_marker{"diffuse irradiance end"});
 
 
     return irradiance_map_handle;
@@ -341,6 +354,7 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
 
     auto const brdf_lut_handle = backend->createTexture(format::rg16f, width_height, width_height, 1, texture_dimension::t2d, 1, true);
 
+    cmd_writer.add_command(cmd::debug_marker{"brdf lut start"});
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
@@ -368,6 +382,7 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
         tcmd.add(brdf_lut_handle, resource_state::shader_resource);
         cmd_writer.add_command(tcmd);
     }
+    cmd_writer.add_command(cmd::debug_marker{"brdf lut end"});
 
 
     return brdf_lut_handle;
