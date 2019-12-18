@@ -162,6 +162,9 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
         cmd_writer.add_command(closing_tcmd);
     }
 
+    // make writes to the upload buffer visible
+    backend->flushMappedMemory(upbuff_handle);
+
     cmd_writer.add_command(cmd::debug_marker{"load_texture end"});
 
     return res_handle;

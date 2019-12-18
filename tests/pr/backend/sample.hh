@@ -18,7 +18,7 @@ inline auto const get_backend_config = [] {
 #ifdef NDEBUG
         pr::backend::validation_level::off;
 #else
-        pr::backend::validation_level::on_extended_dred;
+        pr::backend::validation_level::on;
 #endif
 
     return config;
