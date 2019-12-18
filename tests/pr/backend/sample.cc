@@ -97,27 +97,60 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     // Texture setup
     //
     {
-        pr_test::texture_creation_resources texgen_resources;
-        texgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
-
-        resources.mat_albedo = texgen_resources.load_texture(pr_test::sample_albedo_path, format::rgba8un, gc_enable_compute_mips, gc_enable_compute_mips);
-        resources.mat_normal = texgen_resources.load_texture(pr_test::sample_normal_path, format::rgba8un, gc_enable_compute_mips, false);
-        resources.mat_metallic = texgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, gc_enable_compute_mips, false);
-        resources.mat_roughness = texgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, gc_enable_compute_mips, false);
-
-        if (gc_enable_ibl)
+        // resource loading, creation and preprocessing
+        static_assert(true, "clang-format");
         {
-            resources.ibl_specular = texgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
-            resources.ibl_irradiance = texgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
-            resources.ibl_lut = texgen_resources.create_brdf_lut(256);
+            pr_test::texture_creation_resources texgen_resources;
+            texgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
+
+            resources.mat_albedo = texgen_resources.load_texture(pr_test::sample_albedo_path, format::rgba8un, gc_enable_compute_mips, gc_enable_compute_mips);
+            resources.mat_normal = texgen_resources.load_texture(pr_test::sample_normal_path, format::rgba8un, gc_enable_compute_mips, false);
+            resources.mat_metallic = texgen_resources.load_texture(pr_test::sample_metallic_path, format::r8un, gc_enable_compute_mips, false);
+            resources.mat_roughness = texgen_resources.load_texture(pr_test::sample_roughness_path, format::r8un, gc_enable_compute_mips, false);
+
+            if (gc_enable_ibl)
+            {
+                resources.ibl_specular = texgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
+                resources.ibl_irradiance = texgen_resources.create_diffuse_irradiance_map(resources.ibl_specular);
+                resources.ibl_lut = texgen_resources.create_brdf_lut(256);
+            }
+
+            texgen_resources.free(backend);
         }
 
-        texgen_resources.free(backend);
+        // transitions to SRV
+        {
+            auto const buffer_size = sizeof(cmd::transition_resources) * 2;
+            auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
+            CC_DEFER { std::free(buffer); };
+            command_stream_writer writer(buffer, buffer_size);
+
+            {
+                cmd::transition_resources tcmd;
+                tcmd.add(resources.mat_albedo, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.mat_normal, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.mat_metallic, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.mat_roughness, resource_state::shader_resource, shader_domain_bits::pixel);
+                writer.add_command(tcmd);
+            }
+
+            if (gc_enable_ibl)
+            {
+                cmd::transition_resources tcmd;
+                tcmd.add(resources.ibl_specular, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.ibl_irradiance, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.ibl_lut, resource_state::shader_resource, shader_domain_bits::pixel);
+                writer.add_command(tcmd);
+            }
+
+            auto const setup_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
+            backend.submit(cc::span{setup_cmd_list});
+        }
     }
 
     // Mesh setup
     {
-        cc::capped_vector<handle::resource, 1> upload_buffers;
+        handle::resource upload_buffer;
 
         auto const buffer_size = 1024ull * 2;
         auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
@@ -143,15 +176,14 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 writer.add_command(tcmd);
             }
 
-            auto const mesh_upbuff = backend.createMappedBuffer(vert_size + ind_size);
-            std::byte* const upload_mapped = backend.getMappedMemory(mesh_upbuff);
-            upload_buffers.push_back(mesh_upbuff);
+            upload_buffer = backend.createMappedBuffer(vert_size + ind_size);
+            std::byte* const upload_mapped = backend.getMappedMemory(upload_buffer);
 
             std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
             std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
 
-            writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, mesh_upbuff, 0, vert_size});
-            writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, mesh_upbuff, vert_size, ind_size});
+            writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, upload_buffer, 0, vert_size});
+            writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, upload_buffer, vert_size, ind_size});
 
             {
                 cmd::transition_resources tcmd;
@@ -163,15 +195,13 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
         auto const setup_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
 
-        for (auto ub : upload_buffers)
-            backend.flushMappedMemory(ub);
+        backend.flushMappedMemory(upload_buffer);
 
         backend.submit(cc::span{setup_cmd_list});
 
         backend.flushGPU();
 
-        for (auto ub : upload_buffers)
-            backend.free(ub);
+        backend.free(upload_buffer);
     }
 
     {
@@ -359,7 +389,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     // Main loop
     device::Timer timer;
     float run_time = 0.f;
-    unsigned framecounter = 0;
+    unsigned framecounter = 450;
 
 
 // cacheline-sized tasks call for desperate measures (macro)
@@ -479,7 +509,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
                 {
                     cmd::transition_resources cmd_trans;
                     cmd_trans.add(ng_backbuffer, resource_state::render_target);
-                    cmd_trans.add(resources.colorbuffer, resource_state::shader_resource);
+                    cmd_trans.add(resources.colorbuffer, resource_state::shader_resource, shader_domain_bits::pixel);
                     cmd_writer.add_command(cmd_trans);
                 }
 

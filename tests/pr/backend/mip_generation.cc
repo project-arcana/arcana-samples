@@ -156,12 +156,6 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
     if (include_mipmaps)
         generate_mips(res_handle, img_size, apply_gamma, format);
 
-    {
-        cmd::transition_resources closing_tcmd;
-        closing_tcmd.add(res_handle, resource_state::shader_resource);
-        cmd_writer.add_command(closing_tcmd);
-    }
-
     // make writes to the upload buffer visible
     backend->flushMappedMemory(upbuff_handle);
 
@@ -207,8 +201,8 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
         // pre transition
         {
             cmd::transition_resources tcmd;
-            tcmd.add(equirect_handle, resource_state::shader_resource);
-            tcmd.add(unfiltered_env_handle, resource_state::unordered_access);
+            tcmd.add(equirect_handle, resource_state::shader_resource, shader_domain_bits::compute);
+            tcmd.add(unfiltered_env_handle, resource_state::unordered_access, shader_domain_bits::compute);
             cmd_writer.add_command(tcmd);
         }
 
@@ -218,13 +212,6 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
             dcmd.init(pso_equirect_to_cube, cube_width / 32, cube_height / 32, 6);
             dcmd.add_shader_arg(handle::null_resource, 0, sv);
             cmd_writer.add_command(dcmd);
-        }
-
-        // post transition
-        {
-            cmd::transition_resources tcmd;
-            tcmd.add(unfiltered_env_handle, resource_state::shader_resource);
-            cmd_writer.add_command(tcmd);
         }
 
         cmd_writer.add_command(cmd::debug_marker{"equirect to cubemap end"});
@@ -255,8 +242,8 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
         // post transition
         {
             cmd::transition_resources tcmd;
-            tcmd.add(unfiltered_env_handle, resource_state::shader_resource);
-            tcmd.add(filtered_env_handle, resource_state::unordered_access);
+            tcmd.add(unfiltered_env_handle, resource_state::shader_resource, shader_domain_bits::compute);
+            tcmd.add(filtered_env_handle, resource_state::unordered_access, shader_domain_bits::compute);
             cmd_writer.add_command(tcmd);
         }
 
@@ -291,12 +278,6 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
             }
         }
 
-        // post compute transition
-        {
-            cmd::transition_resources tcmd;
-            tcmd.add(filtered_env_handle, resource_state::shader_resource);
-            cmd_writer.add_command(tcmd);
-        }
         cmd_writer.add_command(cmd::debug_marker{"specular cubemap pre-filter end"});
     }
 
@@ -315,7 +296,7 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
-        tcmd.add(irradiance_map_handle, resource_state::unordered_access);
+        tcmd.add(irradiance_map_handle, resource_state::unordered_access, shader_domain_bits::compute);
         cmd_writer.add_command(tcmd);
     }
 
@@ -339,14 +320,7 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
         cmd_writer.add_command(dcmd);
     }
 
-    // prepare for SRV
-    {
-        cmd::transition_resources tcmd;
-        tcmd.add(irradiance_map_handle, resource_state::shader_resource);
-        cmd_writer.add_command(tcmd);
-    }
     cmd_writer.add_command(cmd::debug_marker{"diffuse irradiance end"});
-
 
     return irradiance_map_handle;
 }
@@ -361,7 +335,7 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
-        tcmd.add(brdf_lut_handle, resource_state::unordered_access);
+        tcmd.add(brdf_lut_handle, resource_state::unordered_access, shader_domain_bits::compute);
         cmd_writer.add_command(tcmd);
     }
 
@@ -379,12 +353,6 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
         cmd_writer.add_command(dcmd);
     }
 
-    // prepare for SRV
-    {
-        cmd::transition_resources tcmd;
-        tcmd.add(brdf_lut_handle, resource_state::shader_resource);
-        cmd_writer.add_command(tcmd);
-    }
     cmd_writer.add_command(cmd::debug_marker{"brdf lut end"});
 
 
@@ -428,7 +396,7 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
 
 
     cmd::transition_resources starting_tcmd;
-    starting_tcmd.add(resource, resource_state::shader_resource);
+    starting_tcmd.add(resource, resource_state::shader_resource, shader_domain_bits::compute);
     cmd_writer.add_command(starting_tcmd);
 
     auto const num_mipmaps = size.num_mipmaps == 0 ? inc::assets::get_num_mip_levels(size.width, size.height) : size.num_mipmaps;
@@ -456,10 +424,12 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
 
         for (auto arraySlice = 0u; arraySlice < size.array_size; ++arraySlice)
         {
-            pre_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{
-                resource, resource_state::shader_resource, resource_state::unordered_access, int(level), int(arraySlice)});
-            post_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{
-                resource, resource_state::unordered_access, resource_state::shader_resource, int(level), int(arraySlice)});
+            pre_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{resource, resource_state::shader_resource,
+                                                                                       resource_state::unordered_access, shader_domain_bits::compute,
+                                                                                       shader_domain_bits::compute, int(level), int(arraySlice)});
+            post_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{resource, resource_state::unordered_access,
+                                                                                        resource_state::shader_resource, shader_domain_bits::compute,
+                                                                                        shader_domain_bits::compute, int(level), int(arraySlice)});
         }
 
         // record pre-dispatch barriers

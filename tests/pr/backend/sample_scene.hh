@@ -10,20 +10,20 @@ inline constexpr bool massive_sample = 0;
 
 inline constexpr float cam_dist = massive_sample ? 1000.f : 10.f;
 
-inline auto const get_projection_matrix = [](int w, int h) -> tg::mat4 { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100000.f); };
+inline tg::mat4 get_projection_matrix(int w, int h) { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100000.f); }
 
-inline auto const get_cam_pos = [](double runtime) -> tg::pos3 {
-    return tg::rotate_y(tg::pos3(1, 1.5f, 1) * cam_dist, tg::radians(float(runtime * 0.05)))
-           + tg::vec3(0, tg::sin(tg::radians(float(runtime * 0.125))) * cam_dist, 0);
-};
+inline tg::pos3 get_cam_pos(float runtime)
+{
+    return tg::rotate_y(tg::pos3(1, 1.5f, 1) * cam_dist, tg::radians(runtime * 0.05f)) + tg::vec3(0, tg::sin(tg::radians(runtime * 0.125f)) * cam_dist, 0);
+}
 
-inline auto const get_view_matrix = [](tg::pos3 const& cam_pos) -> tg::mat4 {
+inline tg::mat4 get_view_matrix(tg::pos3 const& cam_pos)
+{
     constexpr auto target = tg::pos3(0, 1.45f, 0);
     return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
-};
+}
 
-inline auto const get_view_projection_matrix
-    = [](tg::pos3 const& cam_pos, int w, int h) -> tg::mat4 { return get_projection_matrix(w, h) * get_view_matrix(cam_pos); };
+inline tg::mat4 get_view_projection_matrix(tg::pos3 const& cam_pos, int w, int h) { return get_projection_matrix(w, h) * get_view_matrix(cam_pos); }
 
 
 inline constexpr auto sample_mesh_path = massive_sample ? "res/pr/liveness_sample/mesh/icosphere.obj" : "res/pr/liveness_sample/mesh/ball.mesh";

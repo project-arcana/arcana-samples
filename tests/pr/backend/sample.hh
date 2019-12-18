@@ -6,7 +6,7 @@
 
 namespace pr_test
 {
-inline constexpr auto num_render_threads = 16;
+inline constexpr auto num_render_threads = 8;
 
 inline auto const get_backend_config = [] {
     pr::backend::backend_config config;
@@ -18,7 +18,7 @@ inline auto const get_backend_config = [] {
 #ifdef NDEBUG
         pr::backend::validation_level::off;
 #else
-        pr::backend::validation_level::on;
+        pr::backend::validation_level::on_extended_dred;
 #endif
 
     return config;
