@@ -597,3 +597,15 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         backend.free(pfr.shaderview_render_vertex);
     }
 }
+
+void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backend::backend_config& backend_config, const pr_test::sample_config& sample_config)
+{
+    using namespace pr::backend;
+    CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
+
+    pr::backend::device::Window window;
+    window.initialize(sample_config.window_title);
+    backend.initialize(backend_config, window);
+
+    backend.flushGPU();
+}
