@@ -19,7 +19,7 @@ TEST("pr::backend::vk liveness", disabled, exclusive)
         sample_conf.shader_ending = "spv";
         sample_conf.align_mip_rows = false;
 
-        pr_test::run_sample(backend, pr_test::get_backend_config(), sample_conf);
+        pr_test::run_compute_sample(backend, pr_test::get_backend_config(), sample_conf);
     });
     return;
 }

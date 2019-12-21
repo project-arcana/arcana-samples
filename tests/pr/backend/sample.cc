@@ -22,6 +22,7 @@
 
 #include "mip_generation.hh"
 #include "sample_scene.hh"
+#include "sample_util.hh"
 
 namespace
 {
@@ -600,12 +601,128 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
 
 void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backend::backend_config& backend_config, const pr_test::sample_config& sample_config)
 {
+    struct particle_t
+    {
+        tg::vec4 pos;
+        tg::vec4 vel;
+        tg::vec4 uv;
+        tg::vec4 normal;
+        float pinned;
+    };
+
+    struct physics_constants_t
+    {
+        float deltaT;
+        float particleMass;
+        float springStiffness;
+        float damping;
+        float restDistH;
+        float restDistV;
+        float restDistD;
+        float sphereRadius;
+        tg::vec4 spherePos;
+        tg::vec4 gravity;
+        tg::ivec2 particleCount;
+    };
+
     using namespace pr::backend;
     CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
+
+    constexpr auto lc_cloth_gridsize = tg::usize2(60, 60);
+    constexpr auto lc_cloth_worldsize = tg::fsize2(2.5f, 2.5f);
+    constexpr unsigned lc_num_cloth_particles = lc_cloth_gridsize.width * lc_cloth_gridsize.height;
+    constexpr unsigned lc_cloth_buffer_size = lc_num_cloth_particles * sizeof(particle_t);
 
     pr::backend::device::Window window;
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, window);
 
+    struct
+    {
+        handle::pipeline_state pso_compute_cloth;
+
+        handle::resource buf_input;
+        handle::resource buf_output;
+
+        handle::resource cb_params;
+        std::byte* cb_params_map;
+    } res;
+
+    struct
+    {
+        physics_constants_t physics_params;
+    } up_data;
+
+    // load compute shader
+    {
+        auto const sb_compute_cloth = get_shader_binary("res/pr/liveness_sample/shader/bin/cloth/compute_cloth.%s", sample_config.shader_ending);
+        CC_RUNTIME_ASSERT(sb_compute_cloth.is_valid() && "failed to load shaders");
+
+        cc::capped_vector<arg::shader_argument_shape, 1> arg_shape;
+        {
+            arg::shader_argument_shape shape;
+            shape.has_cb = true;
+            shape.num_srvs = 1;
+            shape.num_uavs = 1;
+            shape.num_samplers = 0;
+            arg_shape.push_back(shape);
+        }
+
+        res.pso_compute_cloth = backend.createComputePipelineState(
+            arg_shape, arg::shader_stage{sb_compute_cloth.get(), sb_compute_cloth.size(), shader_domain::compute}, true);
+    }
+
+    // create resources
+    {
+        res.cb_params = backend.createMappedBuffer(sizeof(physics_constants_t));
+        res.cb_params_map = backend.getMappedMemory(res.cb_params);
+
+        res.buf_input = backend.createBuffer(lc_cloth_buffer_size, resource_state::undefined, sizeof(particle_t));
+        res.buf_output = backend.createBuffer(lc_cloth_buffer_size, resource_state::undefined, sizeof(particle_t));
+    }
+
+    // data upload
+    {
+        cc::vector<particle_t> particles(lc_cloth_gridsize.width * lc_cloth_gridsize.height);
+        {
+            float dx = lc_cloth_worldsize.width / (lc_cloth_gridsize.width - 1);
+            float dy = lc_cloth_worldsize.height / (lc_cloth_gridsize.height - 1);
+            float du = 1.0f / (lc_cloth_gridsize.width - 1);
+            float dv = 1.0f / (lc_cloth_gridsize.height - 1);
+            auto const transM = tg::translation(tg::pos3(-lc_cloth_worldsize.width / 2.0f, -2.0f, -lc_cloth_worldsize.height / 2.0f));
+            for (auto i = 0u; i < lc_cloth_gridsize.height; ++i)
+            {
+                for (auto j = 0u; j < lc_cloth_gridsize.width; ++j)
+                {
+                    particles[i + j * lc_cloth_gridsize.height].pos = transM * tg::vec4(dx * j, 0.0f, dy * i, 1.0f);
+                    particles[i + j * lc_cloth_gridsize.height].vel = tg::vec4(0.0f);
+                    particles[i + j * lc_cloth_gridsize.height].uv = tg::vec4(1.0f - du * i, dv * j, 0.0f, 0.0f);
+                }
+            }
+        }
+
+        auto const staging_buf_handle = backend.createMappedBuffer(lc_cloth_buffer_size);
+        auto* const staging_buf_map = backend.getMappedMemory(staging_buf_handle);
+        std::memcpy(staging_buf_map, particles.data(), lc_cloth_buffer_size);
+
+        backend.flushMappedMemory(staging_buf_handle);
+
+        pr_test::temp_cmdlist copy_cmdlist(&backend, 1024u);
+
+        cmd::copy_buffer ccmd;
+        ccmd.init(staging_buf_handle, res.buf_input, lc_cloth_buffer_size);
+        copy_cmdlist.writer.add_command(ccmd);
+        ccmd.init(staging_buf_handle, res.buf_output, lc_cloth_buffer_size);
+        copy_cmdlist.writer.add_command(ccmd);
+
+        copy_cmdlist.finish();
+
+        backend.free(staging_buf_handle);
+    }
+
     backend.flushGPU();
+    backend.free(res.pso_compute_cloth);
+    backend.free(res.cb_params);
+    backend.free(res.buf_input);
+    backend.free(res.buf_output);
 }
