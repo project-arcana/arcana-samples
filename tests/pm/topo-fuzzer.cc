@@ -1,10 +1,13 @@
 #include <nexus/monte_carlo_test.hh>
 
+#include <iostream>
+
 #include <polymesh/Mesh.hh>
 #include <polymesh/algorithms/properties.hh>
+#include <polymesh/debug.hh>
 #include <polymesh/objects.hh>
 
-#include <typed-geometry/tg.hh>
+#include <typed-geometry/tg-std.hh>
 
 namespace
 {
@@ -40,7 +43,7 @@ private:
 };
 }
 
-MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001008-10B-200B-200B-200F-200B-200"), disabled)
+MONTE_CARLO_TEST("pm::Mesh topology mct")
 {
     auto const get_vertex = [](Mesh3D const& m, unsigned idx) -> pm::vertex_handle {
         if (m.mesh->vertices().empty())
@@ -85,6 +88,21 @@ MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001008-10B-200B-200B-200F
         std::shuffle(p.begin(), p.end(), rng);
         return p;
     };
+    auto const add_triangle = [](Mesh3D& m) {
+        auto v0 = m.mesh->vertices().add();
+        auto v1 = m.mesh->vertices().add();
+        auto v2 = m.mesh->vertices().add();
+        m.mesh->faces().add(v0, v1, v2);
+        m.pos[v0] = {1, 0, 0};
+        m.pos[v1] = {0, 1, 0};
+        m.pos[v2] = {0, 0, 1};
+    };
+    auto const split_edge = [&](Mesh3D& m, tg::rng& rng) {
+        auto e = m.mesh->edges().random(rng);
+        auto np = mix(m.pos[e.vertexA()], m.pos[e.vertexB()], .5f);
+        auto nv = m.mesh->edges().split(m.mesh->edges().random(rng));
+        m.pos[nv] = np;
+    };
 
     // random unsigned
     addOp("gen uint", [](tg::rng& rng) { return unsigned(rng()); });
@@ -102,6 +120,7 @@ MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001008-10B-200B-200B-200F
 
     // objects
     addOp("add cube", [](Mesh3D& m) { pm::objects::add_cube(*m.mesh, m.pos); });
+    addOp("add triangle", add_triangle);
 
     // vertices
     addOp("add vertex", [](Mesh3D& m) { m.mesh->vertices().add(); });
@@ -112,7 +131,7 @@ MONTE_CARLO_TEST("pm::Mesh topology mct", reproduce("-I001008-10B-200B-200B-200F
     // edges
     addOp("add_or_get edge vv", [&](Mesh3D& m, unsigned va, unsigned vb) { m.mesh->edges().add_or_get(get_vertex(m, va), get_vertex(m, vb)); }).when(can_add_or_get_edge_vv);
     addOp("add_or_get edge hh", [&](Mesh3D& m, unsigned ha, unsigned hb) { m.mesh->edges().add_or_get(get_halfedge(m, ha), get_halfedge(m, hb)); }).when(can_add_or_get_edge_hh);
-    addOp("split edge", [](Mesh3D const& m, tg::rng& rng) { m.mesh->edges().split(m.mesh->edges().random(rng)); }).when(has_edges_rng);
+    addOp("split edge", split_edge).when(has_edges_rng);
 
     // faces
     // TODO
