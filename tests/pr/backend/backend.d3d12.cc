@@ -8,17 +8,31 @@
 #include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
 #include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
 
-TEST("pr::backend::d3d12 liveness", disabled, exclusive)
+namespace
+{
+pr_test::sample_config get_d3d12_sample_conf()
+{
+    pr_test::sample_config sample_conf;
+    sample_conf.window_title = "pr::backend::d3d12 liveness";
+    sample_conf.shader_ending = "dxil";
+    sample_conf.align_mip_rows = true;
+    return sample_conf;
+}
+}
+
+TEST("pr::backend::d3d12 sample_pbr", disabled, exclusive)
 {
     td::launch([&] {
         pr::backend::d3d12::BackendD3D12 backend;
+        pr_test::run_sample(backend, get_d3d12_sample_conf());
+    });
+}
 
-        pr_test::sample_config sample_conf;
-        sample_conf.window_title = "pr::backend::d3d12 liveness";
-        sample_conf.shader_ending = "dxil";
-        sample_conf.align_mip_rows = true;
-
-        pr_test::run_sample(backend, pr_test::get_backend_config(), sample_conf);
+TEST("pr::backend::d3d12 sample_cloth", disabled, exclusive)
+{
+    td::launch([&] {
+        pr::backend::d3d12::BackendD3D12 backend;
+        pr_test::run_compute_sample(backend, get_d3d12_sample_conf());
     });
 }
 

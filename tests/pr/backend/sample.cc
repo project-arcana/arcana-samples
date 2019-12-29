@@ -35,7 +35,7 @@ constexpr unsigned gc_max_num_backbuffers = 4;
 constexpr unsigned msaa_samples = msaa_enabled ? 4 : 1;
 }
 
-void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backend_config& backend_config, sample_config const& sample_config)
+void pr_test::run_sample(pr::backend::Backend& backend, sample_config const& sample_config, const pr::backend::backend_config& backend_config)
 {
     using namespace pr::backend;
     CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
@@ -167,8 +167,8 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
             auto const vert_size = mesh_data.get_vertex_size_bytes();
             auto const ind_size = mesh_data.get_index_size_bytes();
 
-            resources.vertex_buffer = backend.createBuffer(vert_size, resource_state::copy_dest, sizeof(inc::assets::simple_vertex));
-            resources.index_buffer = backend.createBuffer(ind_size, resource_state::copy_dest, sizeof(int));
+            resources.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
+            resources.index_buffer = backend.createBuffer(ind_size, sizeof(int));
 
             {
                 cmd::transition_resources tcmd;
@@ -300,10 +300,7 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
         resources.per_frame_resources.emplace(backend_config.num_backbuffers);
 
         shader_view_element srv;
-        srv.dimension = shader_view_dimension::buffer;
-        srv.buffer_info.num_elements = pr_test::num_instances;
-        srv.buffer_info.element_start = 0;
-        srv.buffer_info.element_stride_bytes = sizeof(tg::mat4);
+        srv.init_as_structured_buffer(handle::null_resource, pr_test::num_instances, sizeof(tg::mat4));
 
         for (auto& pfb : resources.per_frame_resources)
         {
@@ -599,7 +596,14 @@ void pr_test::run_sample(pr::backend::Backend& backend, const pr::backend::backe
     }
 }
 
-void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backend::backend_config& backend_config, const pr_test::sample_config& sample_config)
+namespace
+{
+constexpr auto lc_cloth_gridsize = tg::usize2(60, 60);
+constexpr auto lc_cloth_worldsize = tg::fsize2(2.5f, 2.5f);
+constexpr unsigned lc_num_cloth_particles = lc_cloth_gridsize.width * lc_cloth_gridsize.height;
+}
+
+void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr_test::sample_config& sample_config, const pr::backend::backend_config& backend_config)
 {
     struct particle_t
     {
@@ -612,25 +616,44 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backen
 
     struct physics_constants_t
     {
-        float deltaT;
-        float particleMass;
-        float springStiffness;
-        float damping;
-        float restDistH;
-        float restDistV;
-        float restDistD;
-        float sphereRadius;
-        tg::vec4 spherePos;
-        tg::vec4 gravity;
-        tg::ivec2 particleCount;
+        float deltaT = 0.f;
+        float particleMass = 0.1f;
+        float springStiffness = 2000.f;
+        float damping = 0.25f;
+        float restDistH = 0.f;
+        float restDistV = 0.f;
+        float restDistD = 0.f;
+        float sphereRadius = 0.5f;
+        tg::vec4 spherePos = tg::vec4(0.f);
+        tg::vec4 gravity = tg::vec4(0.f, 9.8f, 0.f, 0.f);
+        tg::ivec2 particleCount = tg::ivec2(0);
+
+        void init()
+        {
+            float const dx = lc_cloth_worldsize.width / (lc_cloth_worldsize.width - 1);
+            float const dy = lc_cloth_worldsize.height / (lc_cloth_worldsize.height - 1);
+
+            restDistH = dx;
+            restDistV = dy;
+            restDistD = std::sqrt(dx * dx + dy * dy);
+            particleCount.x = lc_cloth_gridsize.width;
+            particleCount.y = lc_cloth_gridsize.height;
+        }
+
+        void update(float dt)
+        {
+            deltaT = dt;
+            if (deltaT > 0.f)
+            {
+                // TODO
+                gravity = tg::vec4(0.f);
+            }
+        }
     };
 
     using namespace pr::backend;
     CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
 
-    constexpr auto lc_cloth_gridsize = tg::usize2(60, 60);
-    constexpr auto lc_cloth_worldsize = tg::fsize2(2.5f, 2.5f);
-    constexpr unsigned lc_num_cloth_particles = lc_cloth_gridsize.width * lc_cloth_gridsize.height;
     constexpr unsigned lc_cloth_buffer_size = lc_num_cloth_particles * sizeof(particle_t);
 
     pr::backend::device::Window window;
@@ -640,9 +663,13 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backen
     struct
     {
         handle::pipeline_state pso_compute_cloth;
+        handle::shader_view sv_compute_cloth_a;
+        handle::shader_view sv_compute_cloth_b;
 
         handle::resource buf_input;
         handle::resource buf_output;
+
+        handle::resource buf_indices;
 
         handle::resource cb_params;
         std::byte* cb_params_map;
@@ -677,11 +704,15 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backen
         res.cb_params = backend.createMappedBuffer(sizeof(physics_constants_t));
         res.cb_params_map = backend.getMappedMemory(res.cb_params);
 
-        res.buf_input = backend.createBuffer(lc_cloth_buffer_size, resource_state::undefined, sizeof(particle_t));
-        res.buf_output = backend.createBuffer(lc_cloth_buffer_size, resource_state::undefined, sizeof(particle_t));
+        up_data.physics_params.init();
+        up_data.physics_params.update(0.0005f);
+        std::memcpy(res.cb_params_map, &up_data.physics_params, sizeof(up_data.physics_params));
+
+        res.buf_input = backend.createBuffer(lc_cloth_buffer_size, sizeof(particle_t), true);
+        res.buf_output = backend.createBuffer(lc_cloth_buffer_size, sizeof(particle_t), true);
     }
 
-    // data upload
+    // data upload - particles
     {
         cc::vector<particle_t> particles(lc_cloth_gridsize.width * lc_cloth_gridsize.height);
         {
@@ -704,7 +735,6 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backen
         auto const staging_buf_handle = backend.createMappedBuffer(lc_cloth_buffer_size);
         auto* const staging_buf_map = backend.getMappedMemory(staging_buf_handle);
         std::memcpy(staging_buf_map, particles.data(), lc_cloth_buffer_size);
-
         backend.flushMappedMemory(staging_buf_handle);
 
         pr_test::temp_cmdlist copy_cmdlist(&backend, 1024u);
@@ -719,6 +749,193 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, const pr::backen
 
         backend.free(staging_buf_handle);
     }
+
+    // data upload - indices
+    {
+        cc::vector<uint32_t> indices;
+        indices.reserve(lc_cloth_gridsize.width * lc_cloth_gridsize.height * 2);
+        for (auto y = 0u; y < lc_cloth_gridsize.height - 1; ++y)
+        {
+            for (auto x = 0u; x < lc_cloth_gridsize.width; ++x)
+            {
+                indices.push_back((y + 1) * lc_cloth_gridsize.width + x);
+                indices.push_back(y * lc_cloth_gridsize.width + x);
+            }
+
+            // Primitive restart (signalled by special value 0xFFFFFFFF)
+            indices.push_back(0xFFFFFFFF);
+        }
+
+        auto const index_buffer_bytes = static_cast<unsigned>(indices.size() * sizeof(indices[0]));
+
+        res.buf_indices = backend.createBuffer(index_buffer_bytes, sizeof(indices[0]));
+
+        auto const staging_buf_handle = backend.createMappedBuffer(index_buffer_bytes);
+        auto* const staging_buf_map = backend.getMappedMemory(staging_buf_handle);
+        std::memcpy(staging_buf_map, indices.data(), index_buffer_bytes);
+        backend.flushMappedMemory(staging_buf_handle);
+
+        pr_test::temp_cmdlist copy_cmdlist(&backend, 1024u);
+
+        cmd::copy_buffer ccmd;
+        ccmd.init(staging_buf_handle, res.buf_indices, index_buffer_bytes);
+        copy_cmdlist.writer.add_command(ccmd);
+
+        copy_cmdlist.finish();
+
+        backend.free(staging_buf_handle);
+    }
+
+    {
+        shader_view_element sve_a;
+        sve_a.init_as_structured_buffer(res.buf_input, lc_num_cloth_particles, sizeof(particle_t));
+
+        shader_view_element sve_b = sve_a;
+        sve_b.resource = res.buf_output;
+
+        res.sv_compute_cloth_a = backend.createShaderView(cc::span{sve_a}, cc::span{sve_b}, {}, true);
+        res.sv_compute_cloth_b = backend.createShaderView(cc::span{sve_b}, cc::span{sve_a}, {}, true);
+    }
+
+    pr::backend::device::Timer timer;
+    float run_time = 0.f;
+    unsigned framecounter = 440;
+    bool pingpong_buf_even = false;
+
+    auto const on_resize_func = [&]() {
+        //
+    };
+
+    constexpr size_t lc_thread_buffer_size = static_cast<size_t>(10 * 1024u);
+    cc::array<std::byte*, pr_test::num_render_threads + 1> thread_cmd_buffer_mem;
+
+    for (auto& mem : thread_cmd_buffer_mem)
+        mem = static_cast<std::byte*>(std::malloc(lc_thread_buffer_size));
+
+    CC_DEFER
+    {
+        for (std::byte* mem : thread_cmd_buffer_mem)
+            std::free(mem);
+    };
+
+    while (!window.isRequestingClose())
+    {
+        window.pollEvents();
+        if (window.isPendingResize())
+        {
+            if (!window.isMinimized())
+                backend.onResize({window.getWidth(), window.getHeight()});
+            window.clearPendingResize();
+        }
+
+        if (!window.isMinimized())
+        {
+            auto const frametime = timer.elapsedMilliseconds();
+            timer.restart();
+            run_time += frametime / 1000.f;
+
+            ++framecounter;
+            if (framecounter == 480)
+            {
+                std::cout << "Frametime: " << frametime << "ms" << std::endl;
+                framecounter = 0;
+            }
+
+            if (backend.clearPendingResize())
+                on_resize_func();
+
+            // compute
+            handle::command_list compute_cmdlist = handle::null_command_list;
+            {
+                command_stream_writer cmd_writer(thread_cmd_buffer_mem[1], lc_thread_buffer_size);
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(res.buf_input, resource_state::unordered_access, shader_domain_bits::compute);
+                    tcmd.add(res.buf_output, resource_state::unordered_access, shader_domain_bits::compute);
+                    cmd_writer.add_command(tcmd);
+                }
+
+                {
+                    cmd::dispatch dcmd;
+                    dcmd.init(res.pso_compute_cloth, lc_cloth_gridsize.width / 10, lc_cloth_gridsize.height / 10, 1);
+                    dcmd.add_shader_arg(res.cb_params, 0, handle::null_shader_view);
+                    dcmd.write_root_constants(uint32_t(0u));
+
+                    for (auto it = 0u; it < 64u; ++it)
+                    {
+                        pingpong_buf_even = !pingpong_buf_even;
+                        dcmd.shader_arguments[0].shader_view = pingpong_buf_even ? res.sv_compute_cloth_a : res.sv_compute_cloth_b;
+
+                        if (it == 64u - 1)
+                        {
+                            // compute normals on last iteration
+                            dcmd.write_root_constants(uint32_t(1u));
+                        }
+
+                        cmd_writer.add_command(dcmd);
+                    }
+                }
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(res.buf_input, resource_state::vertex_buffer, shader_domain_bits::vertex);
+                    tcmd.add(res.buf_output, resource_state::vertex_buffer, shader_domain_bits::vertex);
+                }
+
+                compute_cmdlist = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+            }
+
+            // render / present
+            handle::command_list present_cmd_list = handle::null_command_list;
+            {
+                command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], lc_thread_buffer_size);
+
+                auto const ng_backbuffer = backend.acquireBackbuffer();
+
+                if (!ng_backbuffer.is_valid())
+                {
+                    // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
+                    backend.discard(cc::span{compute_cmdlist});
+                    continue;
+                }
+
+                {
+                    cmd::transition_resources cmd_trans;
+                    cmd_trans.add(ng_backbuffer, resource_state::render_target);
+                    cmd_writer.add_command(cmd_trans);
+                }
+
+                {
+                    cmd::begin_render_pass cmd_brp;
+                    cmd_brp.viewport = backend.getBackbufferSize();
+                    cmd_brp.add_backbuffer_rt(ng_backbuffer);
+                    cmd_brp.set_null_depth_stencil();
+                    cmd_writer.add_command(cmd_brp);
+                }
+
+                {
+                    cmd::end_render_pass cmd_erp;
+                    cmd_writer.add_command(cmd_erp);
+                }
+
+                {
+                    cmd::transition_resources cmd_trans;
+                    cmd_trans.add(ng_backbuffer, resource_state::present);
+                    cmd_writer.add_command(cmd_trans);
+                }
+                present_cmd_list = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+            }
+
+            // submit
+            cc::array const submission = {compute_cmdlist, present_cmd_list};
+            backend.submit(submission);
+
+            // present
+            backend.present();
+        }
+    }
+
 
     backend.flushGPU();
     backend.free(res.pso_compute_cloth);
