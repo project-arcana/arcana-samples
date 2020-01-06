@@ -67,7 +67,7 @@ void test_fiber_func(void* arg)
 }
 }
 
-TEST("td::native::fiber")
+TEST("td::native::fiber", exclusive)
 {
     auto constexpr kHalfMebibyte = 524288;
 

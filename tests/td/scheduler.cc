@@ -64,7 +64,7 @@ void main_task_func(void* arg_void)
 }
 }
 
-TEST("td::Scheduler")
+TEST("td::Scheduler", exclusive)
 {
     {
         scheduler_config config;

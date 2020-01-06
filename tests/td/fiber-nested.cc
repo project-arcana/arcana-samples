@@ -135,7 +135,7 @@ void SixthLevelFiberStart(void* arg)
     CHECK(false);
 }
 
-TEST("td::native::fiber (nested)")
+TEST("td::native::fiber (nested)", exclusive)
 {
     auto constexpr kHalfMebibyte = 524288;
 
