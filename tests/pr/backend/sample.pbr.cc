@@ -128,19 +128,19 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
             {
                 cmd::transition_resources tcmd;
-                tcmd.add(resources.mat_albedo, resource_state::shader_resource, shader_domain_flag_bits::pixel);
-                tcmd.add(resources.mat_normal, resource_state::shader_resource, shader_domain_flag_bits::pixel);
-                tcmd.add(resources.mat_metallic, resource_state::shader_resource, shader_domain_flag_bits::pixel);
-                tcmd.add(resources.mat_roughness, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                tcmd.add(resources.mat_albedo, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.mat_normal, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.mat_metallic, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.mat_roughness, resource_state::shader_resource, shader_domain_bits::pixel);
                 writer.add_command(tcmd);
             }
 
             if (gc_enable_ibl)
             {
                 cmd::transition_resources tcmd;
-                tcmd.add(resources.ibl_specular, resource_state::shader_resource, shader_domain_flag_bits::pixel);
-                tcmd.add(resources.ibl_irradiance, resource_state::shader_resource, shader_domain_flag_bits::pixel);
-                tcmd.add(resources.ibl_lut, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                tcmd.add(resources.ibl_specular, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.ibl_irradiance, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.ibl_lut, resource_state::shader_resource, shader_domain_bits::pixel);
                 writer.add_command(tcmd);
             }
 
@@ -318,7 +318,6 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     {
         sampler_config mat_sampler;
         mat_sampler.init_default(sampler_filter::anisotropic);
-        // mat_sampler.min_lod = 8.f;
 
         cc::capped_vector<shader_view_element, 4> srv_elems;
         srv_elems.emplace_back().init_as_tex2d(resources.mat_albedo, format::rgba8un);
@@ -507,7 +506,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 {
                     cmd::transition_resources cmd_trans;
                     cmd_trans.add(ng_backbuffer, resource_state::render_target);
-                    cmd_trans.add(resources.colorbuffer, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                    cmd_trans.add(resources.colorbuffer, resource_state::shader_resource, shader_domain_bits::pixel);
                     cmd_writer.add_command(cmd_trans);
                 }
 
@@ -595,4 +594,3 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         backend.free(pfr.shaderview_render_vertex);
     }
 }
-
