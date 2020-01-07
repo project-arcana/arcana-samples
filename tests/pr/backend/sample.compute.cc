@@ -51,6 +51,7 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
     backend_config_cpy.max_num_pipeline_states = 2;
     backend_config_cpy.num_cmdlist_allocators_per_thread = 1;
     backend_config_cpy.num_cmdlists_per_allocator = 3;
+    backend_config_cpy.native_features |= native_feature_flag_bits::vk_api_dump;
     backend.initialize(backend_config_cpy, window);
 
     struct
@@ -94,7 +95,7 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
 
         {
             cmd::transition_resources tcmd;
-            tcmd.add(res.buf_uav, resource_state::unordered_access, shader_domain_bits::compute);
+            tcmd.add(res.buf_uav, resource_state::unordered_access, shader_domain_flag_bits::compute);
             cmdl.writer.add_command(tcmd);
         }
 
@@ -107,7 +108,7 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
 
         {
             cmd::transition_resources tcmd;
-            tcmd.add(res.buf_uav, resource_state::vertex_buffer, shader_domain_bits::vertex);
+            tcmd.add(res.buf_uav, resource_state::vertex_buffer, shader_domain_flag_bits::vertex);
             cmdl.writer.add_command(tcmd);
         }
 

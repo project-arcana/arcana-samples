@@ -128,19 +128,19 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
             {
                 cmd::transition_resources tcmd;
-                tcmd.add(resources.mat_albedo, resource_state::shader_resource, shader_domain_bits::pixel);
-                tcmd.add(resources.mat_normal, resource_state::shader_resource, shader_domain_bits::pixel);
-                tcmd.add(resources.mat_metallic, resource_state::shader_resource, shader_domain_bits::pixel);
-                tcmd.add(resources.mat_roughness, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.mat_albedo, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                tcmd.add(resources.mat_normal, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                tcmd.add(resources.mat_metallic, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                tcmd.add(resources.mat_roughness, resource_state::shader_resource, shader_domain_flag_bits::pixel);
                 writer.add_command(tcmd);
             }
 
             if (gc_enable_ibl)
             {
                 cmd::transition_resources tcmd;
-                tcmd.add(resources.ibl_specular, resource_state::shader_resource, shader_domain_bits::pixel);
-                tcmd.add(resources.ibl_irradiance, resource_state::shader_resource, shader_domain_bits::pixel);
-                tcmd.add(resources.ibl_lut, resource_state::shader_resource, shader_domain_bits::pixel);
+                tcmd.add(resources.ibl_specular, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                tcmd.add(resources.ibl_irradiance, resource_state::shader_resource, shader_domain_flag_bits::pixel);
+                tcmd.add(resources.ibl_lut, resource_state::shader_resource, shader_domain_flag_bits::pixel);
                 writer.add_command(tcmd);
             }
 
@@ -507,7 +507,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 {
                     cmd::transition_resources cmd_trans;
                     cmd_trans.add(ng_backbuffer, resource_state::render_target);
-                    cmd_trans.add(resources.colorbuffer, resource_state::shader_resource, shader_domain_bits::pixel);
+                    cmd_trans.add(resources.colorbuffer, resource_state::shader_resource, shader_domain_flag_bits::pixel);
                     cmd_writer.add_command(cmd_trans);
                 }
 
