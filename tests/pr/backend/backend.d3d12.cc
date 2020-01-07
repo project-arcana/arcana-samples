@@ -24,7 +24,7 @@ TEST("pr::backend::d3d12 sample_pbr", disabled, exclusive)
 {
     td::launch([&] {
         pr::backend::d3d12::BackendD3D12 backend;
-        pr_test::run_sample(backend, get_d3d12_sample_conf());
+        pr_test::run_pbr_sample(backend, get_d3d12_sample_conf());
     });
 }
 
@@ -32,7 +32,7 @@ TEST("pr::backend::d3d12 sample_cloth", disabled, exclusive)
 {
     td::launch([&] {
         pr::backend::d3d12::BackendD3D12 backend;
-        pr_test::run_compute_sample(backend, get_d3d12_sample_conf());
+        pr_test::run_cloth_sample(backend, get_d3d12_sample_conf());
     });
 }
 
