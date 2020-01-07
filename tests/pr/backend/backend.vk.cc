@@ -36,4 +36,10 @@ TEST("pr::backend::vk sample_cloth", disabled, exclusive)
     });
 }
 
+TEST("pr::backend::vk sample_compute", disabled, exclusive)
+{
+    pr::backend::vk::BackendVulkan backend;
+    pr_test::run_compute_sample(backend, get_vk_sample_conf());
+}
+
 #endif

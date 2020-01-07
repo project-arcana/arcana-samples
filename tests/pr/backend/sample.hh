@@ -37,4 +37,6 @@ struct sample_config
 void run_pbr_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config = get_backend_config());
 
 void run_cloth_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config = get_backend_config());
+
+void run_compute_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config = get_backend_config());
 }
