@@ -1,5 +1,7 @@
 #include "sample_util.hh"
 
+#include <cstdlib>
+
 pr_test::temp_cmdlist::temp_cmdlist(pr::backend::Backend* backend, size_t size)
   : _backend(backend), _buffer(static_cast<std::byte*>(std::malloc(size)))
 {
