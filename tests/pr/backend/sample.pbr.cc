@@ -1,6 +1,6 @@
 #include "sample.hh"
 
-#include <iostream>
+#include <rich-log/log.hh>
 
 #include <clean-core/capped_array.hh>
 #include <clean-core/capped_vector.hh>
@@ -365,7 +365,8 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         auto const backbuffer_size = backend.getBackbufferSize();
         auto const w = static_cast<unsigned>(backbuffer_size.width);
         auto const h = static_cast<unsigned>(backbuffer_size.height);
-        std::cout << "backbuffer resize to " << w << "x" << h << std::endl;
+
+        LOG(info)("backbuffer resized to %dx%d", w, h);
 
         backend.free(resources.depthbuffer);
         resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h, msaa_samples);
@@ -401,7 +402,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     // Main loop
     device::Timer timer;
     float run_time = 0.f;
-    unsigned framecounter = 450;
+    float log_time = 0.f;
 
 
 // cacheline-sized tasks call for desperate measures (macro)
@@ -436,12 +437,12 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             auto const frametime = timer.elapsedMilliseconds();
             timer.restart();
             run_time += frametime / 1000.f;
+            log_time += frametime;
 
-            ++framecounter;
-            if (framecounter == 480)
+            if (log_time >= 1750.f)
             {
-                std::cout << "Frametime: " << frametime << "ms" << std::endl;
-                framecounter = 0;
+                log_time = 0.f;
+                LOG(info)("frametime: %fms", static_cast<double>(frametime));
             }
 
             ++resources.current_frame_index;

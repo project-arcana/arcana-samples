@@ -69,7 +69,7 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
 
     pr::backend::device::Timer timer;
     float run_time = 0.f;
-    unsigned framecounter = 440;
+    float log_time = 0.f;
 
     auto const on_resize_func = [&]() {
         //
@@ -102,13 +102,14 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
             auto const frametime = timer.elapsedMilliseconds();
             timer.restart();
             run_time += frametime / 1000.f;
+            log_time += frametime;
 
-            ++framecounter;
-            if (framecounter == 480)
+            if (log_time >= 1750.f)
             {
-                LOG(info)("Frametime: %fms", static_cast<double>(frametime));
-                framecounter = 0;
+                log_time = 0.f;
+                LOG(info)("frametime: %fms", static_cast<double>(frametime));
             }
+
 
             if (backend.clearPendingResize())
                 on_resize_func();

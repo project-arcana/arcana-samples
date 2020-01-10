@@ -38,6 +38,7 @@ TEST("pr::backend::vk sample_cloth", disabled, exclusive)
 
 TEST("pr::backend::vk sample_compute", disabled, exclusive)
 {
+    //    td::native::thread_sleep(15000);
     pr::backend::vk::BackendVulkan backend;
     pr_test::run_compute_sample(backend, get_vk_sample_conf());
 }

@@ -1,7 +1,8 @@
 #include "sample.hh"
 
 #include <cmath>
-#include <iostream>
+
+#include <rich-log/log.hh>
 
 #include <clean-core/capped_array.hh>
 #include <clean-core/capped_vector.hh>
@@ -42,17 +43,19 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
     window.initialize(sample_config.window_title);
 
     auto backend_config_cpy = backend_config;
-    backend_config_cpy.num_threads = 1;
-    backend_config_cpy.max_num_cbvs = 1;
-    backend_config_cpy.max_num_srvs = 1;
-    backend_config_cpy.max_num_uavs = 1;
-    backend_config_cpy.max_num_samplers = 1;
-    backend_config_cpy.max_num_resources = 1;
-    backend_config_cpy.max_num_pipeline_states = 2;
-    backend_config_cpy.num_cmdlist_allocators_per_thread = 1;
-    backend_config_cpy.num_cmdlists_per_allocator = 3;
-    backend_config_cpy.native_features |= native_feature_bits::vk_api_dump;
+    //    backend_config_cpy.num_threads = 1;
+    //    backend_config_cpy.max_num_cbvs = 1;
+    //    backend_config_cpy.max_num_srvs = 1;
+    //    backend_config_cpy.max_num_uavs = 1;
+    //    backend_config_cpy.max_num_samplers = 1;
+    //    backend_config_cpy.max_num_resources = 1;
+    //    backend_config_cpy.max_num_pipeline_states = 2;
+    //    backend_config_cpy.num_cmdlist_allocators_per_thread = 1;
+    //    backend_config_cpy.num_cmdlists_per_allocator = 3;
+    //    backend_config_cpy.native_features |= native_feature_bits::vk_api_dump;
     backend.initialize(backend_config_cpy, window);
+
+    backend.startForcedDiagnosticCapture();
 
     struct
     {
@@ -89,30 +92,57 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
         res.sv_uav = backend.createShaderView({}, cc::span{sve}, {}, true);
     }
 
-    // compute
+
+    bool first_frame = true;
+    pr::backend::device::Timer timer;
+    while (!window.isRequestingClose())
     {
-        pr_test::temp_cmdlist cmdl(&backend, 1024u);
+        window.pollEvents();
 
+
+        // compute
+        if (timer.elapsedSeconds() >= 1.f)
         {
-            cmd::transition_resources tcmd;
-            tcmd.add(res.buf_uav, resource_state::unordered_access, shader_domain_bits::compute);
-            cmdl.writer.add_command(tcmd);
+            auto const backbuffer = backend.acquireBackbuffer();
+            if (!backbuffer.is_valid())
+                continue;
+
+            pr_test::temp_cmdlist cmdl(&backend, 1024u * 10);
+
+            {
+                cmd::transition_resources tcmd;
+                tcmd.add(res.buf_uav, resource_state::unordered_access, shader_domain_bits::compute);
+                cmdl.writer.add_command(tcmd);
+            }
+
+            {
+                cmd::dispatch dcmd;
+                dcmd.init(res.pso_compute, lc_cloth_gridsize.width / 10, lc_cloth_gridsize.height / 10, 1);
+                dcmd.add_shader_arg(handle::null_resource, 0, res.sv_uav);
+
+                for (auto i = 0; i < 100; ++i)
+                    cmdl.writer.add_command(dcmd);
+            }
+
+            {
+                cmd::transition_resources tcmd;
+                tcmd.add(res.buf_uav, resource_state::vertex_buffer, shader_domain_bits::vertex);
+                tcmd.add(backbuffer, resource_state::present);
+                cmdl.writer.add_command(tcmd);
+            }
+
+
+            LOG(info)("compute dispatch");
+            cmdl.finish(true);
+            backend.present();
+            timer.restart();
         }
 
+        if (first_frame)
         {
-            cmd::dispatch dcmd;
-            dcmd.init(res.pso_compute, lc_cloth_gridsize.width / 10, lc_cloth_gridsize.height / 10, 1);
-            dcmd.add_shader_arg(handle::null_resource, 0, res.sv_uav);
-            cmdl.writer.add_command(dcmd);
+            first_frame = false;
+            backend.endForcedDiagnosticCapture();
         }
-
-        {
-            cmd::transition_resources tcmd;
-            tcmd.add(res.buf_uav, resource_state::vertex_buffer, shader_domain_bits::vertex);
-            cmdl.writer.add_command(tcmd);
-        }
-
-        cmdl.finish(true);
     }
 
     backend.flushGPU();
