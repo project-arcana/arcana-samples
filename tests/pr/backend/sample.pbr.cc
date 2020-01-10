@@ -451,12 +451,6 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             if (backend.clearPendingResize())
                 on_resize_func();
 
-
-            ImGui_ImplWin32_NewFrame();
-            ImGui::NewFrame();
-
-            ImGui::ShowDemoWindow(nullptr);
-
             cc::array<handle::command_list, pr_test::num_render_threads> render_cmd_lists;
             cc::fill(render_cmd_lists, handle::null_command_list);
 
@@ -521,7 +515,6 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                     // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
                     td::wait_for(render_sync);
                     backend.discard(render_cmd_lists);
-                    ImGui::EndFrame();
                     continue;
                 }
 
@@ -552,9 +545,19 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                     cmd_writer.add_command(cmd_erp);
                 }
 
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(current_backbuffer, resource_state::present);
+                    // cmd_writer.add_command(tcmd);
+                }
+
                 backbuffer_cmd_lists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
 
                 // ImGui and transition to present
+
+                ImGui_ImplWin32_NewFrame();
+                ImGui::NewFrame();
+                ImGui::ShowDemoWindow(nullptr);
                 ImGui::Render();
                 backbuffer_cmd_lists.push_back(imgui_implementation.render(ImGui::GetDrawData(), current_backbuffer, true));
             }
