@@ -29,8 +29,8 @@
 
 namespace
 {
-constexpr bool gc_enable_ibl = 0;
-constexpr bool gc_enable_compute_mips = 0;
+constexpr bool gc_enable_ibl = 1;
+constexpr bool gc_enable_compute_mips = 1;
 
 constexpr unsigned gc_max_num_backbuffers = 4;
 
@@ -565,7 +565,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 {
                     ImGui::Begin("PBR Demo");
 
-                    ImGui::SliderFloat3("Position multiplier", tg::data_ptr(position_multiplier), -15.f, 15.f);
+                    ImGui::SliderFloat3("Position multiplier", tg::data_ptr(position_multiplier), -15.f, 15.f, "%.3f", 4.f);
 
                     ImGui::End();
                 }

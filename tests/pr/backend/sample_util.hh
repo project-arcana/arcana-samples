@@ -12,7 +12,7 @@ public:
 
     pr::backend::command_stream_writer writer;
 
-    void finish(bool flush_gpu = true);
+    void finish(bool flush_gpu = true, bool force_discard = false);
 
 private:
     pr::backend::Backend* _backend;

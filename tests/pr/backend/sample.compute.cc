@@ -107,33 +107,50 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
             if (!backbuffer.is_valid())
                 continue;
 
-            pr_test::temp_cmdlist cmdl(&backend, 1024u * 10);
-
+            // command list that is never submitted, provokes the crash
             {
-                cmd::transition_resources tcmd;
-                tcmd.add(res.buf_uav, resource_state::unordered_access, shader_domain_bits::compute);
-                cmdl.writer.add_command(tcmd);
+                pr_test::temp_cmdlist cmdl(&backend, 1024u * 10);
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(res.buf_uav, resource_state::unordered_access, shader_domain_bits::compute);
+                    cmdl.writer.add_command(tcmd);
+                }
+
+                {
+                    cmd::dispatch dcmd;
+                    dcmd.init(res.pso_compute, lc_cloth_gridsize.width / 10, lc_cloth_gridsize.height / 10, 1);
+                    dcmd.add_shader_arg(handle::null_resource, 0, res.sv_uav);
+
+                    for (auto i = 0; i < 100; ++i)
+                        cmdl.writer.add_command(dcmd);
+                }
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(res.buf_uav, resource_state::vertex_buffer, shader_domain_bits::vertex);
+                    cmdl.writer.add_command(tcmd);
+                }
+
+
+                LOG(info)("compute dispatch");
+                cmdl.finish(false, true);
             }
 
+            // submitted command list to transition the backbuffer to present
             {
-                cmd::dispatch dcmd;
-                dcmd.init(res.pso_compute, lc_cloth_gridsize.width / 10, lc_cloth_gridsize.height / 10, 1);
-                dcmd.add_shader_arg(handle::null_resource, 0, res.sv_uav);
+                pr_test::temp_cmdlist cmdl(&backend, 1024u * 10);
 
-                for (auto i = 0; i < 100; ++i)
-                    cmdl.writer.add_command(dcmd);
-            }
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(backbuffer, resource_state::present);
+                    cmdl.writer.add_command(tcmd);
+                }
 
-            {
-                cmd::transition_resources tcmd;
-                tcmd.add(res.buf_uav, resource_state::vertex_buffer, shader_domain_bits::vertex);
-                tcmd.add(backbuffer, resource_state::present);
-                cmdl.writer.add_command(tcmd);
+                cmdl.finish(true);
             }
 
 
-            LOG(info)("compute dispatch");
-            cmdl.finish(true);
             backend.present();
             timer.restart();
         }
