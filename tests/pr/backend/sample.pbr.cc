@@ -24,6 +24,9 @@
 #include "sample_scene.hh"
 #include "sample_util.hh"
 
+#include <arcana-incubator/imgui/imgui_impl_pr.hh>
+#include <arcana-incubator/imgui/imgui_impl_win32.hh>
+
 namespace
 {
 constexpr bool gc_enable_ibl = 0;
@@ -44,6 +47,19 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, window);
 
+    // Imgui init
+    inc::ImGuiPhantasmImpl imgui_implementation;
+    {
+        ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
+        ImGui_ImplWin32_Init(window.getHandle());
+        window.setEventCallback(ImGui_ImplWin32_WndProcHandler);
+
+        {
+            auto const ps_bin = get_shader_binary("res/pr/liveness_sample/shader/bin/imgui_ps.%s", sample_config.shader_ending);
+            auto const vs_bin = get_shader_binary("res/pr/liveness_sample/shader/bin/imgui_vs.%s", sample_config.shader_ending);
+            imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
+        }
+    }
 
     struct resources_t
     {
@@ -251,16 +267,16 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
 
         auto const attrib_info = assets::get_vertex_attributes<inc::assets::simple_vertex>();
-        cc::capped_vector<format, 8> rtv_formats;
-        rtv_formats.push_back(format::rgba16f);
-        format const dsv_format = format::depth24un_stencil8u;
+
+        arg::framebuffer_config fbconf;
+        fbconf.add_render_target(format::rgba16f);
+        fbconf.depth_target.push_back(format::depth24un_stencil8u);
 
         pr::primitive_pipeline_config config;
         config.samples = msaa_samples;
 
-        resources.pso_render
-            = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)},
-                                          arg::framebuffer_format{rtv_formats, cc::span{dsv_format}}, payload_shape, true, shader_stages, config);
+        resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
+                                                           true, shader_stages, config);
     }
 
     {
@@ -286,14 +302,13 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
         shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
 
-        cc::capped_vector<format, 8> rtv_formats;
-        rtv_formats.push_back(backend.getBackbufferFormat());
+        arg::framebuffer_config fbconf;
+        fbconf.add_render_target(backend.getBackbufferFormat());
 
         pr::primitive_pipeline_config config;
         config.cull = pr::cull_mode::front;
 
-        resources.pso_blit
-            = backend.createPipelineState(arg::vertex_format{{}, 0}, arg::framebuffer_format{rtv_formats, {}}, payload_shape, false, shader_stages, config);
+        resources.pso_blit = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, payload_shape, false, shader_stages, config);
     }
 
     {
@@ -436,6 +451,12 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             if (backend.clearPendingResize())
                 on_resize_func();
 
+
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
+
+            ImGui::ShowDemoWindow(nullptr);
+
             cc::array<handle::command_list, pr_test::num_render_threads> render_cmd_lists;
             cc::fill(render_cmd_lists, handle::null_command_list);
 
@@ -489,23 +510,24 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 pr_test::num_instances, pr_test::num_render_threads);
 
 
-            handle::command_list present_cmd_list;
+            cc::capped_vector<handle::command_list, 3> backbuffer_cmd_lists;
             {
                 command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
 
-                auto const ng_backbuffer = backend.acquireBackbuffer();
+                auto const current_backbuffer = backend.acquireBackbuffer();
 
-                if (!ng_backbuffer.is_valid())
+                if (!current_backbuffer.is_valid())
                 {
                     // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
                     td::wait_for(render_sync);
                     backend.discard(render_cmd_lists);
+                    ImGui::EndFrame();
                     continue;
                 }
 
                 {
                     cmd::transition_resources cmd_trans;
-                    cmd_trans.add(ng_backbuffer, resource_state::render_target);
+                    cmd_trans.add(current_backbuffer, resource_state::render_target);
                     cmd_trans.add(resources.colorbuffer, resource_state::shader_resource, shader_domain_bits::pixel);
                     cmd_writer.add_command(cmd_trans);
                 }
@@ -513,7 +535,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 {
                     cmd::begin_render_pass cmd_brp;
                     cmd_brp.viewport = backend.getBackbufferSize();
-                    cmd_brp.add_backbuffer_rt(ng_backbuffer);
+                    cmd_brp.add_backbuffer_rt(current_backbuffer);
                     cmd_brp.set_null_depth_stencil();
                     cmd_writer.add_command(cmd_brp);
                 }
@@ -530,12 +552,11 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                     cmd_writer.add_command(cmd_erp);
                 }
 
-                {
-                    cmd::transition_resources cmd_trans;
-                    cmd_trans.add(ng_backbuffer, resource_state::present);
-                    cmd_writer.add_command(cmd_trans);
-                }
-                present_cmd_list = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                backbuffer_cmd_lists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
+
+                // ImGui and transition to present
+                ImGui::Render();
+                backbuffer_cmd_lists.push_back(imgui_implementation.render(ImGui::GetDrawData(), current_backbuffer, true));
             }
 
             // Data upload
@@ -556,7 +577,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             // CPU-sync and submit
             td::wait_for(render_sync);
             backend.submit(render_cmd_lists);
-            backend.submit(cc::span{present_cmd_list});
+            backend.submit(backbuffer_cmd_lists);
 
             // present
             backend.present();
@@ -593,4 +614,8 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         backend.free(pfr.sb_modeldata);
         backend.free(pfr.shaderview_render_vertex);
     }
+
+    imgui_implementation.shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 }

@@ -10,6 +10,8 @@
 #include <phantasm-renderer/backend/detail/byte_util.hh>
 #include <phantasm-renderer/backend/detail/format_size.hh>
 
+#include <arcana-incubator/pr-util/texture_util.hh>
+
 #include "texture_util.hh"
 
 using namespace pr::backend;
@@ -140,7 +142,7 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
     auto const res_handle
         = backend->createTexture(format, img_size.width, img_size.height, include_mipmaps ? img_size.num_mipmaps : 1, texture_dimension::t2d, 1, true);
 
-    auto const upbuff_handle = backend->createMappedBuffer(pr_test::get_mipmap_upload_size(format, img_size, true));
+    auto const upbuff_handle = backend->createMappedBuffer(inc::get_mipmap_upload_size(format, img_size, true));
     resources_to_free.push_back(upbuff_handle);
 
     cmd_writer.add_command(cmd::debug_marker{"load_texture"});
@@ -151,7 +153,8 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
         cmd_writer.add_command(transition_cmd);
     }
 
-    pr_test::copy_data_to_texture(cmd_writer, upbuff_handle, backend->getMappedMemory(upbuff_handle), res_handle, format, img_size, img_data, align_mip_rows);
+    inc::copy_data_to_texture(cmd_writer, upbuff_handle, backend->getMappedMemory(upbuff_handle), res_handle, format, img_size.width, img_size.height,
+                              static_cast<std::byte const*>(img_data.raw), align_mip_rows);
 
     if (include_mipmaps)
         generate_mips(res_handle, img_size, apply_gamma, format);

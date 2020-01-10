@@ -6,6 +6,9 @@ vs shader vertex
 ps shader_blit_fs blit_pixel
 vs shader_blit_fs blit_vertex
 
+ps imgui imgui_ps
+vs imgui imgui_vs
+
 cs mipgen mipgen
 cs mipgen_gamma mipgen_gamma
 cs mipgen_array mipgen_array

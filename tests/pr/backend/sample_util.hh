@@ -18,5 +18,4 @@ private:
     pr::backend::Backend* _backend;
     std::byte* _buffer;
 };
-
 }
