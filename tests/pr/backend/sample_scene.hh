@@ -43,5 +43,5 @@ struct global_data
 
 static constexpr unsigned num_instances = massive_sample ? 1000000 : 256;
 using model_matrix_data = cc::array<tg::mat4, num_instances>;
-void fill_model_matrix_data(model_matrix_data& data, float runtime, unsigned from, unsigned to);
+void fill_model_matrix_data(model_matrix_data& data, float runtime, unsigned from, unsigned to, tg::vec3 mul);
 }
