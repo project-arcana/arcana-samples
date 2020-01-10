@@ -42,4 +42,10 @@ TEST("pr::backend::vk sample_compute", disabled, exclusive)
     pr_test::run_compute_sample(backend, get_vk_sample_conf());
 }
 
+TEST("pr::backend::vk sample_imgui", disabled, exclusive)
+{
+    pr::backend::vk::BackendVulkan backend;
+    pr_test::run_imgui_sample(backend, get_vk_sample_conf());
+}
+
 #endif

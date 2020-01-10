@@ -5,6 +5,7 @@ vs shader vertex
 
 ps shader_blit_fs blit_pixel
 vs shader_blit_fs blit_vertex
+ps clear_fs clear_pixel
 
 ps imgui imgui_ps
 vs imgui imgui_vs
