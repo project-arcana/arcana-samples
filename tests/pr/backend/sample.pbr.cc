@@ -29,8 +29,8 @@
 
 namespace
 {
-constexpr bool gc_enable_ibl = 1;
-constexpr bool gc_enable_compute_mips = 1;
+constexpr bool gc_enable_ibl = 0;
+constexpr bool gc_enable_compute_mips = 0;
 
 constexpr unsigned gc_max_num_backbuffers = 4;
 
@@ -407,6 +407,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     float log_time = 0.f;
 
     tg::vec3 position_modulos = tg::vec3(9, 6, 9);
+    float camera_distance = 1.f;
 
 // cacheline-sized tasks call for desperate measures (macro)
 #define THREAD_BUFFER_SIZE (static_cast<size_t>((sizeof(cmd::draw) * (pr_test::num_instances / pr_test::num_render_threads)) + 1024u))
@@ -570,7 +571,8 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 {
                     ImGui::Begin("PBR Demo");
 
-                    ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 15.f);
+                    ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
+                    ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
 
                     if (ImGui::Button("Reset modulos"))
                         position_modulos = tg::vec3(9, 6, 9);
@@ -590,7 +592,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             // Data upload
             {
                 pr_test::global_data camdata;
-                camdata.cam_pos = pr_test::get_cam_pos(run_time);
+                camdata.cam_pos = pr_test::get_cam_pos(run_time, camera_distance);
                 camdata.cam_vp = pr_test::get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
                 camdata.runtime = static_cast<float>(run_time);
                 std::memcpy(resources.current_frame().cb_camdata_map, &camdata, sizeof(camdata));
