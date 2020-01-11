@@ -32,6 +32,7 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
     backend.initialize(backend_config, window);
 
     // Imgui init
+#ifdef CC_OS_WINDOWS
     inc::ImGuiPhantasmImpl imgui_implementation;
     {
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
@@ -44,6 +45,7 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
             imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
         }
     }
+#endif
 
     handle::pipeline_state pso_clear;
 
@@ -156,11 +158,13 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
 
                 cmdlists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
 
+#ifdef CC_OS_WINDOWS
                 ImGui_ImplWin32_NewFrame();
                 ImGui::NewFrame();
                 ImGui::ShowDemoWindow(nullptr);
                 ImGui::Render();
                 cmdlists.push_back(imgui_implementation.render(ImGui::GetDrawData(), ng_backbuffer, true));
+#endif
             }
 
             // submit
@@ -174,7 +178,9 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
     backend.flushGPU();
     backend.free(pso_clear);
 
+#ifdef CC_OS_WINDOWS
     imgui_implementation.shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
+#endif
 }

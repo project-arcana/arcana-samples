@@ -48,6 +48,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     backend.initialize(backend_config, window);
 
     // Imgui init
+#ifdef CC_OS_WINDOWS
     inc::ImGuiPhantasmImpl imgui_implementation;
     {
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
@@ -60,6 +61,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
         }
     }
+#endif
 
     struct resources_t
     {
@@ -552,13 +554,15 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 {
                     cmd::transition_resources tcmd;
                     tcmd.add(current_backbuffer, resource_state::present);
-                    // cmd_writer.add_command(tcmd);
+#ifndef CC_OS_WINDOWS
+                     cmd_writer.add_command(tcmd);
+#endif
                 }
 
                 backbuffer_cmd_lists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
 
                 // ImGui and transition to present
-
+#ifdef CC_OS_WINDOWS
                 ImGui_ImplWin32_NewFrame();
                 ImGui::NewFrame();
 
@@ -573,6 +577,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
                 ImGui::Render();
                 backbuffer_cmd_lists.push_back(imgui_implementation.render(ImGui::GetDrawData(), current_backbuffer, true));
+#endif
             }
 
             // Data upload
@@ -631,7 +636,9 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         backend.free(pfr.shaderview_render_vertex);
     }
 
+#ifdef CC_OS_WINDOWS
     imgui_implementation.shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
+#endif
 }
