@@ -406,7 +406,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     float run_time = 0.f;
     float log_time = 0.f;
 
-    tg::vec3 position_multiplier = tg::vec3(1, 1, 1);
+    tg::vec3 position_modulos = tg::vec3(9, 6, 9);
 
 // cacheline-sized tasks call for desperate measures (macro)
 #define THREAD_BUFFER_SIZE (static_cast<size_t>((sizeof(cmd::draw) * (pr_test::num_instances / pr_test::num_render_threads)) + 1024u))
@@ -504,9 +504,10 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 pr_test::num_instances, pr_test::num_render_threads);
 
 
-
             auto modeldata_upload_sync = td::submit_batched(
-                [run_time, model_data, position_multiplier](unsigned start, unsigned end) { pr_test::fill_model_matrix_data(*model_data, run_time, start, end, position_multiplier); },
+                [run_time, model_data, position_modulos](unsigned start, unsigned end) {
+                    pr_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
+                },
                 pr_test::num_instances, pr_test::num_render_threads);
 
 
@@ -569,7 +570,13 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                 {
                     ImGui::Begin("PBR Demo");
 
-                    ImGui::SliderFloat3("Position multiplier", tg::data_ptr(position_multiplier), -15.f, 15.f, "%.3f", 4.f);
+                    ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 15.f);
+
+                    if (ImGui::Button("Reset modulos"))
+                        position_modulos = tg::vec3(9, 6, 9);
+
+                    if (ImGui::Button("Reset runtime"))
+                        run_time = 0.f;
 
                     ImGui::End();
                 }

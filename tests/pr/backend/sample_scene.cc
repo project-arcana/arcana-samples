@@ -1,7 +1,12 @@
 #include "sample_scene.hh"
 
+#include <cmath>
+
 namespace
 {
+tg::vec3 index_mod_vec(float index, tg::vec3 mod) { return tg::vec3(std::fmod(index, mod.x), std::fmod(index, mod.y), std::fmod(index, mod.z)); }
+tg::vec3 inner_product(tg::vec3 const& lhs, tg::vec3 const& rhs) { return tg::vec3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z); }
+
 inline constexpr float model_scale = pr_test::massive_sample ? 10.f : 0.21f;
 inline auto const get_model_matrix = [](tg::vec3 pos_base, float runtime, unsigned index, tg::vec3 pos_mul) -> tg::mat4 {
     if constexpr (pr_test::massive_sample)
@@ -14,9 +19,9 @@ inline auto const get_model_matrix = [](tg::vec3 pos_base, float runtime, unsign
     }
     else
     {
-        auto const pos = pos_base + tg::vec3(float(index % 9), float(index % 6), float(index % 9));
+        auto const pos = pos_base + index_mod_vec(float(index), pos_mul);
 
-        return tg::translation(tg::vec3(pos.x * pos_mul.x, pos.y * pos_mul.y, pos.z * pos_mul.z))
+        return tg::translation(pos)
                * tg::rotation_y(tg::radians((float(runtime * 2.f) + float(index) * 0.5f * tg::pi_scalar<float>)*(index % 2 == 0 ? -1 : 1)))
                * tg::scaling(model_scale, model_scale, model_scale);
     }
