@@ -122,7 +122,7 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
                     dcmd.init(res.pso_compute, lc_cloth_gridsize.width / 10, lc_cloth_gridsize.height / 10, 1);
                     dcmd.add_shader_arg(handle::null_resource, 0, res.sv_uav);
 
-                    for (auto i = 0; i < 4; ++i)
+                    for (auto i = 0; i < 100; ++i)
                         cmdl.writer.add_command(dcmd);
                 }
 

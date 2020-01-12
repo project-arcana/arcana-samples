@@ -29,7 +29,7 @@
 
 namespace
 {
-constexpr bool gc_enable_ibl = 0;
+constexpr bool gc_enable_ibl = 1;
 constexpr bool gc_enable_compute_mips = 1;
 
 constexpr unsigned gc_max_num_backbuffers = 4;

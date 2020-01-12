@@ -300,6 +300,7 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
     {
         cmd::transition_resources tcmd;
         tcmd.add(irradiance_map_handle, resource_state::unordered_access, shader_domain_bits::compute);
+        tcmd.add(filtered_specular_map, resource_state::shader_resource, shader_domain_bits::compute);
         cmd_writer.add_command(tcmd);
     }
 
