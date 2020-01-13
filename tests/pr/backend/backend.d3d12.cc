@@ -39,7 +39,7 @@ TEST("pr::backend::d3d12 sample_cloth", disabled, exclusive)
 TEST("pr::backend::d3d12 sample_compute", disabled, exclusive)
 {
         pr::backend::d3d12::BackendD3D12 backend;
-        pr_test::run_compute_sample(backend, get_d3d12_sample_conf());
+        pr_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
 }
 
 TEST("pr::backend::d3d12 sample_imgui", disabled, exclusive)
