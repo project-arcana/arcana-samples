@@ -5,15 +5,16 @@
 
 #include <clean-core/capped_array.hh>
 #include <clean-core/capped_vector.hh>
-#include <clean-core/vector.hh>
 #include <clean-core/defer.hh>
+#include <clean-core/vector.hh>
 
 #include <typed-geometry/tg.hh>
 
 #include <phantasm-renderer/backend/command_stream.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
-#include <phantasm-renderer/backend/device_tentative/timer.hh>
-#include <phantasm-renderer/backend/device_tentative/window.hh>
+
+#include <arcana-incubator/device-abstraction/timer.hh>
+#include <arcana-incubator/device-abstraction/window.hh>
 
 #include "sample_util.hh"
 #include "texture_util.hh"
@@ -79,7 +80,7 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
 
     constexpr unsigned lc_cloth_buffer_size = lc_num_cloth_particles * sizeof(particle_t);
 
-    pr::backend::device::Window window;
+    inc::da::Window window;
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
 
@@ -220,7 +221,7 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
         res.sv_compute_cloth_b = backend.createShaderView(cc::span{sve_b}, cc::span{sve_a}, {}, true);
     }
 
-    pr::backend::device::Timer timer;
+    inc::da::Timer timer;
     float run_time = 0.f;
     unsigned framecounter = 440;
     bool pingpong_buf_even = false;

@@ -16,9 +16,10 @@
 #include <phantasm-renderer/backend/detail/byte_util.hh>
 #include <phantasm-renderer/backend/detail/format_size.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
-#include <phantasm-renderer/backend/device_tentative/timer.hh>
-#include <phantasm-renderer/backend/device_tentative/window.hh>
 #include <phantasm-renderer/default_config.hh>
+
+#include <arcana-incubator/device-abstraction/timer.hh>
+#include <arcana-incubator/device-abstraction/window.hh>
 
 #include "mip_generation.hh"
 #include "sample_scene.hh"
@@ -43,7 +44,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     using namespace pr::backend;
     CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
 
-    pr::backend::device::Window window;
+    inc::da::Window window;
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
 
@@ -402,7 +403,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     };
 
     // Main loop
-    device::Timer timer;
+    inc::da::Timer timer;
     float run_time = 0.f;
     float log_time = 0.f;
 

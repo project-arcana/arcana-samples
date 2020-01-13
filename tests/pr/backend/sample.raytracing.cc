@@ -13,8 +13,9 @@
 
 #include <phantasm-renderer/backend/command_stream.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
-#include <phantasm-renderer/backend/device_tentative/timer.hh>
-#include <phantasm-renderer/backend/device_tentative/window.hh>
+
+#include <arcana-incubator/device-abstraction/timer.hh>
+#include <arcana-incubator/device-abstraction/window.hh>
 
 #include "sample_util.hh"
 #include "texture_util.hh"
@@ -24,7 +25,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
 {
     using namespace pr::backend;
 
-    pr::backend::device::Window window;
+    inc::da::Window window;
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
 
@@ -32,7 +33,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
 
     auto run_time = 0.f;
     auto log_time = 0.f;
-    pr::backend::device::Timer timer;
+    inc::da::Timer timer;
     while (!window.isRequestingClose())
     {
         window.pollEvents();
