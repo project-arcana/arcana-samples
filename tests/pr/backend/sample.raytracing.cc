@@ -29,6 +29,12 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
 
+    if (!backend.gpuHasRaytracing())
+    {
+        LOG(warning)("Current GPU has no raytracing capabilities");
+        return;
+    }
+
     auto const on_resize_func = [&]() {};
 
     auto run_time = 0.f;

@@ -3,8 +3,6 @@
 
 #include "sample.hh"
 
-#include <task-dispatcher/native/thread.hh>
-
 #include <phantasm-renderer/backend/vulkan/BackendVulkan.hh>
 
 namespace
@@ -21,7 +19,6 @@ pr_test::sample_config get_vk_sample_conf()
 
 TEST("pr::backend::vk sample_pbr", disabled, exclusive)
 {
-    // td::native::thread_sleep(15000);
     td::launch([&] {
         pr::backend::vk::BackendVulkan backend;
         pr_test::run_pbr_sample(backend, get_vk_sample_conf());
@@ -36,9 +33,8 @@ TEST("pr::backend::vk sample_cloth", disabled, exclusive)
     });
 }
 
-TEST("pr::backend::vk sample_compute", disabled, exclusive)
+TEST("pr::backend::vk sample_raytrace", disabled, exclusive)
 {
-    //    td::native::thread_sleep(15000);
     pr::backend::vk::BackendVulkan backend;
     pr_test::run_raytracing_sample(backend, get_vk_sample_conf());
 }

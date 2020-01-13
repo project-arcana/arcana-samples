@@ -16,6 +16,7 @@
 #include <phantasm-renderer/backend/detail/byte_util.hh>
 #include <phantasm-renderer/backend/detail/format_size.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
+#include <phantasm-renderer/backend/gpu_info.hh>
 #include <phantasm-renderer/default_config.hh>
 
 #include <arcana-incubator/device-abstraction/timer.hh>
@@ -47,6 +48,15 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     inc::da::Window window;
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
+
+    if (backend.gpuHasRaytracing())
+    {
+        LOG(info)("has raytracing");
+    }
+    else
+    {
+        LOG(info)("does not have raytracing");
+    }
 
     // Imgui init
 #ifdef CC_OS_WINDOWS
