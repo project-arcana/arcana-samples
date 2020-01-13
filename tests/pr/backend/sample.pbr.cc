@@ -557,7 +557,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                     cmd::transition_resources tcmd;
                     tcmd.add(current_backbuffer, resource_state::present);
 #ifndef CC_OS_WINDOWS
-                     cmd_writer.add_command(tcmd);
+                    cmd_writer.add_command(tcmd);
 #endif
                 }
 
