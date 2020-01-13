@@ -81,7 +81,7 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
 
     pr::backend::device::Window window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, window);
+    backend.initialize(backend_config, native_window_handle{window.getNativeHandleA(), window.getNativeHandleB()});
 
     struct
     {

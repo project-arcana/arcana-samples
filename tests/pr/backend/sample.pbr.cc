@@ -45,14 +45,14 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
     pr::backend::device::Window window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, window);
+    backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
 
     // Imgui init
 #ifdef CC_OS_WINDOWS
     inc::ImGuiPhantasmImpl imgui_implementation;
     {
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-        ImGui_ImplWin32_Init(window.getHandle());
+        ImGui_ImplWin32_Init(window.getNativeHandleA());
         window.setEventCallback(ImGui_ImplWin32_WndProcHandler);
 
         {

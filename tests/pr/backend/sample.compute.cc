@@ -53,7 +53,7 @@ void pr_test::run_compute_sample(pr::backend::Backend& backend, sample_config co
     //    backend_config_cpy.num_cmdlist_allocators_per_thread = 1;
     //    backend_config_cpy.num_cmdlists_per_allocator = 3;
     //    backend_config_cpy.native_features |= native_feature_bits::vk_api_dump;
-    backend.initialize(backend_config_cpy, window);
+    backend.initialize(backend_config_cpy, native_window_handle{window.getNativeHandleA(), window.getNativeHandleB()});
 
     backend.startForcedDiagnosticCapture();
 
