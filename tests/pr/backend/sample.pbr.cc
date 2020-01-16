@@ -49,7 +49,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
 
-    if (backend.gpuHasRaytracing())
+    if (backend.isRaytracingEnabled())
     {
         LOG(info)("has raytracing");
     }

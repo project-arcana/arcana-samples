@@ -6,7 +6,7 @@ if "%arg_output%"=="" set "arg_output=%arg_shadername%"
 
 :: compile the HLSL to DXIL, this is straightforward
 @echo on
-.\dxc_bin\dxc.exe .\src\%arg_shadername%.hlsl -T %arg_domain%_6_0 -E main_%arg_domain% -Fo .\bin\%arg_output%.dxil
+.\dxc_bin\dxc.exe .\src\%arg_shadername%.hlsl -T %arg_domain%_6_3 -E main_%arg_domain% -Fo .\bin\%arg_output%.dxil
 @echo off
 
 :: compile the HLSL to SPIR-V
@@ -37,5 +37,5 @@ IF "%arg_domain%"=="gs" set "spirv_additional_flags=-fvk-invert-y "
 IF "%arg_domain%"=="ds" set "spirv_additional_flags=-fvk-invert-y "
 
 @echo on
-.\dxc_bin\dxc.exe .\src\%arg_shadername%.hlsl -T %arg_domain%_6_0 -E main_%arg_domain% -spirv %spirv_additional_flags%-fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\%arg_output%.spv
+.\dxc_bin\dxc.exe .\src\%arg_shadername%.hlsl -T %arg_domain%_6_3 -E main_%arg_domain% -spirv %spirv_additional_flags%-fspv-target-env=vulkan1.1 -fvk-b-shift 0 all -fvk-t-shift 1000 all -fvk-u-shift 2000 all -fvk-s-shift 3000 all -Fo .\bin\%arg_output%.spv
 @echo off

@@ -119,8 +119,7 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
             arg_shape.push_back(shape);
         }
 
-        res.pso_compute_cloth = backend.createComputePipelineState(
-            arg_shape, arg::shader_stage{sb_compute_cloth.get(), sb_compute_cloth.size(), shader_domain::compute}, true);
+        res.pso_compute_cloth = backend.createComputePipelineState(arg_shape, {sb_compute_cloth.get(), sb_compute_cloth.size()}, true);
     }
 
     // create resources

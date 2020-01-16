@@ -55,11 +55,9 @@ void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backe
 
         CC_RUNTIME_ASSERT(sb_mipgen.is_valid() && sb_mipgen_gamma.is_valid() && sb_mipgen_array.is_valid() && "failed to load shaders");
 
-        pso_mipgen = backend.createComputePipelineState(shader_payload, arg::shader_stage{sb_mipgen.get(), sb_mipgen.size(), shader_domain::compute});
-        pso_mipgen_gamma
-            = backend.createComputePipelineState(shader_payload, arg::shader_stage{sb_mipgen_gamma.get(), sb_mipgen_gamma.size(), shader_domain::compute});
-        pso_mipgen_array
-            = backend.createComputePipelineState(shader_payload, arg::shader_stage{sb_mipgen_array.get(), sb_mipgen_array.size(), shader_domain::compute});
+        pso_mipgen = backend.createComputePipelineState(shader_payload, {sb_mipgen.get(), sb_mipgen.size()});
+        pso_mipgen_gamma = backend.createComputePipelineState(shader_payload, {sb_mipgen_gamma.get(), sb_mipgen_gamma.size()});
+        pso_mipgen_array = backend.createComputePipelineState(shader_payload, {sb_mipgen_array.get(), sb_mipgen_array.size()});
     }
 
     // load IBL preparation shaders
@@ -82,14 +80,11 @@ void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backe
             arg_shape.push_back(shape);
         }
 
-        pso_equirect_to_cube
-            = backend.createComputePipelineState(arg_shape, arg::shader_stage{sb_equirect_cube.get(), sb_equirect_cube.size(), shader_domain::compute});
+        pso_equirect_to_cube = backend.createComputePipelineState(arg_shape, {sb_equirect_cube.get(), sb_equirect_cube.size()});
 
-        pso_specular_map_filter = backend.createComputePipelineState(
-            arg_shape, arg::shader_stage{sb_specular_map_filter.get(), sb_specular_map_filter.size(), shader_domain::compute}, true);
+        pso_specular_map_filter = backend.createComputePipelineState(arg_shape, {sb_specular_map_filter.get(), sb_specular_map_filter.size()}, true);
 
-        pso_irradiance_map_gen = backend.createComputePipelineState(
-            arg_shape, arg::shader_stage{sb_irradiance_map_filter.get(), sb_irradiance_map_filter.size(), shader_domain::compute});
+        pso_irradiance_map_gen = backend.createComputePipelineState(arg_shape, {sb_irradiance_map_filter.get(), sb_irradiance_map_filter.size()});
 
         cc::capped_vector<arg::shader_argument_shape, 1> arg_shape_single_uav;
         {
@@ -98,8 +93,7 @@ void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backe
             arg_shape_single_uav.push_back(shape);
         }
 
-        pso_brdf_lut_gen = backend.createComputePipelineState(
-            arg_shape_single_uav, arg::shader_stage{sb_brdf_lut_gen.get(), sb_brdf_lut_gen.size(), shader_domain::compute});
+        pso_brdf_lut_gen = backend.createComputePipelineState(arg_shape_single_uav, {sb_brdf_lut_gen.get(), sb_brdf_lut_gen.size()});
     }
 
     backend.startForcedDiagnosticCapture();

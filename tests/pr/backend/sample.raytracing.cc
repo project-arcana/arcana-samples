@@ -32,7 +32,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
     window.initialize(sample_config.window_title);
     backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
 
-    if (!backend.gpuHasRaytracing())
+    if (!backend.isRaytracingEnabled())
     {
         LOG(warning)("Current GPU has no raytracing capabilities");
         return;
@@ -157,6 +157,19 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
             backend.flushGPU();
         }
     }
+
+    cc::array const main_lib_symbols = {L"raygeneration", L"miss", L"closesthit"};
+    auto const main_lib_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/raytrace_lib.%s", sample_config.shader_ending);
+    arg::raytracing_shader_library main_lib;
+    main_lib.binary = {main_lib_binary.get(), main_lib_binary.size()};
+    main_lib.symbols = main_lib_symbols;
+    main_lib.has_root_constants = false;
+
+    arg::raytracing_hit_group main_hit_group;
+    main_hit_group.name = L"primary_hitgroup";
+    main_hit_group.closest_hit_symbol = L"closesthit";
+
+    auto const raytrace_pso = backend.createRaytracingPipelineState(cc::span{main_lib}, cc::span{main_hit_group}, 1, sizeof(tg::vec4), sizeof(tg::vec4));
 
 
     auto const on_resize_func = [&]() {};
