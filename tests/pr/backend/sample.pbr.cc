@@ -8,8 +8,6 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <arcana-incubator/asset-loading/image_loader.hh>
-#include <arcana-incubator/asset-loading/mesh_loader.hh>
 
 #include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
 #include <phantasm-renderer/backend/command_stream.hh>
@@ -19,15 +17,17 @@
 #include <phantasm-renderer/backend/gpu_info.hh>
 #include <phantasm-renderer/default_config.hh>
 
+#include <arcana-incubator/asset-loading/image_loader.hh>
+#include <arcana-incubator/asset-loading/mesh_loader.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 #include <arcana-incubator/device-abstraction/window.hh>
+#include <arcana-incubator/imgui/imgui_impl_pr.hh>
+#include <arcana-incubator/imgui/imgui_impl_win32.hh>
 
 #include "mip_generation.hh"
 #include "sample_scene.hh"
 #include "sample_util.hh"
 
-#include <arcana-incubator/imgui/imgui_impl_pr.hh>
-#include <arcana-incubator/imgui/imgui_impl_win32.hh>
 
 namespace
 {
