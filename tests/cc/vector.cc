@@ -1,4 +1,5 @@
 #include <nexus/fuzz_test.hh>
+#include <nexus/monte_carlo_test.hh>
 
 #include <vector>
 
@@ -192,4 +193,100 @@ FUZZ_TEST("cc::vector fuzz")(tg::rng& rng)
     }
 
     CHECK(tg::sum(v0) == tg::sum(v1));
+}
+
+namespace
+{
+template <class T>
+struct is_capped_vector : std::false_type
+{
+};
+template <class T, size_t S>
+struct is_capped_vector<cc::capped_vector<T, S>> : std::true_type
+{
+};
+}
+
+MONTE_CARLO_TEST("cc::vector mct")
+{
+    auto const make_int = [](tg::rng& rng) { return uniform(rng, -10, 10); };
+
+    addOp("gen int", make_int);
+
+    auto const addType = [&](auto obj) {
+        using vector_t = decltype(obj);
+        using T = std::decay_t<decltype(obj[0])>;
+
+        addOp("default ctor", [] { return vector_t(); });
+        addOp("move ctor", [](vector_t const& s) { return cc::move(vector_t(s)); });
+        addOp("move assignment", [](vector_t& a, vector_t const& b) { a = vector_t(b); });
+
+        if constexpr (std::is_copy_constructible_v<T>)
+        {
+            addOp("copy ctor", [](vector_t const& s) { return vector_t(s); });
+            addOp("copy assignment", [](vector_t& a, vector_t const& b) { a = b; });
+        }
+
+        addOp("randomize", [&](tg::rng& rng, vector_t& s) {
+            auto cnt = uniform(rng, 0, 30);
+            s.resize(cnt);
+            for (auto i = 0; i < cnt; ++i)
+                s[i] = T(make_int(rng));
+            return s;
+        });
+
+        if constexpr (!is_capped_vector<vector_t>::value)
+            addOp("reserve", [](tg::rng& rng, vector_t& s) { s.reserve(uniform(rng, 0, 30)); }).make_optional();
+        addOp("resize", [](tg::rng& rng, vector_t& s) { s.resize(uniform(rng, 0, 30)); });
+        addOp("resize + int", [](tg::rng& rng, vector_t& s, int c) { s.resize(uniform(rng, 0, 30), c); });
+
+        addOp("random replace", [&](tg::rng& rng, vector_t& s) { random_choice(rng, s) = make_int(rng); }).when([](tg::rng&, vector_t const& s) {
+            return s.size() > 0;
+        });
+
+        addOp("push_back", [](vector_t& s, int c) { s.push_back(c); });
+        addOp("emplace_back", [](vector_t& s, int c) { s.emplace_back(c); });
+
+        addOp("op[]", [](tg::rng& rng, vector_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, vector_t const& s) {
+            return s.size() > 0;
+        });
+        addOp("data[]", [](tg::rng& rng, vector_t const& s) { return s.data()[uniform(rng, 0, int(s.size()) - 1)]; }).when([](tg::rng&, vector_t const& s) {
+            return s.size() > 0;
+        });
+
+        addOp("fill", [](vector_t& s, int v) {
+            for (auto& c : s)
+                c = v;
+        });
+
+
+        if constexpr (!is_capped_vector<vector_t>::value)
+            addOp("shrink_to_fit", &vector_t::shrink_to_fit).make_optional();
+        addOp("clear", &vector_t::clear);
+
+        addOp("size", &vector_t::size);
+        addOp("front", [](vector_t const& s) { return s.front(); }).when_not(&vector_t::empty);
+        addOp("back", [](vector_t const& s) { return s.back(); }).when_not(&vector_t::empty);
+    };
+
+    auto testType = [&](auto obj) {
+        using T = decltype(obj);
+
+        addType(std::vector<T>());
+        addType(cc::vector<T>());
+        addType(cc::capped_vector<T, 40>());
+
+        testEquivalence([](std::vector<T> const& a, cc::vector<T> const& b) {
+            REQUIRE(a.size() == b.size());
+            for (auto i = 0; i < int(a.size()); ++i)
+                REQUIRE(a[i] == b[i]);
+        });
+        testEquivalence([](cc::vector<T> const& a, cc::capped_vector<T, 40> const& b) {
+            REQUIRE(a.size() == b.size());
+            for (auto i = 0; i < int(a.size()); ++i)
+                REQUIRE(a[i] == b[i]);
+        });
+    };
+
+    testType(int{});
 }
