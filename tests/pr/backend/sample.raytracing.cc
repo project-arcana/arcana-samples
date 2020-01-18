@@ -175,20 +175,34 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
 
     // PSO setup
     {
-        cc::array const main_lib_symbols = {L"raygeneration", L"miss", L"closesthit"};
-        auto const main_lib_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/raytrace_lib.%s", sample_config.shader_ending);
+        cc::capped_vector<detail::unique_buffer, 16> shader_binaries;
+        cc::capped_vector<arg::raytracing_shader_library, 16> libraries;
 
-        arg::raytracing_shader_library main_lib;
-        main_lib.binary = {main_lib_binary.get(), main_lib_binary.size()};
-        main_lib.symbols = main_lib_symbols;
-        main_lib.argument_shapes.push_back(arg::shader_argument_shape{1, 1, 0, false});
-        main_lib.has_root_constants = false;
+        {
+            shader_binaries.push_back(get_shader_binary("res/pr/liveness_sample/shader/bin/raytrace_lib.%s", sample_config.shader_ending));
+            auto& main_lib = libraries.emplace_back();
+            main_lib.binary = {shader_binaries.back().get(), shader_binaries.back().size()};
+            main_lib.symbols = {L"raygeneration", L"miss", L"closesthit"};
+        }
+
+        cc::capped_vector<arg::raytracing_argument_association, 16> arg_assocs;
+
+        {
+            auto& raygen_assoc = arg_assocs.emplace_back();
+            raygen_assoc.symbols = {L"raygeneration"};
+            raygen_assoc.argument_shapes.push_back(arg::shader_argument_shape{1, 1, 0, false});
+            raygen_assoc.has_root_constants = false;
+
+            auto& closesthit_assoc = arg_assocs.emplace_back();
+            closesthit_assoc.symbols = {L"closesthit"};
+            closesthit_assoc.argument_shapes.push_back(arg::shader_argument_shape{1, 0, 0, false});
+        }
 
         arg::raytracing_hit_group main_hit_group;
         main_hit_group.name = L"primary_hitgroup";
         main_hit_group.closest_hit_symbol = L"closesthit";
 
-        resources.rt_pso = backend.createRaytracingPipelineState(cc::span{main_lib}, cc::span{main_hit_group}, 4, sizeof(float[4]), sizeof(float[2]));
+        resources.rt_pso = backend.createRaytracingPipelineState(libraries, arg_assocs, cc::span{main_hit_group}, 4, sizeof(float[4]), sizeof(float[2]));
     }
 
     auto const f_free_sized_resources = [&] {
