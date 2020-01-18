@@ -48,7 +48,22 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
         handle::accel_struct blas = handle::null_accel_struct;
         uint64_t blas_native = 0;
         handle::accel_struct tlas = handle::null_accel_struct;
+
+        handle::pipeline_state rt_pso = handle::null_pipeline_state;
+        handle::resource rt_write_texture = handle::null_resource;
+
+        handle::resource shader_table_raygen = handle::null_resource;
+
+        handle::shader_view raygen_shader_view = handle::null_shader_view;
+
+        handle::resource shader_table_miss = handle::null_resource;
+
+        handle::resource shader_table_hitgroups = handle::null_resource;
+
     } resources;
+
+    tg::isize2 backbuf_size = tg::isize2(50, 50);
+    shader_table_sizes table_sizes;
 
     // Res setup
     {
@@ -135,7 +150,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
                     inst.native_accel_struct_handle = resources.blas_native;
                     inst.instance_offset = i * 2;
 
-                    tg::mat4 transform = tg::transpose(tg::mat4::identity);
+                    tg::mat4 transform = tg::transpose(tg::scaling(tg::size3(.1f, .1f, .1f)));
                     std::memcpy(inst.transform, tg::data_ptr(transform), sizeof(inst.transform));
                 }
 
@@ -158,25 +173,97 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
         }
     }
 
-    cc::array const main_lib_symbols = {L"raygeneration", L"miss", L"closesthit"};
-    auto const main_lib_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/raytrace_lib.%s", sample_config.shader_ending);
-    arg::raytracing_shader_library main_lib;
-    main_lib.binary = {main_lib_binary.get(), main_lib_binary.size()};
-    main_lib.symbols = main_lib_symbols;
-    main_lib.has_root_constants = false;
+    // PSO setup
+    {
+        cc::array const main_lib_symbols = {L"raygeneration", L"miss", L"closesthit"};
+        auto const main_lib_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/raytrace_lib.%s", sample_config.shader_ending);
 
-    arg::raytracing_hit_group main_hit_group;
-    main_hit_group.name = L"primary_hitgroup";
-    main_hit_group.closest_hit_symbol = L"closesthit";
+        arg::raytracing_shader_library main_lib;
+        main_lib.binary = {main_lib_binary.get(), main_lib_binary.size()};
+        main_lib.symbols = main_lib_symbols;
+        main_lib.argument_shapes.push_back(arg::shader_argument_shape{1, 1, 0, false});
+        main_lib.has_root_constants = false;
 
-    auto const raytrace_pso = backend.createRaytracingPipelineState(cc::span{main_lib}, cc::span{main_hit_group}, 1, sizeof(tg::vec4), sizeof(tg::vec4));
+        arg::raytracing_hit_group main_hit_group;
+        main_hit_group.name = L"primary_hitgroup";
+        main_hit_group.closest_hit_symbol = L"closesthit";
 
+        resources.rt_pso = backend.createRaytracingPipelineState(cc::span{main_lib}, cc::span{main_hit_group}, 4, sizeof(float[4]), sizeof(float[2]));
+    }
 
-    auto const on_resize_func = [&]() {};
+    auto const f_free_sized_resources = [&] {
+        backend.free(resources.rt_write_texture);
+        backend.free(resources.raygen_shader_view);
+        backend.free(resources.shader_table_raygen);
+        backend.free(resources.shader_table_miss);
+        backend.free(resources.shader_table_hitgroups);
+    };
+
+    auto const f_create_sized_resources = [&] {
+        // Create RT write texture
+        resources.rt_write_texture
+            = backend.createTexture(backend.getBackbufferFormat(), backbuf_size.width, backbuf_size.height, 1, texture_dimension::t2d, 1, true);
+
+        // Shader table setup
+        {
+            {
+                shader_view_element uav_sve;
+                uav_sve.init_as_tex2d(resources.rt_write_texture, backend.getBackbufferFormat());
+
+                shader_view_element srv_sve;
+                srv_sve.init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
+
+                resources.raygen_shader_view = backend.createShaderView(cc::span{srv_sve}, cc::span{uav_sve}, {}, false);
+            }
+
+            arg::shader_table_record str_raygen;
+            str_raygen.symbol = L"raygeneration";
+            str_raygen.shader_arguments.push_back(shader_argument{handle::null_resource, resources.raygen_shader_view, 0});
+
+            arg::shader_table_record str_miss;
+            str_miss.symbol = L"miss";
+
+            arg::shader_table_record str_main_hit;
+            str_main_hit.symbol = L"primary_hitgroup";
+
+            table_sizes = backend.calculateShaderTableSize(cc::span{str_raygen}, cc::span{str_miss}, cc::span{str_main_hit});
+
+            {
+                resources.shader_table_raygen = backend.createMappedBuffer(table_sizes.ray_gen_stride_bytes * 1);
+                std::byte* const st_map = backend.getMappedMemory(resources.shader_table_raygen);
+                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.ray_gen_stride_bytes, cc::span{str_raygen});
+            }
+
+            {
+                resources.shader_table_miss = backend.createMappedBuffer(table_sizes.miss_stride_bytes * 1);
+                std::byte* const st_map = backend.getMappedMemory(resources.shader_table_miss);
+                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.miss_stride_bytes, cc::span{str_miss});
+            }
+
+            {
+                resources.shader_table_hitgroups = backend.createMappedBuffer(table_sizes.hit_group_stride_bytes * 1);
+                std::byte* const st_map = backend.getMappedMemory(resources.shader_table_hitgroups);
+                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_stride_bytes, cc::span{str_main_hit});
+            }
+        }
+    };
+
+    f_create_sized_resources();
+
+    auto const on_resize_func = [&]() {
+        backbuf_size = backend.getBackbufferSize();
+
+        f_free_sized_resources();
+        f_create_sized_resources();
+    };
 
     auto run_time = 0.f;
     auto log_time = 0.f;
     inc::da::Timer timer;
+
+    std::byte* mem_cmdlist = static_cast<std::byte*>(std::malloc(1024u * 10));
+    CC_DEFER { std::free(mem_cmdlist); };
+
     while (!window.isRequestingClose())
     {
         window.pollEvents();
@@ -189,7 +276,6 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
 
         if (!window.isMinimized())
         {
-            continue;
             auto const frametime = timer.elapsedMilliseconds();
             timer.restart();
             run_time += frametime / 1000.f;
@@ -204,7 +290,53 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
             if (backend.clearPendingResize())
                 on_resize_func();
 
-            backend.acquireBackbuffer();
+            {
+                command_stream_writer writer(mem_cmdlist, 1024u * 10);
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_domain_bits::ray_gen);
+
+                    writer.add_command(tcmd);
+                }
+
+                {
+                    cmd::dispatch_rays dcmd;
+                    dcmd.pso = resources.rt_pso;
+                    dcmd.table_raygen = resources.shader_table_raygen;
+                    dcmd.table_miss = resources.shader_table_miss;
+                    dcmd.table_hitgroups = resources.shader_table_hitgroups;
+                    dcmd.width = backbuf_size.width;
+                    dcmd.height = backbuf_size.height;
+                    dcmd.depth = 1;
+
+                    writer.add_command(dcmd);
+                }
+
+                auto const backbuffer = backend.acquireBackbuffer();
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(resources.rt_write_texture, resource_state::copy_src);
+                    tcmd.add(backbuffer, resource_state::copy_dest);
+                    writer.add_command(tcmd);
+                }
+                {
+                    cmd::copy_texture ccmd;
+                    ccmd.init_symmetric(resources.rt_write_texture, backbuffer, backbuf_size.width, backbuf_size.height, 0);
+                    writer.add_command(ccmd);
+                }
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(backbuffer, resource_state::present);
+                    writer.add_command(tcmd);
+                }
+
+                auto const cmdl = backend.recordCommandList(writer.buffer(), writer.size());
+                backend.submit(cc::span{cmdl});
+            }
+
 
             // present
             backend.present();

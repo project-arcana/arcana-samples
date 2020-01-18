@@ -20,5 +20,3 @@ cs brdf_lut_gen brdf_lut_gen
 
 cs cloth/compute_cloth cloth/compute_cloth
 cs cloth/compute_simple cloth/compute_simple
-
-lib raytrace_lib raytrace_lib
