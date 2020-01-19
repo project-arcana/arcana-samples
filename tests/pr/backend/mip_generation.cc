@@ -95,14 +95,11 @@ void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backe
 
         pso_brdf_lut_gen = backend.createComputePipelineState(arg_shape_single_uav, {sb_brdf_lut_gen.get(), sb_brdf_lut_gen.size()});
     }
-
-    backend.startForcedDiagnosticCapture();
 }
 
 void pr_test::texture_creation_resources::free(Backend& backend)
 {
     flush_cmdstream(true, true);
-    backend.endForcedDiagnosticCapture();
 
     std::free(commandstream_buffer);
 
