@@ -10,7 +10,6 @@
 #include <phantasm-renderer/backend/detail/hash.hh>
 #include <phantasm-renderer/backend/detail/linked_pool.hh>
 #include <phantasm-renderer/backend/detail/page_allocator.hh>
-#include <phantasm-renderer/backend/detail/spmc_cache.hh>
 
 
 TEST("pr backend detail - page allocator")
@@ -65,46 +64,6 @@ TEST("pr backend detail - linked pool")
 
     auto const i3 = pool.acquire();
     CHECK(i3 == 0);
-}
-
-TEST("pr backend detail - spmc_cache")
-{
-    using namespace pr::backend::detail;
-    struct key
-    {
-        int val;
-    };
-
-    struct functor
-    {
-        cc::hash_t hash(key const& k) const { return cc::make_hash(k.val); }
-        bool compare(key const& lhs, key const& rhs) const { return lhs.val == rhs.val; }
-    };
-
-    struct value
-    {
-        int val;
-    };
-
-    auto constexpr cache_size = 200;
-    spmc_cache<key, value, functor> cache(cache_size);
-
-    for (auto i = 0; i < cache_size; ++i)
-    {
-        cache.insert(key{i}, value{i % 10});
-    }
-
-    for (auto i = 0; i < cache_size; ++i)
-    {
-        value res_val;
-        bool success = cache.look_up(key{i},res_val);
-        CHECK(success);
-        CHECK(res_val.val == i % 10);
-    }
-
-    value dummy_val;
-    bool success = cache.look_up(key{cache_size}, dummy_val);
-    CHECK(!success);
 }
 
 TEST("pr backend detail - page allocator random", disabled)
