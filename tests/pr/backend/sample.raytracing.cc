@@ -23,7 +23,6 @@
 #include "sample_util.hh"
 #include "texture_util.hh"
 
-
 void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config)
 {
     using namespace pr::backend;
@@ -135,7 +134,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
                 constexpr unsigned num_instances = 1;
 
                 resources.blas = backend.createBottomLevelAccelStruct(
-                    cc::span{blas_elem}, accel_struct_build_flag_bits::prefer_fast_trace | accel_struct_build_flag_bits::allow_compaction, &resources.blas_native);
+                    cc::span{blas_elem}, accel_struct_build_flags::prefer_fast_trace | accel_struct_build_flags::allow_compaction, &resources.blas_native);
                 resources.tlas = backend.createTopLevelAccelStruct(num_instances);
 
 
@@ -145,7 +144,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
                 {
                     auto& inst = instance_data[i];
                     inst.mask = 0xFF;
-                    inst.flags = accel_struct_instance_flag_bits::triangle_front_counterclockwise;
+                    inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.instance_id = i;
                     inst.native_accel_struct_handle = resources.blas_native;
                     inst.instance_offset = i * 2;
@@ -309,7 +308,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
 
                 {
                     cmd::transition_resources tcmd;
-                    tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_domain_bits::ray_gen);
+                    tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_domain_flags::ray_gen);
 
                     writer.add_command(tcmd);
                 }
