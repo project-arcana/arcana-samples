@@ -559,7 +559,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
                     {
                         cmd::resolve_texture rcmd;
-                        rcmd.init_symmetric(resources.colorbuffer, resources.colorbuffer_resolve, window.getWidth(), window.getHeight(), 0);
+                        rcmd.init_symmetric(resources.colorbuffer, resources.colorbuffer_resolve, backbuf_size.width, backbuf_size.height, 0);
                         cmd_writer.add_command(rcmd);
                     }
                 }
