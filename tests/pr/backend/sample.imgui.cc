@@ -29,7 +29,7 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
 
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, native_window_handle{window.getSdlWindow(), nullptr});
+    backend.initialize(backend_config, native_window_handle{window.getSdlWindow()});
 
     // Imgui init
     inc::ImGuiPhantasmImpl imgui_implementation;
@@ -90,11 +90,11 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
     while (!window.isRequestingClose())
     {
         window.pollEvents();
-        if (window.isPendingResize())
+
+        if (window.clearPendingResize())
         {
             if (!window.isMinimized())
                 backend.onResize({window.getWidth(), window.getHeight()});
-            window.clearPendingResize();
         }
 
         if (!window.isMinimized())

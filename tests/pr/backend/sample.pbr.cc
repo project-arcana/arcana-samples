@@ -49,7 +49,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, {window.getSdlWindow(), nullptr});
+    backend.initialize(backend_config, {window.getSdlWindow()});
 
     // Imgui init
     inc::ImGuiPhantasmImpl imgui_implementation;
@@ -443,11 +443,11 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     while (!window.isRequestingClose())
     {
         window.pollEvents();
-        if (window.isPendingResize())
+
+        if (window.clearPendingResize())
         {
             if (!window.isMinimized())
                 backend.onResize({window.getWidth(), window.getHeight()});
-            window.clearPendingResize();
         }
 
         if (!window.isMinimized())
@@ -607,7 +607,6 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
                 ImGui::Render();
                 backbuffer_cmd_lists.push_back(imgui_implementation.render(ImGui::GetDrawData(), current_backbuffer, true));
-
             }
 
             // Data upload

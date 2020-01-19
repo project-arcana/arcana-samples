@@ -16,8 +16,8 @@
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
+#include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
-#include <arcana-incubator/device-abstraction/window.hh>
 
 #include "sample_scene.hh"
 #include "sample_util.hh"
@@ -27,9 +27,9 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
 {
     using namespace pr::backend;
 
-    inc::da::Window window;
+    inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
+    backend.initialize(backend_config, {window.getSdlWindow()});
 
     if (!backend.isRaytracingEnabled())
     {
@@ -280,11 +280,11 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
     while (!window.isRequestingClose())
     {
         window.pollEvents();
-        if (window.isPendingResize())
+
+        if (window.clearPendingResize())
         {
             if (!window.isMinimized())
                 backend.onResize({window.getWidth(), window.getHeight()});
-            window.clearPendingResize();
         }
 
         if (!window.isMinimized())
@@ -357,4 +357,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
     }
 
     backend.flushGPU();
+
+    window.destroy();
+    backend.destroy();
 }
