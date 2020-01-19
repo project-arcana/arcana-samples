@@ -33,11 +33,8 @@ namespace
 {
 constexpr bool gc_enable_ibl = 1;
 constexpr bool gc_enable_compute_mips = 1;
-
 constexpr unsigned gc_max_num_backbuffers = 4;
-
-#define msaa_enabled false
-constexpr unsigned msaa_samples = msaa_enabled ? 4 : 1;
+constexpr unsigned gc_msaa_samples = 8;
 }
 
 void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const& sample_config, const pr::backend::backend_config& backend_config)
@@ -116,6 +113,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         // render RTs
         handle::resource depthbuffer = handle::null_resource;
         handle::resource colorbuffer = handle::null_resource;
+        handle::resource colorbuffer_resolve = handle::null_resource;
 
         // blit PSO + SV
         handle::pipeline_state pso_blit = handle::null_pipeline_state;
@@ -276,8 +274,8 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
         cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+        shader_stages.push_back(arg::shader_stage{{vertex_binary.get(), vertex_binary.size()}, shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{{pixel_binary.get(), pixel_binary.size()}, shader_domain::pixel});
 
         auto const attrib_info = assets::get_vertex_attributes<inc::assets::simple_vertex>();
 
@@ -286,7 +284,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         fbconf.depth_target.push_back(format::depth24un_stencil8u);
 
         pr::primitive_pipeline_config config;
-        config.samples = msaa_samples;
+        config.samples = gc_msaa_samples;
 
         resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
                                                            true, shader_stages, config);
@@ -312,8 +310,8 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
         cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+        shader_stages.push_back(arg::shader_stage{{vertex_binary.get(), vertex_binary.size()}, shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{{pixel_binary.get(), pixel_binary.size()}, shader_domain::pixel});
 
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
@@ -370,31 +368,22 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         resources.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
     }
 
-    resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, 150, 150, msaa_samples);
-    resources.colorbuffer = backend.createRenderTarget(format::rgba16f, 150, 150, msaa_samples);
+    tg::isize2 backbuf_size = tg::isize2(150, 150);
 
-    auto const on_resize_func = [&]() {
-        backend.flushGPU();
-        auto const backbuffer_size = backend.getBackbufferSize();
-        auto const w = static_cast<unsigned>(backbuffer_size.width);
-        auto const h = static_cast<unsigned>(backbuffer_size.height);
+    auto const f_create_sized_resources = [&] {
+        auto const w = static_cast<unsigned>(backbuf_size.width);
+        auto const h = static_cast<unsigned>(backbuf_size.height);
 
-        LOG(info)("backbuffer resized to %dx%d", w, h);
-
-        backend.free(resources.depthbuffer);
-        resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h, msaa_samples);
-        backend.free(resources.colorbuffer);
-        resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h, msaa_samples);
+        resources.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h, gc_msaa_samples);
+        resources.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h, gc_msaa_samples);
+        resources.colorbuffer_resolve = gc_msaa_samples > 1 ? backend.createTexture(format::rgba16f, w, h, 1) : resources.colorbuffer;
 
         {
-            if (resources.shaderview_blit.is_valid())
-                backend.free(resources.shaderview_blit);
-
             sampler_config rt_sampler;
             rt_sampler.init_default(sampler_filter::min_mag_mip_point);
 
             cc::capped_vector<shader_view_element, 1> srv_elems;
-            srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer, format::rgba16f, msaa_enabled);
+            srv_elems.emplace_back().init_as_tex2d(resources.colorbuffer_resolve, format::rgba16f);
             resources.shaderview_blit = backend.createShaderView(srv_elems, {}, cc::span{rt_sampler});
         }
 
@@ -411,6 +400,28 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             backend.submit(cc::span{cl});
         }
     };
+
+    auto const f_destroy_sized_resources = [&] {
+        backend.free(resources.depthbuffer);
+        backend.free(resources.colorbuffer);
+        if constexpr (gc_msaa_samples > 1)
+        {
+            backend.free(resources.colorbuffer_resolve);
+        }
+
+        backend.free(resources.shaderview_blit);
+    };
+
+    auto const on_resize_func = [&]() {
+        backend.flushGPU();
+        backbuf_size = backend.getBackbufferSize();
+        LOG(info)("backbuffer resized to %dx%d", backbuf_size.width, backbuf_size.height);
+        f_destroy_sized_resources();
+        f_create_sized_resources();
+    };
+
+    // initial create
+    f_create_sized_resources();
 
     // Main loop
     inc::da::Timer timer;
@@ -487,8 +498,8 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                     {
                         cmd::begin_render_pass cmd_brp;
                         cmd_brp.viewport = backend.getBackbufferSize();
-                        cmd_brp.add_2d_rt(resources.colorbuffer, format::rgba16f, clear_or_load, msaa_enabled);
-                        cmd_brp.set_2d_depth_stencil(resources.depthbuffer, format::depth24un_stencil8u, clear_or_load, msaa_enabled);
+                        cmd_brp.add_2d_rt(resources.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
+                        cmd_brp.set_2d_depth_stencil(resources.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
                         cmd_writer.add_command(cmd_brp);
                     }
 
@@ -537,10 +548,26 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                     continue;
                 }
 
+                if constexpr (gc_msaa_samples > 1)
+                {
+                    {
+                        cmd::transition_resources tcmd;
+                        tcmd.add(resources.colorbuffer, resource_state::resolve_src);
+                        tcmd.add(resources.colorbuffer_resolve, resource_state::resolve_dest);
+                        cmd_writer.add_command(tcmd);
+                    }
+
+                    {
+                        cmd::resolve_texture rcmd;
+                        rcmd.init_symmetric(resources.colorbuffer, resources.colorbuffer_resolve, window.getWidth(), window.getHeight(), 0);
+                        cmd_writer.add_command(rcmd);
+                    }
+                }
+
                 {
                     cmd::transition_resources cmd_trans;
                     cmd_trans.add(current_backbuffer, resource_state::render_target);
-                    cmd_trans.add(resources.colorbuffer, resource_state::shader_resource, shader_domain_flags::pixel);
+                    cmd_trans.add(resources.colorbuffer_resolve, resource_state::shader_resource, shader_domain_flags::pixel);
                     cmd_writer.add_command(cmd_trans);
                 }
 
