@@ -6,6 +6,7 @@
 #include <clean-core/array.hh>
 #include <clean-core/assert.hh>
 #include <clean-core/fwd_array.hh>
+#include <clean-core/capped_array.hh>
 #include <clean-core/vector.hh>
 
 #include <typed-geometry/tg.hh>
@@ -101,6 +102,7 @@ MONTE_CARLO_TEST("cc::array + fwd_array mct")
     addType(cc::array<int>());
     addType(cc::vector<int>());
     addType(cc::fwd_array<int>());
+    addType(cc::capped_array<int, 25>());
 
     testEquivalence([](cc::array<int> const& a, cc::vector<int> const& b) {
         REQUIRE(a.size() == b.size());
@@ -108,6 +110,11 @@ MONTE_CARLO_TEST("cc::array + fwd_array mct")
             REQUIRE(a[i] == b[i]);
     });
     testEquivalence([](cc::array<int> const& a, cc::fwd_array<int> const& b) {
+        REQUIRE(a.size() == b.size());
+        for (auto i = 0; i < int(a.size()); ++i)
+            REQUIRE(a[i] == b[i]);
+    });
+    testEquivalence([](cc::array<int> const& a, cc::capped_array<int, 25> const& b) {
         REQUIRE(a.size() == b.size());
         for (auto i = 0; i < int(a.size()); ++i)
             REQUIRE(a[i] == b[i]);
