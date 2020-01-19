@@ -2,6 +2,7 @@
 
 #include <clean-core/box.hh>
 #include <clean-core/capped_box.hh>
+#include <clean-core/fwd_box.hh>
 #include <clean-core/poly_box.hh>
 #include <clean-core/poly_unique_ptr.hh>
 #include <clean-core/polymorphic.hh>
@@ -43,6 +44,25 @@ TEST("cc::box")
 
     b = cc::box(i);
     b = i;
+}
+
+namespace
+{
+struct fwd_decl;
+}
+
+TEST("cc::fwd_box")
+{
+    auto b = cc::make_fwd_box<int>(8);
+
+    CHECK(b == 8);
+
+    *b = 9;
+    CHECK(*b == 9);
+
+    // make sure incomplete types work
+    auto f = [](cc::fwd_box<fwd_decl>&& b) { return cc::move(b); };
+    (void)f;
 }
 
 TEST("cc::poly_box")
