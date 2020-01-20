@@ -10,11 +10,12 @@
 
 
 #include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
-#include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/commands.hh>
 #include <phantasm-renderer/backend/detail/byte_util.hh>
 #include <phantasm-renderer/backend/detail/format_size.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
 #include <phantasm-renderer/backend/gpu_info.hh>
+#include <phantasm-renderer/backend/window_handle.hh>
 #include <phantasm-renderer/default_config.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
@@ -23,6 +24,9 @@
 #include <arcana-incubator/device-abstraction/window.hh>
 #include <arcana-incubator/imgui/imgui_impl_pr.hh>
 #include <arcana-incubator/imgui/imgui_impl_win32.hh>
+
+#include <arcana-incubator/device-abstraction/device_abstraction.hh>
+#include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 #include "mip_generation.hh"
 #include "sample_scene.hh"
@@ -39,37 +43,26 @@ constexpr unsigned gc_msaa_samples = 8;
 
 void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const& sample_config, const pr::backend::backend_config& backend_config)
 {
+    inc::da::initialize();
+
     using namespace pr::backend;
     CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
 
-    inc::da::Window window;
+    inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
-
-    if (backend.isRaytracingEnabled())
-    {
-        LOG(info)("has raytracing");
-    }
-    else
-    {
-        LOG(info)("does not have raytracing");
-    }
+    backend.initialize(backend_config, {window.getSdlWindow()});
 
     // Imgui init
-#ifdef CC_OS_WINDOWS
     inc::ImGuiPhantasmImpl imgui_implementation;
     {
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-        ImGui_ImplWin32_Init(window.getNativeHandleA());
-        window.setEventCallback(ImGui_ImplWin32_WndProcHandler);
-
+        ImGui_ImplSDL2_Init(window.getSdlWindow());
         {
             auto const ps_bin = get_shader_binary("res/pr/liveness_sample/shader/bin/imgui_ps.%s", sample_config.shader_ending);
             auto const vs_bin = get_shader_binary("res/pr/liveness_sample/shader/bin/imgui_vs.%s", sample_config.shader_ending);
             imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
         }
     }
-#endif
 
     struct resources_t
     {
@@ -415,7 +408,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     auto const on_resize_func = [&]() {
         backend.flushGPU();
         backbuf_size = backend.getBackbufferSize();
-        LOG(info)("backbuffer resized to %dx%d", backbuf_size.width, backbuf_size.height);
+        LOG(info)("backbuffer resized to {}x{}", backbuf_size.width, backbuf_size.height);
         f_destroy_sized_resources();
         f_create_sized_resources();
     };
@@ -451,11 +444,11 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     while (!window.isRequestingClose())
     {
         window.pollEvents();
-        if (window.isPendingResize())
+
+        if (window.clearPendingResize())
         {
             if (!window.isMinimized())
                 backend.onResize({window.getWidth(), window.getHeight()});
-            window.clearPendingResize();
         }
 
         if (!window.isMinimized())
@@ -468,7 +461,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             if (log_time >= 1750.f)
             {
                 log_time = 0.f;
-                LOG(info)("frametime: %fms", static_cast<double>(frametime));
+                LOG(info)("frametime: {}ms", frametime);
             }
 
             ++resources.current_frame_index;
@@ -591,19 +584,10 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
                     cmd_writer.add_command(cmd_erp);
                 }
 
-                {
-#ifndef CC_OS_WINDOWS
-                    cmd::transition_resources tcmd;
-                    tcmd.add(current_backbuffer, resource_state::present);
-                    cmd_writer.add_command(tcmd);
-#endif
-                }
-
                 backbuffer_cmd_lists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
 
                 // ImGui and transition to present
-#ifdef CC_OS_WINDOWS
-                ImGui_ImplWin32_NewFrame();
+                ImGui_ImplSDL2_NewFrame(window.getSdlWindow());
                 ImGui::NewFrame();
 
                 {
@@ -624,7 +608,6 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
 
                 ImGui::Render();
                 backbuffer_cmd_lists.push_back(imgui_implementation.render(ImGui::GetDrawData(), current_backbuffer, true));
-#endif
             }
 
             // Data upload
@@ -683,9 +666,11 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         backend.free(pfr.shaderview_render_vertex);
     }
 
-#ifdef CC_OS_WINDOWS
     imgui_implementation.shutdown();
-    ImGui_ImplWin32_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
-#endif
+
+    backend.destroy();
+    window.destroy();
+    inc::da::shutdown();
 }

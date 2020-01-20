@@ -3,7 +3,7 @@
 #include <clean-core/vector.hh>
 
 #include <phantasm-renderer/backend/Backend.hh>
-#include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/commands.hh>
 
 #include "texture_util.hh"
 

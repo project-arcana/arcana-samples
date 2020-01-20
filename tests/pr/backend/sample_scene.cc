@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include <clean-core/utility.hh>
+
 namespace
 {
 template <size_t N1, size_t N2 = 1, size_t N3 = 1, size_t N4 = 1>
@@ -84,9 +86,7 @@ void pr_test::fill_model_matrix_data(pr_test::model_matrix_data& data, float run
         {
             data[i] = get_model_matrix(model_positions[mp_i] * 0.25f * float(i), runtime /* / (float(i + 1) * .15f)*/, i, mul);
 
-            ++mp_i;
-            if (mp_i == model_positions.size())
-                mp_i -= model_positions.size();
+            mp_i = cc::wrapped_increment(mp_i, model_positions.size());
         }
     }
 }

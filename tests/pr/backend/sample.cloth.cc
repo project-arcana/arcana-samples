@@ -10,11 +10,12 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/commands.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
+#include <phantasm-renderer/backend/window_handle.hh>
 
+#include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
-#include <arcana-incubator/device-abstraction/window.hh>
 
 #include "sample_util.hh"
 #include "texture_util.hh"
@@ -80,9 +81,9 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
 
     constexpr unsigned lc_cloth_buffer_size = lc_num_cloth_particles * sizeof(particle_t);
 
-    inc::da::Window window;
+    inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, {window.getNativeHandleA(), window.getNativeHandleB()});
+    backend.initialize(backend_config, {window.getSdlWindow()});
 
     struct
     {
@@ -244,11 +245,10 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
     while (!window.isRequestingClose())
     {
         window.pollEvents();
-        if (window.isPendingResize())
+        if (window.clearPendingResize())
         {
             if (!window.isMinimized())
                 backend.onResize({window.getWidth(), window.getHeight()});
-            window.clearPendingResize();
         }
 
         if (!window.isMinimized())
@@ -366,4 +366,7 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
     backend.free(res.cb_params);
     backend.free(res.buf_input);
     backend.free(res.buf_output);
+
+    window.destroy();
+    backend.destroy();
 }

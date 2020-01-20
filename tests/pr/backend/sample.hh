@@ -3,6 +3,7 @@
 #include <task-dispatcher/td.hh>
 
 #include <phantasm-renderer/backend/Backend.hh>
+#include <phantasm-renderer/backend/config.hh>
 
 namespace pr_test
 {
