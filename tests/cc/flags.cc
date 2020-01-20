@@ -15,6 +15,31 @@ enum class F
 };
 CC_FLAGS_ENUM(F);
 
+namespace E
+{
+enum _t
+{
+    a,
+    b,
+    c
+};
+
+[[maybe_unused]] cc::string to_string(E::_t f)
+{
+    switch (f)
+    {
+    case E::a:
+        return "a";
+    case E::b:
+        return "b";
+    case E::c:
+        return "c";
+    default:
+        return "invalid";
+    }
+}
+}
+
 [[maybe_unused]] cc::string to_string(F f)
 {
     switch (f)
@@ -71,6 +96,62 @@ TEST("cc::flags enum class")
         CHECK(e == cc::any_of(F::a, F::b));
     for (auto e : f3)
         CHECK(e == cc::any_of(F::b, F::c));
+
+    auto cnt = [](auto&& f) {
+        auto c = 0;
+        for (auto e : f)
+        {
+            ++c;
+            (void)e;
+        }
+        return c;
+    };
+
+    CHECK(cnt(f) == 1);
+    CHECK(cnt(f2) == 2);
+    CHECK(cnt(f2) == 2);
+}
+
+TEST("cc::flags enum")
+{
+    cc::flags<E::_t> f;
+    CHECK(!f.has_any());
+    CHECK(!f.has(E::b));
+
+    f = E::c;
+    CHECK(f.has_any());
+    CHECK(f == E::c);
+    CHECK(f != E::b);
+
+    f = {E::a, E::c};
+    CHECK((f & E::a));
+    CHECK(!(f & E::b));
+    CHECK((f & E::c));
+
+    auto f2 = cc::flags(E::a);
+    f2 = cc::flags(E::b, f);
+    CHECK(f2 == cc::make_flags(E::a, E::b, E::c));
+
+    CHECK(to_string(f2) == "{a, b, c}");
+
+    f = E::b;
+    f2 = {E::a, E::b};
+    CHECK(f.has_any_of(f2));
+    CHECK(!f.has_all_of(f2));
+
+    CHECK(f.is_single());
+    CHECK(f.single() == E::b);
+    CHECK(!f2.is_single());
+
+    auto f3 = E::c | E::b;
+    CHECK((f3 & f2) == E::b);
+
+    for (auto e : f)
+        CHECK(e == E::b);
+    for (auto e : f2)
+        CHECK(e == cc::any_of(E::a, E::b));
+    for (auto e : f3)
+        CHECK(e == cc::any_of(E::b, E::c));
 
     auto cnt = [](auto&& f) {
         auto c = 0;
