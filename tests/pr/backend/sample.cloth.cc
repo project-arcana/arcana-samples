@@ -10,11 +10,12 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/commands.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
+#include <phantasm-renderer/backend/window_handle.hh>
 
-#include <arcana-incubator/device-abstraction/timer.hh>
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
+#include <arcana-incubator/device-abstraction/timer.hh>
 
 #include "sample_util.hh"
 #include "texture_util.hh"
@@ -248,7 +249,6 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
         {
             if (!window.isMinimized())
                 backend.onResize({window.getWidth(), window.getHeight()});
-
         }
 
         if (!window.isMinimized())

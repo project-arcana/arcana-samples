@@ -10,11 +10,12 @@
 
 
 #include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
-#include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/commands.hh>
 #include <phantasm-renderer/backend/detail/byte_util.hh>
 #include <phantasm-renderer/backend/detail/format_size.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
 #include <phantasm-renderer/backend/gpu_info.hh>
+#include <phantasm-renderer/backend/window_handle.hh>
 #include <phantasm-renderer/default_config.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
