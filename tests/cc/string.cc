@@ -63,6 +63,7 @@ MONTE_CARLO_TEST("cc::string mct")
         addOp("s + s", [](string_t const& a, string_t const& b) { return a + b; });
         addOp("s + c", [](string_t const& a, char b) { return a + b; });
         addOp("s + lit", [](string_t const& a) { return a + "test"; });
+        addOp("lit + s", [](string_t const& a) { return "test" + a; });
 
         if (is_cc)
             addInvariant("cap", [](string_t const& s) { REQUIRE(s.capacity() >= 15); });
