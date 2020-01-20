@@ -11,14 +11,15 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/commands.hh>
 #include <phantasm-renderer/backend/detail/unique_buffer.hh>
+#include <phantasm-renderer/backend/window_handle.hh>
 #include <phantasm-renderer/primitive_pipeline_config.hh>
 
+#include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
-#include <arcana-incubator/device-abstraction/window.hh>
 #include <arcana-incubator/imgui/imgui_impl_pr.hh>
-#include <arcana-incubator/imgui/imgui_impl_win32.hh>
+#include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 #include "sample_util.hh"
 #include "texture_util.hh"
@@ -27,17 +28,16 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
 {
     using namespace pr::backend;
 
-    inc::da::Window window;
+    inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, native_window_handle{window.getNativeHandleA(), window.getNativeHandleB()});
+    backend.initialize(backend_config, native_window_handle{window.getSdlWindow()});
 
     // Imgui init
-#ifdef CC_OS_WINDOWS
     inc::ImGuiPhantasmImpl imgui_implementation;
     {
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-        ImGui_ImplWin32_Init(window.getNativeHandleA());
-        window.setEventCallback(ImGui_ImplWin32_WndProcHandler);
+        ImGui_ImplSDL2_Init(window.getSdlWindow());
+        window.setEventCallback(ImGui_ImplSDL2_ProcessEvent);
 
         {
             auto const ps_bin = get_shader_binary("res/pr/liveness_sample/shader/bin/imgui_ps.%s", sample_config.shader_ending);
@@ -45,7 +45,6 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
             imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
         }
     }
-#endif
 
     handle::pipeline_state pso_clear;
 
@@ -56,8 +55,8 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
         cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{vertex_binary.get(), vertex_binary.size(), shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{pixel_binary.get(), pixel_binary.size(), shader_domain::pixel});
+        shader_stages.push_back(arg::shader_stage{{vertex_binary.get(), vertex_binary.size()}, shader_domain::vertex});
+        shader_stages.push_back(arg::shader_stage{{pixel_binary.get(), pixel_binary.size()}, shader_domain::pixel});
 
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
@@ -92,11 +91,11 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
     while (!window.isRequestingClose())
     {
         window.pollEvents();
-        if (window.isPendingResize())
+
+        if (window.clearPendingResize())
         {
             if (!window.isMinimized())
                 backend.onResize({window.getWidth(), window.getHeight()});
-            window.clearPendingResize();
         }
 
         if (!window.isMinimized())
@@ -158,13 +157,11 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
 
                 cmdlists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
 
-#ifdef CC_OS_WINDOWS
-                ImGui_ImplWin32_NewFrame();
+                ImGui_ImplSDL2_NewFrame(window.getSdlWindow());
                 ImGui::NewFrame();
                 ImGui::ShowDemoWindow(nullptr);
                 ImGui::Render();
                 cmdlists.push_back(imgui_implementation.render(ImGui::GetDrawData(), ng_backbuffer, true));
-#endif
             }
 
             // submit
@@ -178,9 +175,7 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
     backend.flushGPU();
     backend.free(pso_clear);
 
-#ifdef CC_OS_WINDOWS
     imgui_implementation.shutdown();
-    ImGui_ImplWin32_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
-#endif
 }

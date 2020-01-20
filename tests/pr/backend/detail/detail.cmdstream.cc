@@ -4,7 +4,7 @@
 
 #include <clean-core/defer.hh>
 
-#include <phantasm-renderer/backend/command_stream.hh>
+#include <phantasm-renderer/backend/commands.hh>
 
 using namespace pr::backend;
 
