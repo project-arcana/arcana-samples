@@ -11,8 +11,8 @@ namespace
 {
 auto constexpr spin_default = 25ull;
 
-auto constexpr num_tasks_outer = 5;
-auto constexpr num_tasks_inner = 10;
+auto constexpr num_tasks_outer = 5u;
+auto constexpr num_tasks_inner = 10u;
 
 void spin_cycles(uint64_t cycles = spin_default)
 {

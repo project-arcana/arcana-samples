@@ -20,6 +20,6 @@ TEST("fixed seed", seed(0xDEADBEEF))
 
 TEST("disabled test", disabled)
 {
-    volatile int i = 0;
+    volatile unsigned long long i = 0;
     *reinterpret_cast<int*>(i) = 1; // guaranteed SEGFAULT
 }
