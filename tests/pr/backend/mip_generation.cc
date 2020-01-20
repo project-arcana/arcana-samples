@@ -195,8 +195,8 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
         // pre transition
         {
             cmd::transition_resources tcmd;
-            tcmd.add(equirect_handle, resource_state::shader_resource, shader_domain_flags::compute);
-            tcmd.add(unfiltered_env_handle, resource_state::unordered_access, shader_domain_flags::compute);
+            tcmd.add(equirect_handle, resource_state::shader_resource, shader_domain::compute);
+            tcmd.add(unfiltered_env_handle, resource_state::unordered_access, shader_domain::compute);
             cmd_writer.add_command(tcmd);
         }
 
@@ -236,8 +236,8 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
         // post transition
         {
             cmd::transition_resources tcmd;
-            tcmd.add(unfiltered_env_handle, resource_state::shader_resource, shader_domain_flags::compute);
-            tcmd.add(filtered_env_handle, resource_state::unordered_access, shader_domain_flags::compute);
+            tcmd.add(unfiltered_env_handle, resource_state::shader_resource, shader_domain::compute);
+            tcmd.add(filtered_env_handle, resource_state::unordered_access, shader_domain::compute);
             cmd_writer.add_command(tcmd);
         }
 
@@ -290,8 +290,8 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
-        tcmd.add(irradiance_map_handle, resource_state::unordered_access, shader_domain_flags::compute);
-        tcmd.add(filtered_specular_map, resource_state::shader_resource, shader_domain_flags::compute);
+        tcmd.add(irradiance_map_handle, resource_state::unordered_access, shader_domain::compute);
+        tcmd.add(filtered_specular_map, resource_state::shader_resource, shader_domain::compute);
         cmd_writer.add_command(tcmd);
     }
 
@@ -330,7 +330,7 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
-        tcmd.add(brdf_lut_handle, resource_state::unordered_access, shader_domain_flags::compute);
+        tcmd.add(brdf_lut_handle, resource_state::unordered_access, shader_domain::compute);
         cmd_writer.add_command(tcmd);
     }
 
@@ -391,7 +391,7 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
 
 
     cmd::transition_resources starting_tcmd;
-    starting_tcmd.add(resource, resource_state::shader_resource, shader_domain_flags::compute);
+    starting_tcmd.add(resource, resource_state::shader_resource, shader_domain::compute);
     cmd_writer.add_command(starting_tcmd);
 
     auto const num_mipmaps = size.num_mipmaps == 0 ? inc::assets::get_num_mip_levels(size.width, size.height) : size.num_mipmaps;
@@ -420,11 +420,11 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
         for (auto arraySlice = 0u; arraySlice < size.array_size; ++arraySlice)
         {
             pre_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{resource, resource_state::shader_resource,
-                                                                                       resource_state::unordered_access, shader_domain_flags::compute,
-                                                                                       shader_domain_flags::compute, int(level), int(arraySlice)});
+                                                                                       resource_state::unordered_access, shader_domain::compute,
+                                                                                       shader_domain::compute, int(level), int(arraySlice)});
             post_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{resource, resource_state::unordered_access,
-                                                                                        resource_state::shader_resource, shader_domain_flags::compute,
-                                                                                        shader_domain_flags::compute, int(level), int(arraySlice)});
+                                                                                        resource_state::shader_resource, shader_domain::compute,
+                                                                                        shader_domain::compute, int(level), int(arraySlice)});
         }
 
         // record pre-dispatch barriers

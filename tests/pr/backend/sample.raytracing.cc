@@ -309,7 +309,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
 
                 {
                     cmd::transition_resources tcmd;
-                    tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_domain_flags::ray_gen);
+                    tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_domain::ray_gen);
 
                     writer.add_command(tcmd);
                 }

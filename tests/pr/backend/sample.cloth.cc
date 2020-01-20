@@ -274,8 +274,8 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
 
                 {
                     cmd::transition_resources tcmd;
-                    tcmd.add(res.buf_input, resource_state::unordered_access, shader_domain_flags::compute);
-                    tcmd.add(res.buf_output, resource_state::unordered_access, shader_domain_flags::compute);
+                    tcmd.add(res.buf_input, resource_state::unordered_access, shader_domain::compute);
+                    tcmd.add(res.buf_output, resource_state::unordered_access, shader_domain::compute);
                     cmd_writer.add_command(tcmd);
                 }
 
@@ -302,8 +302,8 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
 
                 {
                     cmd::transition_resources tcmd;
-                    tcmd.add(res.buf_input, resource_state::vertex_buffer, shader_domain_flags::vertex);
-                    tcmd.add(res.buf_output, resource_state::vertex_buffer, shader_domain_flags::vertex);
+                    tcmd.add(res.buf_input, resource_state::vertex_buffer, shader_domain::vertex);
+                    tcmd.add(res.buf_output, resource_state::vertex_buffer, shader_domain::vertex);
                     cmd_writer.add_command(tcmd);
                 }
 

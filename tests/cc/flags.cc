@@ -23,6 +23,7 @@ enum _t
     b,
     c
 };
+CC_FLAGS_ENUM(_t);
 
 [[maybe_unused]] cc::string to_string(E::_t f)
 {
