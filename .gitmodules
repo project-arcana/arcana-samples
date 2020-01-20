@@ -34,3 +34,6 @@
 [submodule "extern/arcana-incubator"]
 	path = extern/arcana-incubator
 	url = git@github.com:project-arcana/arcana-incubator.git
+[submodule "extern/compile-health"]
+	path = extern/compile-health
+	url = git@github.com:project-arcana/compile-health.git
