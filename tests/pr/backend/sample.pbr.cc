@@ -407,7 +407,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
     auto const on_resize_func = [&]() {
         backend.flushGPU();
         backbuf_size = backend.getBackbufferSize();
-        LOG(info)("backbuffer resized to %dx%d", backbuf_size.width, backbuf_size.height);
+        LOG(info)("backbuffer resized to {}x{}", backbuf_size.width, backbuf_size.height);
         f_destroy_sized_resources();
         f_create_sized_resources();
     };
@@ -460,7 +460,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
             if (log_time >= 1750.f)
             {
                 log_time = 0.f;
-                LOG(info)("frametime: %fms", static_cast<double>(frametime));
+                LOG(info)("frametime: {}ms", frametime);
             }
 
             ++resources.current_frame_index;

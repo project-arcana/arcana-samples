@@ -297,7 +297,7 @@ void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config
             if (log_time >= 1750.f)
             {
                 log_time = 0.f;
-                LOG(info)("frametime: %fms", static_cast<double>(frametime));
+                LOG(info)("frametime: {}ms", frametime);
             }
 
             if (backend.clearPendingResize())
