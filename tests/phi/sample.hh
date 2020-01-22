@@ -5,7 +5,7 @@
 #include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/config.hh>
 
-namespace pr_test
+namespace phi_test
 {
 inline constexpr auto num_render_threads = 8;
 

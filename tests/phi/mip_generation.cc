@@ -22,7 +22,7 @@ constexpr auto gc_ibl_cubemap_format = format::rgba16f;
 }
 
 
-void pr_test::texture_creation_resources::initialize(phi::Backend& backend, const char* shader_ending, bool align_rows)
+void phi_test::texture_creation_resources::initialize(phi::Backend& backend, const char* shader_ending, bool align_rows)
 {
     resources_to_free.reserve(1000);
     shader_views_to_free.reserve(1000);
@@ -97,7 +97,7 @@ void pr_test::texture_creation_resources::initialize(phi::Backend& backend, cons
     }
 }
 
-void pr_test::texture_creation_resources::free(Backend& backend)
+void phi_test::texture_creation_resources::free(Backend& backend)
 {
     flush_cmdstream(true, true);
 
@@ -113,7 +113,7 @@ void pr_test::texture_creation_resources::free(Backend& backend)
     backend.free(pso_brdf_lut_gen);
 }
 
-handle::resource pr_test::texture_creation_resources::load_texture(char const* path, phi::format format, bool include_mipmaps, bool apply_gamma)
+handle::resource phi_test::texture_creation_resources::load_texture(char const* path, phi::format format, bool include_mipmaps, bool apply_gamma)
 {
     CC_ASSERT((apply_gamma ? include_mipmaps : true) && "gamma setting meaningless without mipmap generation");
 
@@ -158,7 +158,7 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
     return res_handle;
 }
 
-handle::resource pr_test::texture_creation_resources::load_filtered_specular_map(const char* hdr_equirect_path)
+handle::resource phi_test::texture_creation_resources::load_filtered_specular_map(const char* hdr_equirect_path)
 {
     constexpr auto cube_width = 1024u;
     constexpr auto cube_height = 1024u;
@@ -278,7 +278,7 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
     return filtered_env_handle;
 }
 
-handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_map(handle::resource filtered_specular_map)
+handle::resource phi_test::texture_creation_resources::create_diffuse_irradiance_map(handle::resource filtered_specular_map)
 {
     flush_cmdstream(true, false);
     constexpr auto cube_width = 32u;
@@ -320,7 +320,7 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
     return irradiance_map_handle;
 }
 
-handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned width_height)
+handle::resource phi_test::texture_creation_resources::create_brdf_lut(unsigned width_height)
 {
     flush_cmdstream(true, false);
 
@@ -354,7 +354,7 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
     return brdf_lut_handle;
 }
 
-void pr_test::texture_creation_resources::generate_mips(handle::resource resource, const inc::assets::image_size& size, bool apply_gamma, format pf)
+void phi_test::texture_creation_resources::generate_mips(handle::resource resource, const inc::assets::image_size& size, bool apply_gamma, format pf)
 {
     constexpr auto max_array_size = 16u;
     CC_ASSERT(size.width == size.height && "non-square textures unimplemented");
@@ -441,7 +441,7 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
     }
 }
 
-void pr_test::texture_creation_resources::flush_cmdstream(bool dispatch, bool stall)
+void phi_test::texture_creation_resources::flush_cmdstream(bool dispatch, bool stall)
 {
     if (!cmd_writer.empty())
     {

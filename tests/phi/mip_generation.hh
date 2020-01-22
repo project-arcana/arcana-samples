@@ -7,7 +7,7 @@
 
 #include "texture_util.hh"
 
-namespace pr_test
+namespace phi_test
 {
 struct texture_creation_resources
 {
