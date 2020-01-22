@@ -15,7 +15,6 @@
 #include <phantasm-hardware-interface/detail/format_size.hh>
 #include <phantasm-hardware-interface/detail/unique_buffer.hh>
 #include <phantasm-hardware-interface/gpu_info.hh>
-#include <phantasm-hardware-interface/primitive_pipeline_config.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
@@ -276,7 +275,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         fbconf.add_render_target(format::rgba16f);
         fbconf.depth_target.push_back(format::depth24un_stencil8u);
 
-        phi::primitive_pipeline_config config;
+        phi::graphics_pipeline_config config;
         config.samples = gc_msaa_samples;
 
         resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
@@ -309,7 +308,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
 
-        phi::primitive_pipeline_config config;
+        phi::graphics_pipeline_config config;
         config.cull = phi::cull_mode::front;
 
         resources.pso_blit = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, payload_shape, false, shader_stages, config);

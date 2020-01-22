@@ -14,7 +14,6 @@
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/detail/unique_buffer.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
-#include <phantasm-hardware-interface/primitive_pipeline_config.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
@@ -61,7 +60,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
 
-        primitive_pipeline_config config;
+        graphics_pipeline_config config;
         config.cull = cull_mode::front;
 
         pso_clear = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, {}, false, shader_stages, config);
