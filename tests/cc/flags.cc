@@ -111,6 +111,9 @@ TEST("cc::flags enum class")
     CHECK(cnt(f) == 1);
     CHECK(cnt(f2) == 2);
     CHECK(cnt(f2) == 2);
+
+    f2 = cc::no_flags;
+    CHECK(cnt(f2) == 0);
 }
 
 TEST("cc::flags enum")
@@ -144,7 +147,7 @@ TEST("cc::flags enum")
     CHECK(f.single() == E::b);
     CHECK(!f2.is_single());
 
-    auto f3 = E::c | E::b;
+    auto f3 = cc::make_flags(E::c, E::b);
     CHECK((f3 & f2) == E::b);
 
     for (auto e : f)
@@ -166,5 +169,8 @@ TEST("cc::flags enum")
 
     CHECK(cnt(f) == 1);
     CHECK(cnt(f2) == 2);
-    CHECK(cnt(f2) == 2);
+    CHECK(cnt(f3) == 2);
+
+    f2 = cc::no_flags;
+    CHECK(cnt(f2) == 0);
 }
