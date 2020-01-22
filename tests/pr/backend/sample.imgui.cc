@@ -30,7 +30,7 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
 
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, native_window_handle{window.getSdlWindow()});
+    backend.initialize(backend_config, window_handle{window.getSdlWindow()});
 
     // Imgui init
     inc::ImGuiPhantasmImpl imgui_implementation;
