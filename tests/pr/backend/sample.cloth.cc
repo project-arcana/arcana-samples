@@ -10,9 +10,9 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/commands.hh>
-#include <phantasm-renderer/backend/detail/unique_buffer.hh>
-#include <phantasm-renderer/backend/window_handle.hh>
+#include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
@@ -28,7 +28,7 @@ constexpr auto lc_cloth_worldsize = tg::fsize2(2.5f, 2.5f);
 constexpr unsigned lc_num_cloth_particles = lc_cloth_gridsize.width * lc_cloth_gridsize.height;
 }
 
-void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sample_config& sample_config, const pr::backend::backend_config& backend_config)
+void pr_test::run_cloth_sample(phi::Backend& backend, const pr_test::sample_config& sample_config, const phi::backend_config& backend_config)
 {
     struct particle_t
     {
@@ -76,7 +76,7 @@ void pr_test::run_cloth_sample(pr::backend::Backend& backend, const pr_test::sam
         }
     };
 
-    using namespace pr::backend;
+    using namespace phi;
     CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
 
     constexpr unsigned lc_cloth_buffer_size = lc_num_cloth_particles * sizeof(particle_t);

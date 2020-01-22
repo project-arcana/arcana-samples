@@ -8,13 +8,13 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/commands.hh>
-#include <phantasm-renderer/backend/detail/byte_util.hh>
-#include <phantasm-renderer/backend/detail/format_size.hh>
+#include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/byte_util.hh>
+#include <phantasm-hardware-interface/detail/format_size.hh>
 
-using namespace pr::backend;
+using namespace phi;
 
-pr::backend::detail::unique_buffer pr_test::get_shader_binary(const char* name, ...)
+phi::detail::unique_buffer pr_test::get_shader_binary(const char* name, ...)
 {
     char name_formatted[1024];
     {
@@ -28,14 +28,14 @@ pr::backend::detail::unique_buffer pr_test::get_shader_binary(const char* name, 
         va_end(args);
     }
 
-    return pr::backend::detail::unique_buffer::create_from_binary_file(name_formatted);
+    return phi::detail::unique_buffer::create_from_binary_file(name_formatted);
 }
 
-void pr_test::copy_and_gen_mip_data_to_texture(pr::backend::command_stream_writer& writer,
-                                               pr::backend::handle::resource upload_buffer,
+void pr_test::copy_and_gen_mip_data_to_texture(phi::command_stream_writer& writer,
+                                               phi::handle::resource upload_buffer,
                                                std::byte* upload_buffer_map,
-                                               pr::backend::handle::resource dest_texture,
-                                               pr::backend::format format,
+                                               phi::handle::resource dest_texture,
+                                               phi::format format,
                                                const inc::assets::image_size& img_size,
                                                inc::assets::image_data& img_data,
                                                bool use_d3d12_per_row_alingment)

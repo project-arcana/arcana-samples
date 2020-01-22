@@ -57,6 +57,9 @@ add_subdirectory(extern/rich-log)
 # half-edge meshes
 add_subdirectory(extern/polymesh)
 
+# phantasm hardware interface
+add_subdirectory(extern/phantasm-hardware-interface)
+
 # phantasm renderer
 add_subdirectory(extern/phantasm-renderer)
 

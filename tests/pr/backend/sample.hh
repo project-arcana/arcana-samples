@@ -2,24 +2,24 @@
 
 #include <task-dispatcher/td.hh>
 
-#include <phantasm-renderer/backend/Backend.hh>
-#include <phantasm-renderer/backend/config.hh>
+#include <phantasm-hardware-interface/Backend.hh>
+#include <phantasm-hardware-interface/config.hh>
 
 namespace pr_test
 {
 inline constexpr auto num_render_threads = 8;
 
 inline auto const get_backend_config = [] {
-    pr::backend::backend_config config;
-    config.present_mode = pr::backend::present_mode::allow_tearing;
-    config.adapter_preference = pr::backend::adapter_preference::highest_vram;
+    phi::backend_config config;
+    config.present_mode = phi::present_mode::allow_tearing;
+    config.adapter_preference = phi::adapter_preference::highest_vram;
     config.num_threads = td::system::num_logical_cores();
 
     config.validation =
 #ifdef NDEBUG
-        pr::backend::validation_level::off;
+        phi::validation_level::off;
 #else
-        pr::backend::validation_level::on_extended;
+        phi::validation_level::on_extended;
 #endif
 
     return config;
@@ -35,11 +35,11 @@ struct sample_config
     bool align_mip_rows;
 };
 
-void run_pbr_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config = get_backend_config());
+void run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 
-void run_imgui_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config = get_backend_config());
+void run_imgui_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 
-void run_cloth_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config = get_backend_config());
+void run_cloth_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 
-void run_raytracing_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config = get_backend_config());
+void run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 }

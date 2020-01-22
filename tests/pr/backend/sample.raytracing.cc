@@ -11,9 +11,9 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/commands.hh>
-#include <phantasm-renderer/backend/detail/unique_buffer.hh>
-#include <phantasm-renderer/backend/window_handle.hh>
+#include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
@@ -24,9 +24,9 @@
 #include "sample_util.hh"
 #include "texture_util.hh"
 
-void pr_test::run_raytracing_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config)
+void pr_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
-    using namespace pr::backend;
+    using namespace phi;
 
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);

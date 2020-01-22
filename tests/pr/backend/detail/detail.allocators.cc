@@ -7,14 +7,14 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/detail/hash.hh>
-#include <phantasm-renderer/backend/detail/linked_pool.hh>
-#include <phantasm-renderer/backend/detail/page_allocator.hh>
+#include <phantasm-hardware-interface/detail/hash.hh>
+#include <phantasm-hardware-interface/detail/linked_pool.hh>
+#include <phantasm-hardware-interface/detail/page_allocator.hh>
 
 
 TEST("pr backend detail - page allocator")
 {
-    pr::backend::detail::page_allocator allocator;
+    phi::detail::page_allocator allocator;
     allocator.initialize(80, 4);
 
     auto const alloc1 = allocator.allocate(4);
@@ -47,7 +47,7 @@ TEST("pr backend detail - linked pool")
         int y;
     };
 
-    pr::backend::detail::linked_pool<node> pool;
+    phi::detail::linked_pool<node> pool;
     pool.initialize(50);
 
     auto const i1 = pool.acquire();
@@ -71,7 +71,7 @@ TEST("pr backend detail - page allocator random", disabled)
     constexpr auto allocation_size = 32;
     constexpr auto allocation_chance = 0.85f;
 
-    pr::backend::detail::page_allocator allocator;
+    phi::detail::page_allocator allocator;
     allocator.initialize(1024, 16);
     tg::rng rng(std::random_device{});
 

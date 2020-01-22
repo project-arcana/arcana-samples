@@ -6,15 +6,15 @@
 #include <clean-core/defer.hh>
 #include <clean-core/utility.hh>
 
-#include <phantasm-renderer/backend/commands.hh>
-#include <phantasm-renderer/backend/detail/byte_util.hh>
-#include <phantasm-renderer/backend/detail/format_size.hh>
+#include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/byte_util.hh>
+#include <phantasm-hardware-interface/detail/format_size.hh>
 
 #include <arcana-incubator/pr-util/texture_util.hh>
 
 #include "texture_util.hh"
 
-using namespace pr::backend;
+using namespace phi;
 
 namespace
 {
@@ -22,7 +22,7 @@ constexpr auto gc_ibl_cubemap_format = format::rgba16f;
 }
 
 
-void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backend, const char* shader_ending, bool align_rows)
+void pr_test::texture_creation_resources::initialize(phi::Backend& backend, const char* shader_ending, bool align_rows)
 {
     resources_to_free.reserve(1000);
     shader_views_to_free.reserve(1000);
@@ -113,7 +113,7 @@ void pr_test::texture_creation_resources::free(Backend& backend)
     backend.free(pso_brdf_lut_gen);
 }
 
-handle::resource pr_test::texture_creation_resources::load_texture(char const* path, pr::backend::format format, bool include_mipmaps, bool apply_gamma)
+handle::resource pr_test::texture_creation_resources::load_texture(char const* path, phi::format format, bool include_mipmaps, bool apply_gamma)
 {
     CC_ASSERT((apply_gamma ? include_mipmaps : true) && "gamma setting meaningless without mipmap generation");
 
@@ -358,7 +358,7 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
 {
     constexpr auto max_array_size = 16u;
     CC_ASSERT(size.width == size.height && "non-square textures unimplemented");
-    CC_ASSERT(pr::backend::mem::is_power_of_two(size.width) && "non-power of two textures unimplemented");
+    CC_ASSERT(phi::mem::is_power_of_two(size.width) && "non-power of two textures unimplemented");
 
     handle::pipeline_state matching_pso;
     if (size.array_size > 1)

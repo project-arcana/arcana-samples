@@ -4,9 +4,9 @@
 
 #include <clean-core/defer.hh>
 
-#include <phantasm-renderer/backend/commands.hh>
+#include <phantasm-hardware-interface/commands.hh>
 
-using namespace pr::backend;
+using namespace phi;
 
 namespace
 {

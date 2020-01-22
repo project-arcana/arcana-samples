@@ -11,10 +11,10 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-renderer/backend/commands.hh>
-#include <phantasm-renderer/backend/detail/unique_buffer.hh>
-#include <phantasm-renderer/backend/window_handle.hh>
-#include <phantasm-renderer/primitive_pipeline_config.hh>
+#include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/window_handle.hh>
+#include <phantasm-hardware-interface/primitive_pipeline_config.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
@@ -24,9 +24,9 @@
 #include "sample_util.hh"
 #include "texture_util.hh"
 
-void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config const& sample_config, pr::backend::backend_config const& backend_config)
+void pr_test::run_imgui_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
-    using namespace pr::backend;
+    using namespace phi;
 
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
@@ -61,8 +61,8 @@ void pr_test::run_imgui_sample(pr::backend::Backend& backend, sample_config cons
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
 
-        pr::primitive_pipeline_config config;
-        config.cull = pr::cull_mode::front;
+        primitive_pipeline_config config;
+        config.cull = cull_mode::front;
 
         pso_clear = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, {}, false, shader_stages, config);
     }

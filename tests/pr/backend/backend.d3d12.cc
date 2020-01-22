@@ -5,53 +5,53 @@
 
 #include "sample.hh"
 
-#include <phantasm-renderer/backend/d3d12/BackendD3D12.hh>
-#include <phantasm-renderer/backend/d3d12/adapter_choice_util.hh>
+#include <phantasm-hardware-interface/d3d12/BackendD3D12.hh>
+#include <phantasm-hardware-interface/d3d12/adapter_choice_util.hh>
 
 namespace
 {
 pr_test::sample_config get_d3d12_sample_conf()
 {
     pr_test::sample_config sample_conf;
-    sample_conf.window_title = "pr::backend::d3d12 liveness";
+    sample_conf.window_title = "phi::d3d12 liveness";
     sample_conf.shader_ending = "dxil";
     sample_conf.align_mip_rows = true;
     return sample_conf;
 }
 }
 
-TEST("pr::backend::d3d12 sample_pbr", disabled, exclusive)
+TEST("phi::d3d12 sample_pbr", disabled, exclusive)
 {
     td::launch([&] {
-        pr::backend::d3d12::BackendD3D12 backend;
+        phi::d3d12::BackendD3D12 backend;
         pr_test::run_pbr_sample(backend, get_d3d12_sample_conf());
     });
 }
 
-TEST("pr::backend::d3d12 sample_cloth", disabled, exclusive)
+TEST("phi::d3d12 sample_cloth", disabled, exclusive)
 {
     td::launch([&] {
-        pr::backend::d3d12::BackendD3D12 backend;
+        phi::d3d12::BackendD3D12 backend;
         pr_test::run_cloth_sample(backend, get_d3d12_sample_conf());
     });
 }
 
-TEST("pr::backend::d3d12 sample_raytrace", disabled, exclusive)
+TEST("phi::d3d12 sample_raytrace", disabled, exclusive)
 {
-        pr::backend::d3d12::BackendD3D12 backend;
+        phi::d3d12::BackendD3D12 backend;
         pr_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
 }
 
-TEST("pr::backend::d3d12 sample_imgui", disabled, exclusive)
+TEST("phi::d3d12 sample_imgui", disabled, exclusive)
 {
-    pr::backend::d3d12::BackendD3D12 backend;
+    phi::d3d12::BackendD3D12 backend;
     pr_test::run_imgui_sample(backend, get_d3d12_sample_conf());
 }
 
-TEST("pr::backend::d3d12 adapter choice", disabled, exclusive)
+TEST("phi::d3d12 adapter choice", disabled, exclusive)
 {
-    using namespace pr::backend;
-    using namespace pr::backend::d3d12;
+    using namespace phi;
+    using namespace phi::d3d12;
 
     // Adapter choice basics
     auto const candidates = get_adapter_candidates();

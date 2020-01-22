@@ -49,7 +49,7 @@ void _pr_api()
     inc::da::SDLWindow window;
     window.initialize("api test");
 
-    pr::Context ctx(pr::backend::window_handle{window.getSdlWindow()});
+    pr::Context ctx(phi::window_handle{window.getSdlWindow()});
 
     int w = 1;
     int h = 1;

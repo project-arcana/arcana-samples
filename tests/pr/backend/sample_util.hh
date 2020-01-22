@@ -1,21 +1,21 @@
 #pragma once
 
-#include <phantasm-renderer/backend/Backend.hh>
-#include <phantasm-renderer/backend/commands.hh>
+#include <phantasm-hardware-interface/Backend.hh>
+#include <phantasm-hardware-interface/commands.hh>
 
 namespace pr_test
 {
 struct temp_cmdlist
 {
 public:
-    temp_cmdlist(pr::backend::Backend* backend, size_t size);
+    temp_cmdlist(phi::Backend* backend, size_t size);
 
-    pr::backend::command_stream_writer writer;
+    phi::command_stream_writer writer;
 
     void finish(bool flush_gpu = true, bool force_discard = false);
 
 private:
-    pr::backend::Backend* _backend;
+    phi::Backend* _backend;
     std::byte* _buffer;
 };
 }

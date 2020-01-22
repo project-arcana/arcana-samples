@@ -9,14 +9,14 @@
 #include <typed-geometry/tg.hh>
 
 
-#include <phantasm-renderer/backend/assets/vertex_attrib_info.hh>
-#include <phantasm-renderer/backend/commands.hh>
-#include <phantasm-renderer/backend/detail/byte_util.hh>
-#include <phantasm-renderer/backend/detail/format_size.hh>
-#include <phantasm-renderer/backend/detail/unique_buffer.hh>
-#include <phantasm-renderer/backend/gpu_info.hh>
-#include <phantasm-renderer/backend/window_handle.hh>
-#include <phantasm-renderer/default_config.hh>
+#include <phantasm-hardware-interface/assets/vertex_attrib_info.hh>
+#include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/byte_util.hh>
+#include <phantasm-hardware-interface/detail/format_size.hh>
+#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/gpu_info.hh>
+#include <phantasm-hardware-interface/primitive_pipeline_config.hh>
+#include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
@@ -41,11 +41,11 @@ constexpr unsigned gc_max_num_backbuffers = 4;
 constexpr unsigned gc_msaa_samples = 8;
 }
 
-void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const& sample_config, const pr::backend::backend_config& backend_config)
+void pr_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, const phi::backend_config& backend_config)
 {
     inc::da::initialize();
 
-    using namespace pr::backend;
+    using namespace phi;
     CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
 
     inc::da::SDLWindow window;
@@ -85,12 +85,12 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         // multi-buffered resources
         struct per_frame_resource_t
         {
-            pr::backend::handle::resource cb_camdata = pr::backend::handle::null_resource;
-            pr::backend::handle::resource sb_modeldata = pr::backend::handle::null_resource;
+            phi::handle::resource cb_camdata = phi::handle::null_resource;
+            phi::handle::resource sb_modeldata = phi::handle::null_resource;
             std::byte* cb_camdata_map = nullptr;
             std::byte* sb_modeldata_map = nullptr;
 
-            pr::backend::handle::shader_view shaderview_render_vertex = pr::backend::handle::null_shader_view;
+            phi::handle::shader_view shaderview_render_vertex = phi::handle::null_shader_view;
         };
 
         cc::capped_array<per_frame_resource_t, gc_max_num_backbuffers> per_frame_resources;
@@ -276,7 +276,7 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         fbconf.add_render_target(format::rgba16f);
         fbconf.depth_target.push_back(format::depth24un_stencil8u);
 
-        pr::primitive_pipeline_config config;
+        phi::primitive_pipeline_config config;
         config.samples = gc_msaa_samples;
 
         resources.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
@@ -309,8 +309,8 @@ void pr_test::run_pbr_sample(pr::backend::Backend& backend, sample_config const&
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
 
-        pr::primitive_pipeline_config config;
-        config.cull = pr::cull_mode::front;
+        phi::primitive_pipeline_config config;
+        config.cull = phi::cull_mode::front;
 
         resources.pso_blit = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, payload_shape, false, shader_stages, config);
     }
