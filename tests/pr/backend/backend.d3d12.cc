@@ -1,4 +1,4 @@
-#ifdef PR_BACKEND_D3D12
+#ifdef PHI_BACKEND_D3D12
 #include <nexus/test.hh>
 
 #include <iostream>
@@ -28,18 +28,10 @@ TEST("phi::d3d12 sample_pbr", disabled, exclusive)
     });
 }
 
-TEST("phi::d3d12 sample_cloth", disabled, exclusive)
-{
-    td::launch([&] {
-        phi::d3d12::BackendD3D12 backend;
-        pr_test::run_cloth_sample(backend, get_d3d12_sample_conf());
-    });
-}
-
 TEST("phi::d3d12 sample_raytrace", disabled, exclusive)
 {
-        phi::d3d12::BackendD3D12 backend;
-        pr_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
+    phi::d3d12::BackendD3D12 backend;
+    pr_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
 }
 
 TEST("phi::d3d12 sample_imgui", disabled, exclusive)

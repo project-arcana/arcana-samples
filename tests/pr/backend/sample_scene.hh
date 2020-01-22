@@ -6,7 +6,7 @@
 
 namespace pr_test
 {
-inline constexpr bool massive_sample = 0;
+inline constexpr bool massive_sample = 1;
 
 inline constexpr float cam_dist = massive_sample ? 1000.f : 10.f;
 

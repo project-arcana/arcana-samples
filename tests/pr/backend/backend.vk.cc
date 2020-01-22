@@ -1,4 +1,4 @@
-#ifdef PR_BACKEND_VULKAN
+#ifdef PHI_BACKEND_VULKAN
 #include <nexus/test.hh>
 
 #include "sample.hh"
@@ -22,14 +22,6 @@ TEST("phi::vk sample_pbr", disabled, exclusive)
     td::launch([&] {
         phi::vk::BackendVulkan backend;
         pr_test::run_pbr_sample(backend, get_vk_sample_conf());
-    });
-}
-
-TEST("phi::vk sample_cloth", disabled, exclusive)
-{
-    td::launch([&] {
-        phi::vk::BackendVulkan backend;
-        pr_test::run_cloth_sample(backend, get_vk_sample_conf());
     });
 }
 

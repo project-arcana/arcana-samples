@@ -39,7 +39,5 @@ void run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, p
 
 void run_imgui_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 
-void run_cloth_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
-
 void run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 }
