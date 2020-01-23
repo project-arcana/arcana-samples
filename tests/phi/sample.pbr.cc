@@ -8,14 +8,14 @@
 
 #include <typed-geometry/tg.hh>
 
-
-#include <phantasm-hardware-interface/assets/vertex_attrib_info.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/detail/byte_util.hh>
 #include <phantasm-hardware-interface/detail/format_size.hh>
 #include <phantasm-hardware-interface/detail/unique_buffer.hh>
 #include <phantasm-hardware-interface/gpu_info.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
+
+#include <phantasm-renderer/reflection/vertex_attributes.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
@@ -269,7 +269,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         shader_stages.push_back(arg::shader_stage{{vertex_binary.get(), vertex_binary.size()}, shader_domain::vertex});
         shader_stages.push_back(arg::shader_stage{{pixel_binary.get(), pixel_binary.size()}, shader_domain::pixel});
 
-        auto const attrib_info = assets::get_vertex_attributes<inc::assets::simple_vertex>();
+        auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
 
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(format::rgba16f);
