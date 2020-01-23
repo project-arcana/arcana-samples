@@ -1,6 +1,8 @@
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
 
+#include <arcana-incubator/device-abstraction/device_abstraction.hh>
+
 namespace
 {
 struct my_vertex
@@ -44,7 +46,10 @@ void _pr_api()
 {
     //
 
-    pr::Context ctx;
+    inc::da::SDLWindow window;
+    window.initialize("api test");
+
+    pr::Context ctx(phi::window_handle{window.getSdlWindow()});
 
     int w = 1;
     int h = 1;
@@ -63,10 +68,10 @@ void _pr_api()
 
         auto vertex_buffer = frame.make_buffer<my_vertex>(vertices);
 
-        auto t_depth = frame.make_image({w, h}, 0.0f);
-        auto t_color = frame.make_image({w, h}, tg::color3::black);
+        auto t_depth = frame.make_image<pr::format::depth32f>({w, h}, 0.0f);
+        auto t_color = frame.make_image<pr::format::rgba16f>({w, h}, tg::color3::black);
 
-        auto fshader = frame.make_fragment_shader<tg::color3>("<CODE>");
+        auto fshader = frame.make_fragment_shader<pr::format::rgba16f>("<CODE>");
         auto vshader = frame.make_vertex_shader<my_vertex>("<CODE>");
 
         {

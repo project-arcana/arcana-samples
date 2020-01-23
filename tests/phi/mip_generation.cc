@@ -6,15 +6,15 @@
 #include <clean-core/defer.hh>
 #include <clean-core/utility.hh>
 
-#include <phantasm-renderer/backend/commands.hh>
-#include <phantasm-renderer/backend/detail/byte_util.hh>
-#include <phantasm-renderer/backend/detail/format_size.hh>
+#include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/byte_util.hh>
+#include <phantasm-hardware-interface/detail/format_size.hh>
 
 #include <arcana-incubator/pr-util/texture_util.hh>
 
 #include "texture_util.hh"
 
-using namespace pr::backend;
+using namespace phi;
 
 namespace
 {
@@ -22,7 +22,7 @@ constexpr auto gc_ibl_cubemap_format = format::rgba16f;
 }
 
 
-void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backend, const char* shader_ending, bool align_rows)
+void phi_test::texture_creation_resources::initialize(phi::Backend& backend, const char* shader_ending, bool align_rows)
 {
     resources_to_free.reserve(1000);
     shader_views_to_free.reserve(1000);
@@ -97,7 +97,7 @@ void pr_test::texture_creation_resources::initialize(pr::backend::Backend& backe
     }
 }
 
-void pr_test::texture_creation_resources::free(Backend& backend)
+void phi_test::texture_creation_resources::free(Backend& backend)
 {
     flush_cmdstream(true, true);
 
@@ -113,7 +113,7 @@ void pr_test::texture_creation_resources::free(Backend& backend)
     backend.free(pso_brdf_lut_gen);
 }
 
-handle::resource pr_test::texture_creation_resources::load_texture(char const* path, pr::backend::format format, bool include_mipmaps, bool apply_gamma)
+handle::resource phi_test::texture_creation_resources::load_texture(char const* path, phi::format format, bool include_mipmaps, bool apply_gamma)
 {
     CC_ASSERT((apply_gamma ? include_mipmaps : true) && "gamma setting meaningless without mipmap generation");
 
@@ -158,7 +158,7 @@ handle::resource pr_test::texture_creation_resources::load_texture(char const* p
     return res_handle;
 }
 
-handle::resource pr_test::texture_creation_resources::load_filtered_specular_map(const char* hdr_equirect_path)
+handle::resource phi_test::texture_creation_resources::load_filtered_specular_map(const char* hdr_equirect_path)
 {
     constexpr auto cube_width = 1024u;
     constexpr auto cube_height = 1024u;
@@ -195,8 +195,8 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
         // pre transition
         {
             cmd::transition_resources tcmd;
-            tcmd.add(equirect_handle, resource_state::shader_resource, shader_domain_flags::compute);
-            tcmd.add(unfiltered_env_handle, resource_state::unordered_access, shader_domain_flags::compute);
+            tcmd.add(equirect_handle, resource_state::shader_resource, shader_domain::compute);
+            tcmd.add(unfiltered_env_handle, resource_state::unordered_access, shader_domain::compute);
             cmd_writer.add_command(tcmd);
         }
 
@@ -236,8 +236,8 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
         // post transition
         {
             cmd::transition_resources tcmd;
-            tcmd.add(unfiltered_env_handle, resource_state::shader_resource, shader_domain_flags::compute);
-            tcmd.add(filtered_env_handle, resource_state::unordered_access, shader_domain_flags::compute);
+            tcmd.add(unfiltered_env_handle, resource_state::shader_resource, shader_domain::compute);
+            tcmd.add(filtered_env_handle, resource_state::unordered_access, shader_domain::compute);
             cmd_writer.add_command(tcmd);
         }
 
@@ -278,7 +278,7 @@ handle::resource pr_test::texture_creation_resources::load_filtered_specular_map
     return filtered_env_handle;
 }
 
-handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_map(handle::resource filtered_specular_map)
+handle::resource phi_test::texture_creation_resources::create_diffuse_irradiance_map(handle::resource filtered_specular_map)
 {
     flush_cmdstream(true, false);
     constexpr auto cube_width = 32u;
@@ -290,8 +290,8 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
-        tcmd.add(irradiance_map_handle, resource_state::unordered_access, shader_domain_flags::compute);
-        tcmd.add(filtered_specular_map, resource_state::shader_resource, shader_domain_flags::compute);
+        tcmd.add(irradiance_map_handle, resource_state::unordered_access, shader_domain::compute);
+        tcmd.add(filtered_specular_map, resource_state::shader_resource, shader_domain::compute);
         cmd_writer.add_command(tcmd);
     }
 
@@ -320,7 +320,7 @@ handle::resource pr_test::texture_creation_resources::create_diffuse_irradiance_
     return irradiance_map_handle;
 }
 
-handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned width_height)
+handle::resource phi_test::texture_creation_resources::create_brdf_lut(unsigned width_height)
 {
     flush_cmdstream(true, false);
 
@@ -330,7 +330,7 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
     // prepare for UAV
     {
         cmd::transition_resources tcmd;
-        tcmd.add(brdf_lut_handle, resource_state::unordered_access, shader_domain_flags::compute);
+        tcmd.add(brdf_lut_handle, resource_state::unordered_access, shader_domain::compute);
         cmd_writer.add_command(tcmd);
     }
 
@@ -354,11 +354,11 @@ handle::resource pr_test::texture_creation_resources::create_brdf_lut(unsigned w
     return brdf_lut_handle;
 }
 
-void pr_test::texture_creation_resources::generate_mips(handle::resource resource, const inc::assets::image_size& size, bool apply_gamma, format pf)
+void phi_test::texture_creation_resources::generate_mips(handle::resource resource, const inc::assets::image_size& size, bool apply_gamma, format pf)
 {
     constexpr auto max_array_size = 16u;
     CC_ASSERT(size.width == size.height && "non-square textures unimplemented");
-    CC_ASSERT(pr::backend::mem::is_power_of_two(size.width) && "non-power of two textures unimplemented");
+    CC_ASSERT(phi::mem::is_power_of_two(size.width) && "non-power of two textures unimplemented");
 
     handle::pipeline_state matching_pso;
     if (size.array_size > 1)
@@ -391,7 +391,7 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
 
 
     cmd::transition_resources starting_tcmd;
-    starting_tcmd.add(resource, resource_state::shader_resource, shader_domain_flags::compute);
+    starting_tcmd.add(resource, resource_state::shader_resource, shader_domain::compute);
     cmd_writer.add_command(starting_tcmd);
 
     auto const num_mipmaps = size.num_mipmaps == 0 ? inc::assets::get_num_mip_levels(size.width, size.height) : size.num_mipmaps;
@@ -420,11 +420,11 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
         for (auto arraySlice = 0u; arraySlice < size.array_size; ++arraySlice)
         {
             pre_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{resource, resource_state::shader_resource,
-                                                                                       resource_state::unordered_access, shader_domain_flags::compute,
-                                                                                       shader_domain_flags::compute, int(level), int(arraySlice)});
+                                                                                       resource_state::unordered_access, shader_domain::compute,
+                                                                                       shader_domain::compute, int(level), int(arraySlice)});
             post_dispatch.push_back(cmd::transition_image_slices::slice_transition_info{resource, resource_state::unordered_access,
-                                                                                        resource_state::shader_resource, shader_domain_flags::compute,
-                                                                                        shader_domain_flags::compute, int(level), int(arraySlice)});
+                                                                                        resource_state::shader_resource, shader_domain::compute,
+                                                                                        shader_domain::compute, int(level), int(arraySlice)});
         }
 
         // record pre-dispatch barriers
@@ -441,7 +441,7 @@ void pr_test::texture_creation_resources::generate_mips(handle::resource resourc
     }
 }
 
-void pr_test::texture_creation_resources::flush_cmdstream(bool dispatch, bool stall)
+void phi_test::texture_creation_resources::flush_cmdstream(bool dispatch, bool stall)
 {
     if (!cmd_writer.empty())
     {
