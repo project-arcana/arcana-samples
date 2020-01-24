@@ -1,7 +1,9 @@
-#include <phantasm-renderer/Context.hh>
-#include <phantasm-renderer/Frame.hh>
+#include <nexus/test.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
+
+#include <phantasm-renderer/Context.hh>
+#include <phantasm-renderer/Frame.hh>
 
 namespace
 {
@@ -42,7 +44,7 @@ constexpr void introspect(I&& i, instance_data& v)
 
 }
 
-void _pr_api()
+TEST("pr::api")
 {
     //
 
