@@ -39,8 +39,8 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
         window.setEventCallback(ImGui_ImplSDL2_ProcessEvent);
 
         {
-            auto const ps_bin = get_shader_binary("res/pr/liveness_sample/shader/bin/imgui_ps.%s", sample_config.shader_ending);
-            auto const vs_bin = get_shader_binary("res/pr/liveness_sample/shader/bin/imgui_vs.%s", sample_config.shader_ending);
+            auto const ps_bin = get_shader_binary("imgui_ps", sample_config.shader_ending);
+            auto const vs_bin = get_shader_binary("imgui_vs", sample_config.shader_ending);
             imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
         }
     }
@@ -48,8 +48,8 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
     handle::pipeline_state pso_clear;
 
     {
-        auto const vertex_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/blit_vertex.%s", sample_config.shader_ending);
-        auto const pixel_binary = get_shader_binary("res/pr/liveness_sample/shader/bin/clear_pixel.%s", sample_config.shader_ending);
+        auto const vertex_binary = get_shader_binary("blit_vertex", sample_config.shader_ending);
+        auto const pixel_binary = get_shader_binary("clear_pixel", sample_config.shader_ending);
 
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 

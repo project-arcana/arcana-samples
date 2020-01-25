@@ -39,19 +39,19 @@ void phi_test::texture_creation_resources::initialize(phi::Backend& backend, con
 
     // load mip generation shaders
     {
-        cc::capped_vector<arg::shader_argument_shape, 1> shader_payload;
+        cc::capped_vector<arg::shader_arg_shape, 1> shader_payload;
         {
-            arg::shader_argument_shape shape;
-            shape.has_cb = false;
+            arg::shader_arg_shape shape;
+            shape.has_cbv = false;
             shape.num_srvs = 1;
             shape.num_uavs = 1;
             shape.num_samplers = 0;
             shader_payload.push_back(shape);
         }
 
-        auto const sb_mipgen = get_shader_binary("res/pr/liveness_sample/shader/bin/mipgen.%s", shader_ending);
-        auto const sb_mipgen_gamma = get_shader_binary("res/pr/liveness_sample/shader/bin/mipgen_gamma.%s", shader_ending);
-        auto const sb_mipgen_array = get_shader_binary("res/pr/liveness_sample/shader/bin/mipgen_array.%s", shader_ending);
+        auto const sb_mipgen = get_shader_binary("mipgen", shader_ending);
+        auto const sb_mipgen_gamma = get_shader_binary("mipgen_gamma", shader_ending);
+        auto const sb_mipgen_array = get_shader_binary("mipgen_array", shader_ending);
 
         CC_RUNTIME_ASSERT(sb_mipgen.is_valid() && sb_mipgen_gamma.is_valid() && sb_mipgen_array.is_valid() && "failed to load shaders");
 
@@ -62,18 +62,18 @@ void phi_test::texture_creation_resources::initialize(phi::Backend& backend, con
 
     // load IBL preparation shaders
     {
-        auto const sb_equirect_cube = get_shader_binary("res/pr/liveness_sample/shader/bin/equirect_to_cube.%s", shader_ending);
-        auto const sb_specular_map_filter = get_shader_binary("res/pr/liveness_sample/shader/bin/specular_map_filter.%s", shader_ending);
-        auto const sb_irradiance_map_filter = get_shader_binary("res/pr/liveness_sample/shader/bin/irradiance_map_filter.%s", shader_ending);
-        auto const sb_brdf_lut_gen = get_shader_binary("res/pr/liveness_sample/shader/bin/brdf_lut_gen.%s", shader_ending);
+        auto const sb_equirect_cube = get_shader_binary("equirect_to_cube", shader_ending);
+        auto const sb_specular_map_filter = get_shader_binary("specular_map_filter", shader_ending);
+        auto const sb_irradiance_map_filter = get_shader_binary("irradiance_map_filter", shader_ending);
+        auto const sb_brdf_lut_gen = get_shader_binary("brdf_lut_gen", shader_ending);
 
         CC_RUNTIME_ASSERT(sb_equirect_cube.is_valid() && sb_specular_map_filter.is_valid() && sb_irradiance_map_filter.is_valid()
                           && sb_brdf_lut_gen.is_valid() && "failed to load shaders");
 
-        cc::capped_vector<arg::shader_argument_shape, 1> arg_shape;
+        cc::capped_vector<arg::shader_arg_shape, 1> arg_shape;
         {
-            arg::shader_argument_shape shape;
-            shape.has_cb = false;
+            arg::shader_arg_shape shape;
+            shape.has_cbv = false;
             shape.num_srvs = 1;
             shape.num_uavs = 1;
             shape.num_samplers = 1;
@@ -86,9 +86,9 @@ void phi_test::texture_creation_resources::initialize(phi::Backend& backend, con
 
         pso_irradiance_map_gen = backend.createComputePipelineState(arg_shape, {sb_irradiance_map_filter.get(), sb_irradiance_map_filter.size()});
 
-        cc::capped_vector<arg::shader_argument_shape, 1> arg_shape_single_uav;
+        cc::capped_vector<arg::shader_arg_shape, 1> arg_shape_single_uav;
         {
-            arg::shader_argument_shape shape = {};
+            arg::shader_arg_shape shape = {};
             shape.num_uavs = 1;
             arg_shape_single_uav.push_back(shape);
         }
@@ -177,10 +177,10 @@ handle::resource phi_test::texture_creation_resources::load_filtered_specular_ma
     {
         handle::shader_view sv;
         {
-            shader_view_element sve_srv;
+            shader_view_elem sve_srv;
             sve_srv.init_as_tex2d(equirect_handle, format::rgba32f);
 
-            shader_view_element sve_uav;
+            shader_view_elem sve_uav;
             sve_uav.init_as_texcube(unfiltered_env_handle, gc_ibl_cubemap_format);
 
             sampler_config srv_sampler;
@@ -243,10 +243,10 @@ handle::resource phi_test::texture_creation_resources::load_filtered_specular_ma
 
         // compute dispatch
         {
-            shader_view_element sve_srv;
+            shader_view_elem sve_srv;
             sve_srv.init_as_texcube(unfiltered_env_handle, gc_ibl_cubemap_format);
 
-            shader_view_element sve_uav;
+            shader_view_elem sve_uav;
             sve_uav.init_as_texcube(filtered_env_handle, gc_ibl_cubemap_format);
             sve_uav.texture_info.mip_size = 1;
 
@@ -297,10 +297,10 @@ handle::resource phi_test::texture_creation_resources::create_diffuse_irradiance
 
     // dispatch
     {
-        shader_view_element sve_uav;
+        shader_view_elem sve_uav;
         sve_uav.init_as_texcube(irradiance_map_handle, gc_ibl_cubemap_format);
 
-        shader_view_element sve_srv;
+        shader_view_elem sve_srv;
         sve_srv.init_as_texcube(filtered_specular_map, gc_ibl_cubemap_format);
 
         sampler_config default_sampler;
@@ -336,7 +336,7 @@ handle::resource phi_test::texture_creation_resources::create_brdf_lut(unsigned 
 
     // dispatch
     {
-        shader_view_element sve_uav;
+        shader_view_elem sve_uav;
         sve_uav.init_as_tex2d(brdf_lut_handle, format::rg16f);
 
         auto const sv = backend->createShaderView({}, cc::span{sve_uav}, {}, true);
@@ -398,7 +398,7 @@ void phi_test::texture_creation_resources::generate_mips(handle::resource resour
 
     for (auto level = 1u, levelWidth = size.width / 2, levelHeight = size.height / 2; level < num_mipmaps; ++level, levelWidth /= 2, levelHeight /= 2)
     {
-        shader_view_element sve;
+        shader_view_elem sve;
         sve.init_as_tex2d(resource, pf);
         sve.texture_info.mip_start = level - 1;
         sve.texture_info.mip_size = 1;
@@ -408,7 +408,7 @@ void phi_test::texture_creation_resources::generate_mips(handle::resource resour
             sve.texture_info.array_size = size.array_size;
         }
 
-        shader_view_element sve_uav = sve;
+        shader_view_elem sve_uav = sve;
         sve_uav.texture_info.mip_start = level;
 
         auto const sv = backend->createShaderView(cc::span{sve}, cc::span{sve_uav}, {}, true);

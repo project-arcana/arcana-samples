@@ -176,29 +176,29 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
     // PSO setup
     {
         cc::capped_vector<detail::unique_buffer, 16> shader_binaries;
-        cc::capped_vector<arg::raytracing_shader_library, 16> libraries;
+        cc::capped_vector<arg::rt_shader_library, 16> libraries;
 
         {
-            shader_binaries.push_back(get_shader_binary("res/pr/liveness_sample/shader/bin/raytrace_lib.%s", sample_config.shader_ending));
+            shader_binaries.push_back(get_shader_binary("raytrace_lib", sample_config.shader_ending));
             auto& main_lib = libraries.emplace_back();
             main_lib.binary = {shader_binaries.back().get(), shader_binaries.back().size()};
             main_lib.symbols = {L"raygeneration", L"miss", L"closesthit"};
         }
 
-        cc::capped_vector<arg::raytracing_argument_association, 16> arg_assocs;
+        cc::capped_vector<arg::rt_argument_association, 16> arg_assocs;
 
         {
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.symbols = {L"raygeneration"};
-            raygen_assoc.argument_shapes.push_back(arg::shader_argument_shape{1, 1, 0, false});
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false});
             raygen_assoc.has_root_constants = false;
 
             auto& closesthit_assoc = arg_assocs.emplace_back();
             closesthit_assoc.symbols = {L"closesthit"};
-            closesthit_assoc.argument_shapes.push_back(arg::shader_argument_shape{1, 0, 0, false});
+            closesthit_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 0, 0, false});
         }
 
-        arg::raytracing_hit_group main_hit_group;
+        arg::rt_hit_group main_hit_group;
         main_hit_group.name = L"primary_hitgroup";
         main_hit_group.closest_hit_symbol = L"closesthit";
 
@@ -221,10 +221,10 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         // Shader table setup
         {
             {
-                shader_view_element uav_sve;
+                shader_view_elem uav_sve;
                 uav_sve.init_as_tex2d(resources.rt_write_texture, backend.getBackbufferFormat());
 
-                shader_view_element srv_sve;
+                shader_view_elem srv_sve;
                 srv_sve.init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
 
                 resources.raygen_shader_view = backend.createShaderView(cc::span{srv_sve}, cc::span{uav_sve}, {}, false);
@@ -232,7 +232,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
             arg::shader_table_record str_raygen;
             str_raygen.symbol = L"raygeneration";
-            str_raygen.shader_arguments.push_back(shader_argument{handle::null_resource, resources.raygen_shader_view, 0});
+            str_raygen.shader_arguments.push_back(shader_arg{handle::null_resource, resources.raygen_shader_view, 0});
 
             arg::shader_table_record str_miss;
             str_miss.symbol = L"miss";
