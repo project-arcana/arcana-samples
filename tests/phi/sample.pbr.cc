@@ -215,7 +215,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         backend.submit(cc::span{setup_cmd_list});
         backend.flushGPU();
         backend.free(upload_buffer);
-    };
+    }
 
     // PSO creation
     {
@@ -246,7 +246,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         l_res.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
                                                        true, shader_stages, config);
-    };
+    }
 
     {
         // Argument 0, blit target SRV + sampler
@@ -569,33 +569,18 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         }
     }
 
-
     backend.flushGPU();
-    backend.free(l_res.mat_albedo);
-    backend.free(l_res.mat_normal);
-    backend.free(l_res.mat_metallic);
-    backend.free(l_res.mat_roughness);
 
-    backend.free(l_res.ibl_lut);
-    backend.free(l_res.ibl_specular);
-    backend.free(l_res.ibl_irradiance);
-    backend.free(l_res.shaderview_render_ibl);
+    // free all resources at once
+    cc::array const free_batch
+        = {l_res.mat_albedo,     l_res.mat_normal,    l_res.mat_metallic, l_res.mat_roughness, l_res.ibl_lut,     l_res.ibl_specular,
+           l_res.ibl_irradiance, l_res.vertex_buffer, l_res.index_buffer, l_res.colorbuffer,   l_res.depthbuffer, l_res.colorbuffer_resolve};
+    backend.freeRange(free_batch);
 
-    backend.free(l_res.vertex_buffer);
-    backend.free(l_res.index_buffer);
-    backend.free(l_res.pso_render);
-    backend.free(l_res.colorbuffer);
-    backend.free(l_res.depthbuffer);
-    backend.free(l_res.pso_blit);
-    backend.free(l_res.shaderview_blit);
-    backend.free(l_res.shaderview_render);
-
+    // free other objects
+    backend.freeVariadic(l_res.shaderview_render_ibl, l_res.pso_render, l_res.pso_blit, l_res.shaderview_blit, l_res.shaderview_render);
     for (auto const& pfr : l_res.per_frame_resources)
-    {
-        backend.free(pfr.cb_camdata);
-        backend.free(pfr.sb_modeldata);
-        backend.free(pfr.shaderview_render_vertex);
-    }
+        backend.freeVariadic(pfr.cb_camdata, pfr.sb_modeldata, pfr.shaderview_render_vertex);
 
     imgui_implementation.shutdown();
     ImGui_ImplSDL2_Shutdown();
