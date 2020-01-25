@@ -309,7 +309,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
                 {
                     cmd::transition_resources tcmd;
-                    tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_domain::ray_gen);
+                    tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_stage::ray_gen);
 
                     writer.add_command(tcmd);
                 }

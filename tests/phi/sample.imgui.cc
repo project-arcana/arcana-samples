@@ -53,9 +53,9 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
 
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
-        cc::capped_vector<arg::shader_stage, 6> shader_stages;
-        shader_stages.push_back(arg::shader_stage{{vertex_binary.get(), vertex_binary.size()}, shader_domain::vertex});
-        shader_stages.push_back(arg::shader_stage{{pixel_binary.get(), pixel_binary.size()}, shader_domain::pixel});
+        cc::capped_vector<arg::graphics_shader, 6> shader_stages;
+        shader_stages.push_back(arg::graphics_shader{{vertex_binary.get(), vertex_binary.size()}, shader_stage::vertex});
+        shader_stages.push_back(arg::graphics_shader{{pixel_binary.get(), pixel_binary.size()}, shader_stage::pixel});
 
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());

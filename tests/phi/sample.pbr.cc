@@ -101,7 +101,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         handle::shader_view shaderview_render = handle::null_shader_view;
         handle::shader_view shaderview_render_ibl = handle::null_shader_view;
 
-        // render RTs
+        // render targets
         handle::resource depthbuffer = handle::null_resource;
         handle::resource colorbuffer = handle::null_resource;
         handle::resource colorbuffer_resolve = handle::null_resource;
@@ -117,7 +117,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     //
     {
         // resource loading, creation and preprocessing
-        static_assert(true, "clang-format");
+        static_assert(true);
         {
             phi_test::texture_creation_resources texgen_resources;
             texgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
@@ -144,18 +144,18 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
             {
                 cmd::transition_resources tcmd;
-                tcmd.add(l_res.mat_albedo, resource_state::shader_resource, shader_domain::pixel);
-                tcmd.add(l_res.mat_normal, resource_state::shader_resource, shader_domain::pixel);
-                tcmd.add(l_res.mat_metallic, resource_state::shader_resource, shader_domain::pixel);
-                tcmd.add(l_res.mat_roughness, resource_state::shader_resource, shader_domain::pixel);
+                tcmd.add(l_res.mat_albedo, resource_state::shader_resource, shader_stage::pixel);
+                tcmd.add(l_res.mat_normal, resource_state::shader_resource, shader_stage::pixel);
+                tcmd.add(l_res.mat_metallic, resource_state::shader_resource, shader_stage::pixel);
+                tcmd.add(l_res.mat_roughness, resource_state::shader_resource, shader_stage::pixel);
                 writer.add_command(tcmd);
             }
 
             {
                 cmd::transition_resources tcmd;
-                tcmd.add(l_res.ibl_specular, resource_state::shader_resource, shader_domain::pixel);
-                tcmd.add(l_res.ibl_irradiance, resource_state::shader_resource, shader_domain::pixel);
-                tcmd.add(l_res.ibl_lut, resource_state::shader_resource, shader_domain::pixel);
+                tcmd.add(l_res.ibl_specular, resource_state::shader_resource, shader_stage::pixel);
+                tcmd.add(l_res.ibl_irradiance, resource_state::shader_resource, shader_stage::pixel);
+                tcmd.add(l_res.ibl_lut, resource_state::shader_resource, shader_stage::pixel);
                 writer.add_command(tcmd);
             }
 
@@ -183,7 +183,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             auto const ind_size = mesh_data.get_index_size_bytes();
 
             l_res.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
-            l_res.index_buffer = backend.createBuffer(ind_size, sizeof(int));
+            l_res.index_buffer = backend.createBuffer(ind_size, sizeof(uint32_t));
 
             {
                 cmd::transition_resources tcmd;
@@ -215,8 +215,9 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         backend.submit(cc::span{setup_cmd_list});
         backend.flushGPU();
         backend.free(upload_buffer);
-    }
+    };
 
+    // PSO creation
     {
         cc::array const payload_shape = {
             // Argument 0, global CBV + model mat structured buffer
@@ -232,7 +233,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
 
         cc::array const shader_stages
-            = {arg::shader_stage{{vs.get(), vs.size()}, shader_domain::vertex}, arg::shader_stage{{ps.get(), ps.size()}, shader_domain::pixel}};
+            = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
         auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
 
@@ -245,7 +246,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         l_res.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
                                                        true, shader_stages, config);
-    }
+    };
 
     {
         // Argument 0, blit target SRV + sampler
@@ -256,7 +257,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
 
         cc::array const shader_stages
-            = {arg::shader_stage{{vs.get(), vs.size()}, shader_domain::vertex}, arg::shader_stage{{ps.get(), ps.size()}, shader_domain::pixel}};
+            = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
@@ -270,8 +271,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     {
         l_res.per_frame_resources.emplace(backend_config.num_backbuffers);
 
-        shader_view_elem srv;
-        srv.init_as_structured_buffer(handle::null_resource, phi_test::num_instances, sizeof(tg::mat4));
+        auto srv = shader_view_elem::structured_buffer(handle::null_resource, phi_test::num_instances, sizeof(tg::mat4));
 
         for (auto& pfb : l_res.per_frame_resources)
         {
@@ -317,12 +317,9 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         l_res.colorbuffer_resolve = gc_msaa_samples > 1 ? backend.createTexture(format::rgba16f, w, h, 1) : l_res.colorbuffer;
 
         {
-            sampler_config rt_sampler;
-            rt_sampler.init_default(sampler_filter::min_mag_mip_point);
-
-            cc::capped_vector<shader_view_elem, 1> srv_elems;
-            srv_elems.emplace_back().init_as_tex2d(l_res.colorbuffer_resolve, format::rgba16f);
-            l_res.shaderview_blit = backend.createShaderView(srv_elems, {}, cc::span{rt_sampler});
+            auto const sampler = sampler_config(sampler_filter::min_mag_mip_point);
+            auto const srv = shader_view_elem::tex2d(l_res.colorbuffer_resolve, format::rgba16f);
+            l_res.shaderview_blit = backend.createShaderView(cc::span{srv}, {}, cc::span{sampler});
         }
 
         {
@@ -350,7 +347,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         backend.free(l_res.shaderview_blit);
     };
 
-    auto const on_resize_func = [&]() {
+    auto const f_on_resize = [&]() {
         backend.flushGPU();
         backbuf_size = backend.getBackbufferSize();
         LOG(info)("backbuffer resized to {}x{}", backbuf_size.width, backbuf_size.height);
@@ -409,12 +406,10 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 LOG(info)("frametime: {}ms", frametime);
             }
 
-            ++l_res.current_frame_index;
-            if (l_res.current_frame_index >= backend_config.num_backbuffers)
-                l_res.current_frame_index -= backend_config.num_backbuffers;
+            l_res.current_frame_index = cc::wrapped_increment(l_res.current_frame_index, backend_config.num_backbuffers);
 
             if (backend.clearPendingResize())
-                on_resize_func();
+                f_on_resize();
 
             cc::array<handle::command_list, phi_test::num_render_threads> render_cmd_lists;
             cc::fill(render_cmd_lists, handle::null_command_list);
@@ -429,34 +424,33 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                     if (is_first_batch)
                     {
-                        cmd::transition_resources cmd_trans;
-                        cmd_trans.add(l_res.colorbuffer, resource_state::render_target);
-                        cmd_writer.add_command(cmd_trans);
+                        cmd::transition_resources tcmd;
+                        tcmd.add(l_res.colorbuffer, resource_state::render_target);
+                        cmd_writer.add_command(tcmd);
                     }
                     {
-                        cmd::begin_render_pass cmd_brp;
-                        cmd_brp.viewport = backend.getBackbufferSize();
-                        cmd_brp.add_2d_rt(l_res.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
-                        cmd_brp.set_2d_depth_stencil(l_res.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
-                        cmd_writer.add_command(cmd_brp);
+                        cmd::begin_render_pass bcmd;
+                        bcmd.viewport = backend.getBackbufferSize();
+                        bcmd.add_2d_rt(l_res.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
+                        bcmd.set_2d_depth_stencil(l_res.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
+                        cmd_writer.add_command(bcmd);
                     }
 
                     {
-                        cmd::draw cmd_draw;
-                        cmd_draw.init(l_res.pso_render, l_res.num_indices, l_res.vertex_buffer, l_res.index_buffer);
-                        cmd_draw.add_shader_arg(l_res.current_frame().cb_camdata, 0, l_res.current_frame().shaderview_render_vertex);
-                        cmd_draw.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render);
-                        cmd_draw.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render_ibl);
+                        cmd::draw dcmd;
+                        dcmd.init(l_res.pso_render, l_res.num_indices, l_res.vertex_buffer, l_res.index_buffer);
+                        dcmd.add_shader_arg(l_res.current_frame().cb_camdata, 0, l_res.current_frame().shaderview_render_vertex);
+                        dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render);
+                        dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render_ibl);
 
                         for (auto inst = start; inst < end; ++inst)
                         {
-                            cmd_draw.write_root_constants(static_cast<unsigned>(inst));
-                            cmd_writer.add_command(cmd_draw);
+                            dcmd.write_root_constants(static_cast<unsigned>(inst));
+                            cmd_writer.add_command(dcmd);
                         }
                     }
 
                     cmd_writer.add_command(cmd::end_render_pass{});
-
 
                     render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                 },
@@ -501,31 +495,28 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 }
 
                 {
-                    cmd::transition_resources cmd_trans;
-                    cmd_trans.add(current_backbuffer, resource_state::render_target);
-                    cmd_trans.add(l_res.colorbuffer_resolve, resource_state::shader_resource, shader_domain::pixel);
-                    cmd_writer.add_command(cmd_trans);
+                    cmd::transition_resources tcmd;
+                    tcmd.add(current_backbuffer, resource_state::render_target);
+                    tcmd.add(l_res.colorbuffer_resolve, resource_state::shader_resource, shader_stage::pixel);
+                    cmd_writer.add_command(tcmd);
                 }
 
                 {
-                    cmd::begin_render_pass cmd_brp;
-                    cmd_brp.viewport = backend.getBackbufferSize();
-                    cmd_brp.add_backbuffer_rt(current_backbuffer);
-                    cmd_brp.set_null_depth_stencil();
-                    cmd_writer.add_command(cmd_brp);
+                    cmd::begin_render_pass bcmd;
+                    bcmd.viewport = backend.getBackbufferSize();
+                    bcmd.add_backbuffer_rt(current_backbuffer);
+                    bcmd.set_null_depth_stencil();
+                    cmd_writer.add_command(bcmd);
                 }
 
                 {
-                    cmd::draw cmd_draw;
-                    cmd_draw.init(l_res.pso_blit, 3);
-                    cmd_draw.add_shader_arg(handle::null_resource, 0, l_res.shaderview_blit);
-                    cmd_writer.add_command(cmd_draw);
+                    cmd::draw dcmd;
+                    dcmd.init(l_res.pso_blit, 3);
+                    dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_blit);
+                    cmd_writer.add_command(dcmd);
                 }
 
-                {
-                    cmd::end_render_pass cmd_erp;
-                    cmd_writer.add_command(cmd_erp);
-                }
+                cmd_writer.add_command(cmd::end_render_pass{});
 
                 backbuffer_cmd_lists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
 
