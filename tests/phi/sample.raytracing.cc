@@ -78,7 +78,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             handle::resource upload_buffer;
             {
                 auto const mesh_data = phi_test::sample_mesh_binary ? inc::assets::load_binary_mesh(phi_test::sample_mesh_path)
-                                                                   : inc::assets::load_obj_mesh(phi_test::sample_mesh_path);
+                                                                    : inc::assets::load_obj_mesh(phi_test::sample_mesh_path);
 
                 resources.num_indices = unsigned(mesh_data.indices.size());
                 resources.num_vertices = unsigned(mesh_data.vertices.size());
@@ -215,8 +215,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     auto const f_create_sized_resources = [&] {
         // Create RT write texture
-        resources.rt_write_texture
-            = backend.createTexture(backend.getBackbufferFormat(), backbuf_size.width, backbuf_size.height, 1, texture_dimension::t2d, 1, true);
+        resources.rt_write_texture = backend.createTexture(backend.getBackbufferFormat(), backbuf_size, 1, texture_dimension::t2d, 1, true);
 
         // Shader table setup
         {

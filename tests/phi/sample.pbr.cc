@@ -309,12 +309,9 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::isize2 backbuf_size = tg::isize2(150, 150);
 
     auto const f_create_sized_resources = [&] {
-        auto const w = static_cast<unsigned>(backbuf_size.width);
-        auto const h = static_cast<unsigned>(backbuf_size.height);
-
-        l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, w, h, gc_msaa_samples);
-        l_res.colorbuffer = backend.createRenderTarget(format::rgba16f, w, h, gc_msaa_samples);
-        l_res.colorbuffer_resolve = gc_msaa_samples > 1 ? backend.createTexture(format::rgba16f, w, h, 1) : l_res.colorbuffer;
+        l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, backbuf_size, gc_msaa_samples);
+        l_res.colorbuffer = backend.createRenderTarget(format::rgba16f, backbuf_size, gc_msaa_samples);
+        l_res.colorbuffer_resolve = gc_msaa_samples > 1 ? backend.createTexture(format::rgba16f, backbuf_size, 1) : l_res.colorbuffer;
 
         {
             auto const sampler = sampler_config(sampler_filter::min_mag_mip_point);

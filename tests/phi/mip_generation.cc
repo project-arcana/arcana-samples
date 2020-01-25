@@ -130,8 +130,8 @@ handle::resource phi_test::texture_creation_resources::load_texture(char const* 
 
     CC_RUNTIME_ASSERT(inc::assets::is_valid(img_data) && "failed to load texture");
 
-    auto const res_handle
-        = backend->createTexture(format, img_size.width, img_size.height, include_mipmaps ? img_size.num_mipmaps : 1, texture_dimension::t2d, 1, true);
+    auto const res_handle = backend->createTexture(format, {int(img_size.width), int(img_size.height)}, include_mipmaps ? img_size.num_mipmaps : 1,
+                                                   texture_dimension::t2d, 1, true);
 
     auto const upbuff_handle = backend->createMappedBuffer(inc::get_mipmap_upload_size(format, img_size, true));
     resources_to_free.push_back(upbuff_handle);
@@ -168,10 +168,10 @@ handle::resource phi_test::texture_creation_resources::load_filtered_specular_ma
     auto const equirect_handle = load_texture(hdr_equirect_path, format::rgba32f, false);
     resources_to_free.push_back(equirect_handle);
 
-    auto const unfiltered_env_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, cube_num_mips, texture_dimension::t2d, 6, true);
+    auto const unfiltered_env_handle = backend->createTexture(gc_ibl_cubemap_format, {cube_width, cube_height}, cube_num_mips, texture_dimension::t2d, 6, true);
     resources_to_free.push_back(unfiltered_env_handle);
 
-    auto const filtered_env_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, cube_num_mips, texture_dimension::t2d, 6, true);
+    auto const filtered_env_handle = backend->createTexture(gc_ibl_cubemap_format, {cube_width, cube_height}, cube_num_mips, texture_dimension::t2d, 6, true);
 
     // convert equirectangular map to cubemap
     {
@@ -284,7 +284,7 @@ handle::resource phi_test::texture_creation_resources::create_diffuse_irradiance
     constexpr auto cube_width = 32u;
     constexpr auto cube_height = 32u;
 
-    auto const irradiance_map_handle = backend->createTexture(gc_ibl_cubemap_format, cube_width, cube_height, 1, texture_dimension::t2d, 6, true);
+    auto const irradiance_map_handle = backend->createTexture(gc_ibl_cubemap_format, {cube_width, cube_height}, 1, texture_dimension::t2d, 6, true);
 
     cmd_writer.add_command(cmd::debug_marker{"diffuse irradiance start"});
     // prepare for UAV
@@ -320,11 +320,11 @@ handle::resource phi_test::texture_creation_resources::create_diffuse_irradiance
     return irradiance_map_handle;
 }
 
-handle::resource phi_test::texture_creation_resources::create_brdf_lut(unsigned width_height)
+handle::resource phi_test::texture_creation_resources::create_brdf_lut(int width_height)
 {
     flush_cmdstream(true, false);
 
-    auto const brdf_lut_handle = backend->createTexture(format::rg16f, width_height, width_height, 1, texture_dimension::t2d, 1, true);
+    auto const brdf_lut_handle = backend->createTexture(format::rg16f, {width_height, width_height}, 1, texture_dimension::t2d, 1, true);
 
     cmd_writer.add_command(cmd::debug_marker{"brdf lut start"});
     // prepare for UAV
