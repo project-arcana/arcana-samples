@@ -16,5 +16,5 @@ void copy_and_gen_mip_data_to_texture(phi::command_stream_writer& writer,
                                       inc::assets::image_data& img_data,
                                       bool use_d3d12_per_row_alingment);
 
-phi::detail::unique_buffer get_shader_binary(const char* name, ...);
+phi::detail::unique_buffer get_shader_binary(char const* name, char const* ending);
 }

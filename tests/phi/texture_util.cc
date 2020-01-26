@@ -1,6 +1,5 @@
 #include "texture_util.hh"
 
-#include <cstdarg>
 #include <cstdio>
 
 #include <clean-core/macros.hh>
@@ -14,20 +13,10 @@
 
 using namespace phi;
 
-phi::detail::unique_buffer phi_test::get_shader_binary(const char* name, ...)
+phi::detail::unique_buffer phi_test::get_shader_binary(const char* name, const char* ending)
 {
     char name_formatted[1024];
-    {
-        va_list args;
-        va_start(args, name);
-#ifdef CC_COMPILER_MSVC
-        ::vsprintf_s(name_formatted, 1024, name, args);
-#else
-        std::vsnprintf(name_formatted, 1024, name, args);
-#endif
-        va_end(args);
-    }
-
+    std::snprintf(name_formatted, sizeof(name_formatted), "res/pr/liveness_sample/shader/bin/%s.%s", name, ending);
     return phi::detail::unique_buffer::create_from_binary_file(name_formatted);
 }
 

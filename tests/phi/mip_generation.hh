@@ -26,7 +26,7 @@ public:
 
     phi::handle::resource create_diffuse_irradiance_map(phi::handle::resource filtered_specular_map);
 
-    phi::handle::resource create_brdf_lut(unsigned width_height = 256);
+    phi::handle::resource create_brdf_lut(int width_height = 256);
 
 private:
     void generate_mips(phi::handle::resource resource, inc::assets::image_size const& size, bool apply_gamma, phi::format pf);
