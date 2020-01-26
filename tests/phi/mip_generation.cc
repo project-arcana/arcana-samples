@@ -177,10 +177,10 @@ handle::resource phi_test::texture_creation_resources::load_filtered_specular_ma
     {
         handle::shader_view sv;
         {
-            shader_view_elem sve_srv;
+            resource_view sve_srv;
             sve_srv.init_as_tex2d(equirect_handle, format::rgba32f);
 
-            shader_view_elem sve_uav;
+            resource_view sve_uav;
             sve_uav.init_as_texcube(unfiltered_env_handle, gc_ibl_cubemap_format);
 
             sampler_config srv_sampler;
@@ -243,10 +243,10 @@ handle::resource phi_test::texture_creation_resources::load_filtered_specular_ma
 
         // compute dispatch
         {
-            shader_view_elem sve_srv;
+            resource_view sve_srv;
             sve_srv.init_as_texcube(unfiltered_env_handle, gc_ibl_cubemap_format);
 
-            shader_view_elem sve_uav;
+            resource_view sve_uav;
             sve_uav.init_as_texcube(filtered_env_handle, gc_ibl_cubemap_format);
             sve_uav.texture_info.mip_size = 1;
 
@@ -297,10 +297,10 @@ handle::resource phi_test::texture_creation_resources::create_diffuse_irradiance
 
     // dispatch
     {
-        shader_view_elem sve_uav;
+        resource_view sve_uav;
         sve_uav.init_as_texcube(irradiance_map_handle, gc_ibl_cubemap_format);
 
-        shader_view_elem sve_srv;
+        resource_view sve_srv;
         sve_srv.init_as_texcube(filtered_specular_map, gc_ibl_cubemap_format);
 
         sampler_config default_sampler;
@@ -336,7 +336,7 @@ handle::resource phi_test::texture_creation_resources::create_brdf_lut(int width
 
     // dispatch
     {
-        shader_view_elem sve_uav;
+        resource_view sve_uav;
         sve_uav.init_as_tex2d(brdf_lut_handle, format::rg16f);
 
         auto const sv = backend->createShaderView({}, cc::span{sve_uav}, {}, true);
@@ -398,17 +398,17 @@ void phi_test::texture_creation_resources::generate_mips(handle::resource resour
 
     for (auto level = 1u, levelWidth = size.width / 2, levelHeight = size.height / 2; level < num_mipmaps; ++level, levelWidth /= 2, levelHeight /= 2)
     {
-        shader_view_elem sve;
+        resource_view sve;
         sve.init_as_tex2d(resource, pf);
         sve.texture_info.mip_start = level - 1;
         sve.texture_info.mip_size = 1;
         if (size.array_size > 1)
         {
-            sve.dimension = shader_view_dimension::texture2d_array;
+            sve.dimension = resource_view_dimension::texture2d_array;
             sve.texture_info.array_size = size.array_size;
         }
 
-        shader_view_elem sve_uav = sve;
+        resource_view sve_uav = sve;
         sve_uav.texture_info.mip_start = level;
 
         auto const sv = backend->createShaderView(cc::span{sve}, cc::span{sve_uav}, {}, true);
