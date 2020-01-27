@@ -4,6 +4,7 @@
 
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
+#include <phantasm-renderer/PrimitivePipeline.hh>
 
 namespace
 {
@@ -73,8 +74,8 @@ TEST("pr::api")
     {
         auto frame = ctx.make_frame();
 
-        auto fshader = frame.make_fragment_shader<pr::format::rgba16f>("<CODE>");
-        auto vshader = frame.make_vertex_shader<my_vertex>("<CODE>");
+        auto fshader = ctx.make_fragment_shader<pr::format::rgba16f>("<CODE>");
+        auto vshader = ctx.make_vertex_shader<my_vertex>("<CODE>");
 
         {
             // trying to start another pass while this one is active is a CONTRACT VIOLATION
