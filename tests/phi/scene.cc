@@ -39,7 +39,7 @@ constexpr inline size_t linear_index(tg::span<size_t const> indices, tg::span<si
 
 
 tg::vec3 index_mod_vec(float index, tg::vec3 mod) { return tg::vec3(std::fmod(index, mod.x), std::fmod(index, mod.y), std::fmod(index, mod.z)); }
-tg::vec3 inner_product(tg::vec3 const& lhs, tg::vec3 const& rhs) { return tg::vec3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z); }
+tg::vec3 compwise_product(tg::vec3 const& lhs, tg::vec3 const& rhs) { return tg::vec3(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z); }
 
 inline constexpr float model_scale = phi_test::massive_sample ? 10.f : 0.21f;
 
@@ -78,7 +78,7 @@ void phi_test::fill_model_matrix_data(phi_test::model_matrix_data& data, float r
         if constexpr (phi_test::massive_sample)
         {
             auto const dim = tg::vec4(dimensional_index<gc_massive_cube_dims.x, gc_massive_cube_dims.y, gc_massive_cube_dims.z>(i)) * gc_massive_cube_scale;
-            data[i] = tg::translation(inner_product(tg::vec3(dim.x, dim.y, dim.z), mul))
+            data[i] = tg::translation(compwise_product(tg::vec3(dim.x, dim.y, dim.z), mul))
                       * tg::rotation_y(tg::radians((float(runtime * 2.f) + float(i) * 0.125f * tg::pi_scalar<float>)*(i % 2 == 0 ? -1 : 1)))
                       * tg::scaling(model_scale, model_scale, model_scale);
         }
