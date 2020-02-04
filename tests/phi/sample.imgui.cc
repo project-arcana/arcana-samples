@@ -60,7 +60,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
 
-        graphics_pipeline_config config;
+        pipeline_config config;
         config.cull = cull_mode::front;
 
         pso_clear = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, {}, false, shader_stages, config);
