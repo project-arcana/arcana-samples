@@ -37,3 +37,6 @@
 [submodule "extern/compile-health"]
 	path = extern/compile-health
 	url = git@github.com:project-arcana/compile-health.git
+[submodule "extern/phantasm-hardware-interface"]
+	path = extern/phantasm-hardware-interface
+	url = git@github.com:project-arcana/phantasm-hardware-interface.git

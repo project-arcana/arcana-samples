@@ -42,6 +42,7 @@ build/
 .vscode
 build_vs/
 .vs/
+*.code-workspace
 
 # misc workdir spam
 imgui.ini
