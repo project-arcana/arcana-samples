@@ -5,6 +5,7 @@
 #include <clean-core/capped_array.hh>
 #include <clean-core/capped_vector.hh>
 #include <clean-core/defer.hh>
+#include <clean-core/utility.hh>
 
 #include <typed-geometry/tg.hh>
 

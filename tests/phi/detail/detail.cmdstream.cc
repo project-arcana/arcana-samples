@@ -5,6 +5,7 @@
 #include <clean-core/defer.hh>
 
 #include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/command_reading.hh>
 
 using namespace phi;
 
