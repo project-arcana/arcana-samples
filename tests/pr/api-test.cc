@@ -5,6 +5,7 @@
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
 #include <phantasm-renderer/PrimitivePipeline.hh>
+#include <phantasm-renderer/immediate.hh>
 
 namespace
 {
@@ -67,32 +68,32 @@ TEST("pr::api")
     instance_data instanceA; // = ...
     instance_data instanceB; // = ...
 
-    auto t_depth = ctx.make_target<pr::format::depth32f>({w, h}, 0.f);
-    auto t_color = ctx.make_target<pr::format::rgba16f>({w, h}, tg::color3::black);
-    auto vertex_buffer = ctx.make_upload_buffer<my_vertex>(vertices);
+    auto t_depth = ctx.make_target({w, h}, pr::format::depth32f);
+    auto t_color = ctx.make_target({w, h}, pr::format::rgba16f);
+    auto vertex_buffer = ctx.make_upload_buffer(sizeof(my_vertex) * vertices.size(), sizeof(my_vertex));
 
     {
-        auto frame = ctx.make_frame();
+//        auto frame = ctx.make_frame();
 
-        auto fshader = ctx.make_fragment_shader<pr::format::rgba16f>("<CODE>");
-        auto vshader = ctx.make_vertex_shader<my_vertex>("<CODE>");
+//        auto fshader = ctx.make_fragment_shader<pr::format::rgba16f>("<CODE>");
+//        auto vshader = ctx.make_vertex_shader<my_vertex>("<CODE>");
 
-        {
-            // trying to start another pass while this one is active is a CONTRACT VIOLATION
-            // by default sets viewport to min over image sizes
-            auto fb = frame.render_to(t_color, t_depth).bind(data);
+//        {
+//            // trying to start another pass while this one is active is a CONTRACT VIOLATION
+//            // by default sets viewport to min over image sizes
+//            auto fb = frame.render_to(t_color, t_depth).bind(data);
 
-            // framebuffer + shader + config = pass
-            auto pass = fb.pipeline<instance_data>(vshader, fshader, pr::default_config);
+//            // framebuffer + shader + config = pass
+//            auto pass = fb.pipeline<instance_data>(vshader, fshader, pr::default_config);
 
-            // issue draw command (explicit bind)
-            pass.bind(instanceA).draw(vertex_buffer);
+//            // issue draw command (explicit bind)
+//            pass.bind(instanceA).draw(vertex_buffer);
 
-            // issue draw command (variadic draw)
-            pass.draw(instanceB, vertex_buffer);
-        }
+//            // issue draw command (variadic draw)
+//            pass.draw(instanceB, vertex_buffer);
+//        }
 
         // submit frame
-        ctx.submit(frame);
+//        ctx.submit(frame);
     }
 }
