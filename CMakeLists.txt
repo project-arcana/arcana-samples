@@ -60,6 +60,9 @@ add_subdirectory(extern/polymesh)
 # phantasm hardware interface
 add_subdirectory(extern/phantasm-hardware-interface)
 
+# shader compiler
+add_subdirectory(extern/dxc-wrapper)
+
 # phantasm renderer
 add_subdirectory(extern/phantasm-renderer)
 

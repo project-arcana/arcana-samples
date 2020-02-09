@@ -40,3 +40,6 @@
 [submodule "extern/phantasm-hardware-interface"]
 	path = extern/phantasm-hardware-interface
 	url = git@github.com:project-arcana/phantasm-hardware-interface.git
+[submodule "extern/dxc-wrapper"]
+	path = extern/dxc-wrapper
+	url = git@github.com:project-arcana/dxc-wrapper.git
