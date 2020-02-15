@@ -58,7 +58,7 @@ TEST("pr::api")
     int w = 1;
     int h = 1;
 
-    std::vector<my_vertex> vertices; // = ...
+    cc::vector<my_vertex> vertices; // = ...
     vertices.emplace_back();
 
     camera_data data;
