@@ -241,7 +241,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         fbconf.add_render_target(format::rgba16f);
         fbconf.depth_target.push_back(format::depth24un_stencil8u);
 
-        graphics_pipeline_config config;
+        pipeline_config config;
         config.samples = gc_msaa_samples;
 
         l_res.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
@@ -262,7 +262,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(backend.getBackbufferFormat());
 
-        phi::graphics_pipeline_config config;
+        phi::pipeline_config config;
         config.cull = phi::cull_mode::front;
 
         l_res.pso_blit = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, payload_shape, false, shader_stages, config);
@@ -271,7 +271,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     {
         l_res.per_frame_resources.emplace(backend_config.num_backbuffers);
 
-        auto srv = shader_view_elem::structured_buffer(handle::null_resource, phi_test::num_instances, sizeof(tg::mat4));
+        auto srv = resource_view::structured_buffer(handle::null_resource, phi_test::num_instances, sizeof(tg::mat4));
 
         for (auto& pfb : l_res.per_frame_resources)
         {
@@ -289,8 +289,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     {
         sampler_config mat_sampler(sampler_filter::anisotropic);
 
-        cc::array const srv_elems = {shader_view_elem::tex2d(l_res.mat_albedo, format::rgba8un), shader_view_elem::tex2d(l_res.mat_normal, format::rgba8un),
-                                     shader_view_elem::tex2d(l_res.mat_metallic, format::r8un), shader_view_elem::tex2d(l_res.mat_roughness, format::r8un)};
+        cc::array const srv_elems = {resource_view::tex2d(l_res.mat_albedo, format::rgba8un), resource_view::tex2d(l_res.mat_normal, format::rgba8un),
+                                     resource_view::tex2d(l_res.mat_metallic, format::r8un), resource_view::tex2d(l_res.mat_roughness, format::r8un)};
 
         l_res.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
     }
@@ -300,8 +300,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         lut_sampler.address_u = sampler_address_mode::clamp;
         lut_sampler.address_v = sampler_address_mode::clamp;
 
-        cc::array const srv_elems = {shader_view_elem::texcube(l_res.ibl_specular, format::rgba16f),
-                                     shader_view_elem::texcube(l_res.ibl_irradiance, format::rgba16f), shader_view_elem::tex2d(l_res.ibl_lut, format::rg16f)};
+        cc::array const srv_elems = {resource_view::texcube(l_res.ibl_specular, format::rgba16f),
+                                     resource_view::texcube(l_res.ibl_irradiance, format::rgba16f), resource_view::tex2d(l_res.ibl_lut, format::rg16f)};
 
         l_res.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
     }
@@ -315,7 +315,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         {
             auto const sampler = sampler_config(sampler_filter::min_mag_mip_point);
-            auto const srv = shader_view_elem::tex2d(l_res.colorbuffer_resolve, format::rgba16f);
+            auto const srv = resource_view::tex2d(l_res.colorbuffer_resolve, format::rgba16f);
             l_res.shaderview_blit = backend.createShaderView(cc::span{srv}, {}, cc::span{sampler});
         }
 

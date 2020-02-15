@@ -4,6 +4,7 @@
 
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
+#include <phantasm-renderer/PrimitivePipeline.hh>
 
 namespace
 {
@@ -57,6 +58,7 @@ TEST("pr::api")
     int h = 1;
 
     std::vector<my_vertex> vertices; // = ...
+    vertices.emplace_back();
 
     camera_data data;
     data.proj = tg::mat4(); // ...
@@ -65,16 +67,15 @@ TEST("pr::api")
     instance_data instanceA; // = ...
     instance_data instanceB; // = ...
 
+    auto t_depth = ctx.make_target<pr::format::depth32f>({w, h}, 0.f);
+    auto t_color = ctx.make_target<pr::format::rgba16f>({w, h}, tg::color3::black);
+    auto vertex_buffer = ctx.make_upload_buffer<my_vertex>(vertices);
+
     {
         auto frame = ctx.make_frame();
 
-        auto vertex_buffer = frame.make_buffer<my_vertex>(vertices);
-
-        auto t_depth = frame.make_image<pr::format::depth32f>({w, h}, 0.0f);
-        auto t_color = frame.make_image<pr::format::rgba16f>({w, h}, tg::color3::black);
-
-        auto fshader = frame.make_fragment_shader<pr::format::rgba16f>("<CODE>");
-        auto vshader = frame.make_vertex_shader<my_vertex>("<CODE>");
+        auto fshader = ctx.make_fragment_shader<pr::format::rgba16f>("<CODE>");
+        auto vshader = ctx.make_vertex_shader<my_vertex>("<CODE>");
 
         {
             // trying to start another pass while this one is active is a CONTRACT VIOLATION
