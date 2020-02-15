@@ -9,8 +9,10 @@ TEST("cc::map")
     CHECK(m.empty());
     CHECK(m.size() == 0);
 
+#ifndef CC_OS_WINDOWS
     m[7] = 3;
     CHECK(m.size() == 1);
     CHECK(m.contains_key(7));
     CHECK(!m.contains_key(5));
+#endif
 }
