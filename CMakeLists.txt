@@ -170,7 +170,7 @@ endif()
 
 function(add_arcana_test TEST_NAME SOURCES)
     # proper folder structure in VS
-    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
+    source_group(${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
 
     # create target
     add_executable(${TEST_NAME} ${SOURCES})
