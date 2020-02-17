@@ -6,56 +6,11 @@
 #include <phantasm-renderer/Frame.hh>
 #include <phantasm-renderer/PrimitivePipeline.hh>
 #include <phantasm-renderer/immediate.hh>
+#include <phantasm-renderer/reflection/vertex_attributes.hh>
 
 namespace
 {
-struct my_vertex
-{
-    tg::pos3 pos;
-    tg::color3 color;
-};
-template <class I>
-constexpr void introspect(I&& i, my_vertex& v)
-{
-    i(v.pos, "pos");
-    i(v.color, "color");
-}
-
-struct camera_data : pr::resources
-{
-    tg::mat4 proj;
-    tg::mat4 view;
-};
-template <class I>
-constexpr void introspect(I&& i, camera_data& v)
-{
-    i(v.proj, "proj");
-    i(v.view, "view");
-}
-
-struct instance_data : pr::immediate
-{
-    tg::mat4 model;
-};
-template <class I>
-constexpr void introspect(I&& i, instance_data& v)
-{
-    i(v.model, "model");
-}
-
-
-}
-
-TEST("pr::api")
-{
-    //
-
-    inc::da::SDLWindow window;
-    window.initialize("api test");
-
-    pr::Context ctx(phi::window_handle{window.getSdlWindow()});
-
-    ctx.make_shader(R"(
+char const* sample_shader_text = R"(
 
                     struct vs_in
                     {
@@ -161,7 +116,7 @@ TEST("pr::api")
                         return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
                     }
 
-                    // Shlick's approximation of the Fresnel factor.
+                    // Schlick's approximation of the Fresnel factor.
                     float3 fresnelSchlick(float3 F0, float cosTheta)
                     {
                         return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -173,7 +128,7 @@ TEST("pr::api")
                         float3 Lh = normalize(Li + Lo);
 
                         // Calculate angles between surface normal and various light vectors.
-                        float cosLi = max(0.0, do(N, Li));
+                        float cosLi = max(0.0, dot(N, Li));
                         float cosLh = max(0.0, dot(N, Lh));
 
                         // Calculate Fresnel term for direct lighting.
@@ -268,7 +223,64 @@ TEST("pr::api")
                     }
 
 
-                    )", "main_ps", phi::shader_stage::pixel);
+                    )";
+
+struct my_vertex
+{
+    tg::pos3 pos;
+    tg::color3 color;
+};
+template <class I>
+constexpr void introspect(I&& i, my_vertex& v)
+{
+    i(v.pos, "pos");
+    i(v.color, "color");
+}
+
+struct camera_data : pr::resources
+{
+    tg::mat4 proj;
+    tg::mat4 view;
+};
+template <class I>
+constexpr void introspect(I&& i, camera_data& v)
+{
+    i(v.proj, "proj");
+    i(v.view, "view");
+}
+
+struct instance_data : pr::immediate
+{
+    tg::mat4 model;
+};
+template <class I>
+constexpr void introspect(I&& i, instance_data& v)
+{
+    i(v.model, "model");
+}
+
+
+}
+
+TEST("pr::api")
+{
+    //
+
+    inc::da::SDLWindow window;
+    window.initialize("api test");
+
+    pr::Context ctx(phi::window_handle{window.getSdlWindow()});
+
+    auto const shader_vertex = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
+    auto const shader_pixel = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
+
+    phi::arg::framebuffer_config fbconf;
+    fbconf.add_render_target(pr::format::rgba16f);
+    fbconf.depth_target.push_back(pr::format::depth32f);
+
+    auto const vert_attrs = pr::get_vertex_attributes<my_vertex>();
+
+    auto const pso = ctx.make_graphics_pipeline_state({vert_attrs, sizeof(my_vertex)}, fbconf, {}, false, {}, shader_vertex, shader_pixel);
 
     int w = 1;
     int h = 1;
@@ -285,30 +297,27 @@ TEST("pr::api")
 
     auto t_depth = ctx.make_target({w, h}, pr::format::depth32f);
     auto t_color = ctx.make_target({w, h}, pr::format::rgba16f);
-    auto vertex_buffer = ctx.make_upload_buffer(sizeof(my_vertex) * vertices.size(), sizeof(my_vertex));
+    auto vertex_buffer = ctx.make_upload_buffer(unsigned(sizeof(my_vertex) * vertices.size()), unsigned(sizeof(my_vertex)));
 
     {
-//        auto frame = ctx.make_frame();
+        auto frame = ctx.make_frame();
 
-//        auto fshader = ctx.make_fragment_shader<pr::format::rgba16f>("<CODE>");
-//        auto vshader = ctx.make_vertex_shader<my_vertex>("<CODE>");
+        {
+            // trying to start another pass while this one is active is a CONTRACT VIOLATION
+            // by default sets viewport to min over image sizes
+            auto fb = frame.render_to(t_color, t_depth);
 
-//        {
-//            // trying to start another pass while this one is active is a CONTRACT VIOLATION
-//            // by default sets viewport to min over image sizes
-//            auto fb = frame.render_to(t_color, t_depth).bind(data);
+            // framebuffer + shader + config = pass
+            auto pass = fb.pipeline(pso);
 
-//            // framebuffer + shader + config = pass
-//            auto pass = fb.pipeline<instance_data>(vshader, fshader, pr::default_config);
+            // issue draw command (explicit bind)
+            pass.draw(vertex_buffer);
 
-//            // issue draw command (explicit bind)
-//            pass.bind(instanceA).draw(vertex_buffer);
-
-//            // issue draw command (variadic draw)
-//            pass.draw(instanceB, vertex_buffer);
-//        }
+            // issue draw command (variadic draw)
+            pass.draw(vertex_buffer);
+        }
 
         // submit frame
-//        ctx.submit(frame);
+        ctx.submit(frame);
     }
 }
