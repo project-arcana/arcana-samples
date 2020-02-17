@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.11)
 project(Arcana)
 
+include(cmake/SourceGroup.cmake)
 
 # ===============================================
 # Global settings
@@ -169,8 +170,7 @@ endif()
 # Tests and samples
 
 function(add_arcana_test TEST_NAME SOURCES)
-    # proper folder structure in VS
-    source_group(${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
+    arcana_source_group(SOURCES)
 
     # create target
     add_executable(${TEST_NAME} ${SOURCES})
