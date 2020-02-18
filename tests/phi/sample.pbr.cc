@@ -20,19 +20,21 @@
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
-#include <arcana-incubator/device-abstraction/timer.hh>
-#include <arcana-incubator/device-abstraction/window.hh>
-#include <arcana-incubator/imgui/imgui_impl_pr.hh>
-#include <arcana-incubator/imgui/imgui_impl_win32.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
+#include <arcana-incubator/device-abstraction/timer.hh>
+
+#include <arcana-incubator/imgui/imgui_impl_pr.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
+#include <arcana-incubator/imgui/imgui_impl_win32.hh>
 
 #include <arcana-incubator/profiling/remotery.hh>
 
-#include "mip_generation.hh"
-#include "scene.hh"
+#include <arcana-incubator/pr-util/mesh_util.hh>
+#include <arcana-incubator/pr-util/texture_creation.hh>
 
+#include "scene.hh"
+#include "texture_util.hh"
 
 namespace
 {
@@ -124,20 +126,20 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         // resource loading, creation and preprocessing
         static_assert(true);
         {
-            phi_test::texture_creation_resources texgen_resources;
-            texgen_resources.initialize(backend);
+            inc::texture_creator tex_creator;
+            tex_creator.initialize(backend, "res/pr/liveness_sample/shader/bin");
 
-            l_res.mat_albedo = texgen_resources.load_texture(phi_test::sample_albedo_path, format::rgba8un, gc_enable_compute_mips, gc_enable_compute_mips);
-            l_res.mat_normal = texgen_resources.load_texture(phi_test::sample_normal_path, format::rgba8un, gc_enable_compute_mips, false);
-            l_res.mat_metallic = texgen_resources.load_texture(phi_test::sample_metallic_path, format::r8un, gc_enable_compute_mips, false);
-            l_res.mat_roughness = texgen_resources.load_texture(phi_test::sample_roughness_path, format::r8un, gc_enable_compute_mips, false);
+            l_res.mat_albedo = tex_creator.load_texture(phi_test::sample_albedo_path, format::rgba8un, gc_enable_compute_mips, gc_enable_compute_mips);
+            l_res.mat_normal = tex_creator.load_texture(phi_test::sample_normal_path, format::rgba8un, gc_enable_compute_mips, false);
+            l_res.mat_metallic = tex_creator.load_texture(phi_test::sample_metallic_path, format::r8un, gc_enable_compute_mips, false);
+            l_res.mat_roughness = tex_creator.load_texture(phi_test::sample_roughness_path, format::r8un, gc_enable_compute_mips, false);
 
-            l_res.ibl_specular = texgen_resources.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
-            l_res.ibl_irradiance = texgen_resources.create_diffuse_irradiance_map(l_res.ibl_specular);
-            l_res.ibl_lut = texgen_resources.create_brdf_lut(256);
+            l_res.ibl_specular = tex_creator.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
+            l_res.ibl_irradiance = tex_creator.create_diffuse_irradiance_map(l_res.ibl_specular);
+            l_res.ibl_lut = tex_creator.create_brdf_lut(256);
 
 
-            texgen_resources.free(backend);
+            tex_creator.free(backend);
         }
 
         // transitions to SRV
@@ -171,55 +173,11 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
     // Mesh setup
     {
-        handle::resource upload_buffer;
+        auto const mesh_res = inc::load_mesh(backend, phi_test::sample_mesh_path, phi_test::sample_mesh_binary);
 
-        auto const buffer_size = 1024ull * 2;
-        auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
-        CC_DEFER { std::free(buffer); };
-        command_stream_writer writer(buffer, buffer_size);
-
-        {
-            auto const mesh_data = phi_test::sample_mesh_binary ? inc::assets::load_binary_mesh(phi_test::sample_mesh_path)
-                                                                : inc::assets::load_obj_mesh(phi_test::sample_mesh_path);
-
-            l_res.num_indices = unsigned(mesh_data.indices.size());
-
-            auto const vert_size = mesh_data.get_vertex_size_bytes();
-            auto const ind_size = mesh_data.get_index_size_bytes();
-
-            l_res.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
-            l_res.index_buffer = backend.createBuffer(ind_size, sizeof(uint32_t));
-
-            {
-                cmd::transition_resources tcmd;
-                tcmd.add(l_res.vertex_buffer, resource_state::copy_dest);
-                tcmd.add(l_res.index_buffer, resource_state::copy_dest);
-                writer.add_command(tcmd);
-            }
-
-            upload_buffer = backend.createMappedBuffer(vert_size + ind_size);
-            std::byte* const upload_mapped = backend.getMappedMemory(upload_buffer);
-
-            std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
-            std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
-
-            writer.add_command(cmd::copy_buffer{l_res.vertex_buffer, 0, upload_buffer, 0, vert_size});
-            writer.add_command(cmd::copy_buffer{l_res.index_buffer, 0, upload_buffer, vert_size, ind_size});
-
-            {
-                cmd::transition_resources tcmd;
-                tcmd.add(l_res.vertex_buffer, resource_state::vertex_buffer);
-                tcmd.add(l_res.index_buffer, resource_state::index_buffer);
-                writer.add_command(tcmd);
-            }
-        }
-
-        auto const setup_cmd_list = backend.recordCommandList(writer.buffer(), writer.size());
-
-        backend.flushMappedMemory(upload_buffer);
-        backend.submit(cc::span{setup_cmd_list});
-        backend.flushGPU();
-        backend.free(upload_buffer);
+        l_res.num_indices = mesh_res.num_indices;
+        l_res.vertex_buffer = mesh_res.vertex_buffer;
+        l_res.index_buffer = mesh_res.index_buffer;
     }
 
     // PSO creation
