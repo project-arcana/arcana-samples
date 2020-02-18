@@ -11,7 +11,7 @@ namespace phi_test
 {
 struct texture_creation_resources
 {
-    void initialize(phi::Backend& backend, char const* shader_ending, bool align_rows);
+    void initialize(phi::Backend& backend);
 
     void free(phi::Backend& backend);
 

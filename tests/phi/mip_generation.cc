@@ -22,12 +22,14 @@ constexpr auto gc_ibl_cubemap_format = format::rgba16f;
 }
 
 
-void phi_test::texture_creation_resources::initialize(phi::Backend& backend, const char* shader_ending, bool align_rows)
+void phi_test::texture_creation_resources::initialize(phi::Backend& backend)
 {
+    char const* const shader_ending = backend.getBackendType() == phi::backend_type::d3d12 ? "dxil" : "spv";
+
     resources_to_free.reserve(1000);
     shader_views_to_free.reserve(1000);
     pending_cmd_lists.reserve(100);
-    align_mip_rows = align_rows;
+    align_mip_rows = backend.getBackendType() == phi::backend_type::d3d12;
     this->backend = &backend;
 
     // create command stream buffer

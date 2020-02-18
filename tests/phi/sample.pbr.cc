@@ -32,7 +32,6 @@
 
 #include "mip_generation.hh"
 #include "scene.hh"
-#include "temp_cmdlist.hh"
 
 
 namespace
@@ -126,7 +125,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         static_assert(true);
         {
             phi_test::texture_creation_resources texgen_resources;
-            texgen_resources.initialize(backend, sample_config.shader_ending, sample_config.align_mip_rows);
+            texgen_resources.initialize(backend);
 
             l_res.mat_albedo = texgen_resources.load_texture(phi_test::sample_albedo_path, format::rgba8un, gc_enable_compute_mips, gc_enable_compute_mips);
             l_res.mat_normal = texgen_resources.load_texture(phi_test::sample_normal_path, format::rgba8un, gc_enable_compute_mips, false);
