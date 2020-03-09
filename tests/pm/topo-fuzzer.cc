@@ -3,9 +3,9 @@
 #include <iostream>
 
 #include <polymesh/Mesh.hh>
-#include <polymesh/algorithms/properties.hh>
 #include <polymesh/debug.hh>
 #include <polymesh/objects.hh>
+#include <polymesh/properties.hh>
 
 #include <typed-geometry/tg-std.hh>
 
@@ -143,8 +143,7 @@ MONTE_CARLO_TEST("pm::Mesh topology mct")
     addOp("edge exists",
           [](Mesh3D const& m, tg::rng& rng) {
               auto e = m.mesh->edges().random(rng);
-              CHECK(m.mesh->edges().exists(e.vertexA(), e.vertexB()));
-              CHECK(m.mesh->halfedges().exists(e.vertexA(), e.vertexB()));
+              CHECK(pm::are_adjacent(e.vertexA(), e.vertexB()));
           })
         .when(has_edges_rng);
 
