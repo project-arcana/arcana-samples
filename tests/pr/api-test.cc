@@ -45,6 +45,7 @@ constexpr void introspect(I&& i, instance_data& v)
 
 }
 
+#if 0
 TEST("pr::api")
 {
     //
@@ -52,7 +53,7 @@ TEST("pr::api")
     inc::da::SDLWindow window;
     window.initialize("api test");
 
-    pr::Context ctx(phi::window_handle{window.getSdlWindow()});
+    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()});
 
     int w = 1;
     int h = 1;
@@ -95,4 +96,92 @@ TEST("pr::api")
         // submit frame
         ctx.submit(frame);
     }
+
+    // bind versions
+    {
+        auto pass = ...;
+
+        struct my_data
+        {
+            int idx;
+            tg::color4 color;
+        };
+
+        // trivially copyable T
+        {
+            tg::mat4 transform = ...;
+            pass.bind(transform).draw(...);
+
+            my_data data = ...;
+            pass.bind(data).draw(...);
+        }
+
+        // contiguous range of trivially copyable T
+        {
+            cc::vector<tg::mat4> transforms = ...;
+            pass.bind(transforms).draw(...);
+
+            cc::array<my_data> data = ...;
+            pass.bind(data).draw(...);
+        }
+
+        // custom setup
+        {
+            struct my_arg : pr::shader_arg
+            {
+                tg::mat4 model;
+                pr::ImageView2D tex_albedo;
+                pr::ImageView2D tex_normal;
+
+                // alternatively also via reflection
+                void setup()
+                {
+                    add(model);
+                    add(tex_albedo);
+                    add(tex_normal);
+                }
+            };
+
+            my_arg arg = ...;
+            pass.bind(arg).draw(...);
+        }
+
+        // directly some resources
+        {
+            pr::Buffer buffer = ...;
+            pass.bind(buffer).draw(...);
+
+            cc::vector<pr::Buffer> buffers = ...;
+            pass.bind(buffers).draw(...);
+
+            pr::Image2D tex = ...;
+            pass.bind(tex).draw(...);
+
+            cc::vector<pr::Image2D> textures = ...;
+            pass.bind(textures).draw(...);
+
+            pr::Image2D texA, texB, texC = ...;
+            pass.bind({texA, texB, texC}).draw(...);
+        }
+
+        // shader arg builder
+        {
+            pr::Buffer buffer = ...;
+            cc::vector<pr::Buffer> buffers = ...;
+            pr::Image2D tex = ...;
+            cc::vector<pr::Image2D> textures = ...;
+            my_data data = ...;
+            tg::mat4 transform = ...;
+
+            pr::shader_arg arg;
+            arg.add(buffer);
+            arg.add(buffers);
+            arg.add(tex, "my_tex"); // name is optional for verification
+            arg.add(textures);
+            arg.add(data);
+            arg.add(transform);
+            pass.bind(arg).draw(...);
+        }
+    }
 }
+#endif
