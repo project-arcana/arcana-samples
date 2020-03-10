@@ -13,4 +13,7 @@ TEST("cc::map")
     CHECK(m.size() == 1);
     CHECK(m.contains_key(7));
     CHECK(!m.contains_key(5));
+
+    CHECK(m.get(7) == 3);
+    CHECK(m[7] == 3);
 }
