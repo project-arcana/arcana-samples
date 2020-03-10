@@ -40,3 +40,6 @@
 [submodule "extern/phantasm-hardware-interface"]
 	path = extern/phantasm-hardware-interface
 	url = git@github.com:project-arcana/phantasm-hardware-interface.git
+[submodule "extern/clean-ranges"]
+	path = extern/clean-ranges
+	url = git@github.com:project-arcana/clean-ranges.git

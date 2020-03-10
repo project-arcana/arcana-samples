@@ -37,6 +37,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BIN_DIR})
 # std replacement
 add_subdirectory(extern/clean-core)
 
+# ranges and collections
+add_subdirectory(extern/clean-ranges)
+
 # math library
 add_subdirectory(extern/typed-geometry)
 
