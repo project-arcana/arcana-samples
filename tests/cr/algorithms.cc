@@ -1,5 +1,6 @@
 ﻿#include <nexus/test.hh>
 
+#include <clean-core/array.hh>
 #include <clean-core/vector.hh>
 
 #include <clean-ranges/algorithms.hh>
@@ -23,10 +24,15 @@ TEST("cr algorithms")
 {
     std::initializer_list<int> empty = {};
     int v[] = {4, 3, 1, 2};
+    cc::vector<int> v_eq = {4, 3, 1, 2};
+    cc::array<int> v_uneq0 = {4, 5, 1, 2};
+    cc::vector<int> v_uneq1 = {4, 3, 1};
+    cc::vector<int> v_uneq2 = {4, 3, 1, 2, 6};
 
     auto const times_two = [](int x) { return x * 2; };
 
     CHECK(cr::sum(v) == 10);
+    CHECK(cr::sum<float>(v) == 10.f);
     CHECK(cr::sum(v, plus_one) == 14);
 
     CHECK(cr::reduce(v, prod) == 4 * 3 * 1 * 2);
@@ -76,11 +82,54 @@ TEST("cr algorithms")
     CHECK(cr::is_non_empty(v));
     CHECK(cr::is_empty(empty));
     CHECK(!cr::is_non_empty(empty));
+
+    CHECK(cr::index_of(v, 3) == 1);
+    CHECK(cr::index_of_safe(v, 1) == 2);
+    CHECK(cr::index_of_safe(v, 5) == -1);
+
+    CHECK(cr::index_of_first(v, is_odd) == 1);
+    CHECK(cr::index_of_first_safe(v, is_odd) == 1);
+    CHECK(cr::index_of_first_safe(v, is_negative) == -1);
+
+    CHECK(cr::index_of_last(v, is_odd) == 2);
+    CHECK(cr::index_of_last_safe(v, is_odd) == 2);
+    CHECK(cr::index_of_last_safe(v, is_negative) == -1);
+
+    CHECK(cr::find(v, is_odd) == 3);
+    CHECK(cr::find_last(v, is_odd) == 1);
+    CHECK(cr::find_or(v, is_odd, 7) == 3);
+    CHECK(cr::find_or(v, is_negative, 7) == 7);
+    CHECK(cr::find_last_or(v, is_odd, 7) == 1);
+    CHECK(cr::find_last_or(v, is_negative, 7) == 7);
+
+    CHECK(cr::n_th(v, 3) == 2);
+    CHECK(cr::n_th_or(v, 2, 7) == 1);
+    CHECK(cr::n_th_or(v, 8, 10) == 10);
+
+    CHECK(cr::average(v) == 2);
+    CHECK(cr::average<float>(v) == 2.5f);
+
+    CHECK(cr::average(v, plus_one) == 3);
+    CHECK(cr::average<float>(v, plus_one) == 3.5f);
+
+    CHECK(cr::are_equal(v, v_eq));
+    CHECK(!cr::are_equal(v, v_uneq0));
+    CHECK(!cr::are_equal(v, v_uneq1));
+    CHECK(!cr::are_equal(v, v_uneq2));
+
+    CHECK(!cr::are_not_equal(v, v_eq));
+    CHECK(cr::are_not_equal(v, v_uneq0));
+    CHECK(cr::are_not_equal(v, v_uneq1));
+    CHECK(cr::are_not_equal(v, v_uneq2));
+
+    // reminder: int v[] = {4, 3, 1, 2};
 }
 
 TEST("cr modifying algorithms")
 {
     cc::vector<int> v;
+    cc::array<int> v2;
+    int x = 10;
 
     v = {2, 3, 4};
     cr::single(v, is_odd) = 10;
@@ -127,4 +176,75 @@ TEST("cr modifying algorithms")
         vmax = 9;
     }
     CHECK(v == cc::vector{4, 9, 7});
+
+    v = {1, 2, 3};
+    cr::fill(v, 17);
+    CHECK(v == cc::vector{17, 17, 17});
+
+    v = {1, 2, 3};
+    v2 = {7, 8};
+    cr::copy_from(v, v2);
+    CHECK(v == cc::vector{7, 8, 3});
+
+    v = {1, 2, 3};
+    v2 = {7, 8};
+    cr::move_from(v, v2);
+    CHECK(v == cc::vector{7, 8, 3});
+
+    v = {4, 2, 1, 3};
+    cr::find(v, is_odd) = 10;
+    CHECK(v == cc::vector{4, 2, 10, 3});
+
+    v = {4, 2, 1, 3};
+    cr::find_last(v, is_odd) = 10;
+    CHECK(v == cc::vector{4, 2, 1, 10});
+
+    v = {4, 2, 1, 3};
+    x = 9;
+    cr::find_or(v, is_odd, x) = 10;
+    CHECK(v == cc::vector{4, 2, 10, 3});
+    CHECK(x == 9);
+
+    v = {4, 2, 1, 3};
+    x = 9;
+    cr::find_or(v, is_negative, x) = 10;
+    CHECK(v == cc::vector{4, 2, 1, 3});
+    CHECK(x == 10);
+
+    v = {4, 2, 1, 3};
+    x = 9;
+    cr::find_last_or(v, is_odd, x) = 10;
+    CHECK(v == cc::vector{4, 2, 1, 10});
+    CHECK(x == 9);
+
+    v = {4, 2, 1, 3};
+    x = 9;
+    cr::find_last_or(v, is_negative, x) = 10;
+    CHECK(v == cc::vector{4, 2, 1, 3});
+    CHECK(x == 10);
+
+    v = {3, 2, 6};
+    cr::n_th(v, 1) = 9;
+    CHECK(v == cc::vector{3, 9, 6});
+
+    v = {3, 2, 6};
+    x = 9;
+    cr::n_th_or(v, 0, x) = 10;
+    CHECK(v == cc::vector{10, 2, 6});
+    CHECK(x == 9);
+
+    v = {3, 2, 6};
+    x = 9;
+    cr::n_th_or(v, 3, x) = 10;
+    CHECK(v == cc::vector{3, 2, 6});
+    CHECK(x == 10);
+
+    v = {1, 2, 3};
+    x = 10;
+    cr::for_each(v, [&](auto& i) {
+        i += 7;
+        ++x;
+    });
+    CHECK(v == cc::vector{8, 9, 10});
+    CHECK(x == 13);
 }
