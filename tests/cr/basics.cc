@@ -3,6 +3,7 @@
 #include <clean-ranges/algorithms/count.hh>
 #include <clean-ranges/algorithms/find.hh>
 #include <clean-ranges/algorithms/for_each.hh>
+#include <clean-ranges/algorithms/element_at.hh>
 #include <clean-ranges/algorithms/single.hh>
 #include <clean-ranges/algorithms/sum.hh>
 #include <clean-ranges/range.hh>
@@ -56,6 +57,13 @@ TEST("range basics")
         --i;
 
     CHECK(cr::range(v).sum() == 20);
+    CHECK(cr::range(v.begin(), v.end()).sum() == 20);
+
+    CHECK(cr::range(10).sum() == 10 * 9 / 2);
+    CHECK(cr::range(5, 8).sum() == 5 + 6 + 7);
+    CHECK(cr::range(5, 11, 2).sum() == 5 + 7 + 9);
+
+    CHECK(cr::inf_range(0).element_at(100) == 100);
 }
 
 TEST("range general call")

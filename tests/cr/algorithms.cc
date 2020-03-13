@@ -4,6 +4,7 @@
 #include <clean-core/vector.hh>
 
 #include <clean-ranges/algorithms.hh>
+#include <clean-ranges/range.hh>
 
 namespace
 {
@@ -102,9 +103,9 @@ TEST("cr algorithms")
     CHECK(cr::find_last_or(v, is_odd, 7) == 1);
     CHECK(cr::find_last_or(v, is_negative, 7) == 7);
 
-    CHECK(cr::n_th(v, 3) == 2);
-    CHECK(cr::n_th_or(v, 2, 7) == 1);
-    CHECK(cr::n_th_or(v, 8, 10) == 10);
+    CHECK(cr::element_at(v, 3) == 2);
+    CHECK(cr::element_at_or(v, 2, 7) == 1);
+    CHECK(cr::element_at_or(v, 8, 10) == 10);
 
     CHECK(cr::average(v) == 2);
     CHECK(cr::average<float>(v) == 2.5f);
@@ -121,6 +122,24 @@ TEST("cr algorithms")
     CHECK(cr::are_not_equal(v, v_uneq0));
     CHECK(cr::are_not_equal(v, v_uneq1));
     CHECK(cr::are_not_equal(v, v_uneq2));
+
+    CHECK(cr::to<cc::vector>(v) == cc::vector{4, 3, 1, 2});
+    CHECK(cr::to<cc::vector>(v, plus_one) == cc::vector{5, 4, 2, 3});
+
+    cc::vector<int> coll;
+    cr::collect(v, coll);
+    CHECK(coll == cc::vector{4, 3, 1, 2});
+
+    CHECK(cr::where(v, is_odd).sum() == 4);
+    CHECK(cr::where_not(v, is_odd).sum() == 6);
+    CHECK(cr::inf_range(10).where([](int x) { return x % 9 == 0; }).element_at(2) == 36);
+
+    CHECK(cr::map(v, plus_one).sum() == 5 + 4 + 2 + 3);
+    CHECK(cr::map(v, plus_one).where(is_odd).sum() == 5 + 3);
+    CHECK(cr::map_where(v, plus_one, is_odd).sum() == 2 + 4);
+    CHECK(cr::where(v, is_odd).map(plus_one).sum() == 2 + 4);
+
+    CHECK(cr::range(0, 10).where(is_odd).map(plus_one).sum() == 2 + 4 + 6 + 8 + 10);
 
     // reminder: int v[] = {4, 3, 1, 2};
 }
@@ -224,18 +243,18 @@ TEST("cr modifying algorithms")
     CHECK(x == 10);
 
     v = {3, 2, 6};
-    cr::n_th(v, 1) = 9;
+    cr::element_at(v, 1) = 9;
     CHECK(v == cc::vector{3, 9, 6});
 
     v = {3, 2, 6};
     x = 9;
-    cr::n_th_or(v, 0, x) = 10;
+    cr::element_at_or(v, 0, x) = 10;
     CHECK(v == cc::vector{10, 2, 6});
     CHECK(x == 9);
 
     v = {3, 2, 6};
     x = 9;
-    cr::n_th_or(v, 3, x) = 10;
+    cr::element_at_or(v, 3, x) = 10;
     CHECK(v == cc::vector{3, 2, 6});
     CHECK(x == 10);
 
@@ -247,4 +266,8 @@ TEST("cr modifying algorithms")
     });
     CHECK(v == cc::vector{8, 9, 10});
     CHECK(x == 13);
+
+    v = {1, 2, 3};
+    cr::where(v, is_odd).fill(4);
+    CHECK(v == cc::vector{4, 2, 4});
 }
