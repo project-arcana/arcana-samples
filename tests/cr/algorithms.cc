@@ -19,6 +19,9 @@ bool is_positive(int x) { return x > 0; }
 bool is_negative(int x) { return x < 0; }
 
 int mod3(int x) { return x % 3; }
+
+template <class T>
+struct show;
 }
 
 TEST("cr algorithms")
@@ -138,16 +141,44 @@ TEST("cr algorithms")
     CHECK(cr::map(v, plus_one).where(is_odd).sum() == 5 + 3);
     CHECK(cr::map_where(v, plus_one, is_odd).sum() == 2 + 4);
     CHECK(cr::where(v, is_odd).map(plus_one).sum() == 2 + 4);
+    CHECK(cr::range(3, 8).map(is_odd).to<cc::vector>() == cc::vector{true, false, true, false, true});
 
     CHECK(cr::range(0, 10).where(is_odd).map(plus_one).sum() == 2 + 4 + 6 + 8 + 10);
 
+    CHECK(cr::average(v) == 2);
+    CHECK(cr::cast_to<float>(v).average() == 2.5f);
+
+    CHECK(cr::zip(v, v_uneq1).count() == 3);
+    CHECK(cr::zip(v, v_uneq0).sum([](cc::tuple<int&, int&> v) { return v.get<0>() * v.get<1>(); }) == 4 * 4 + 3 * 5 + 1 * 1 + 2 * 2);
+
+    CHECK(cr::concat(v, cr::range(0, 3)).to<cc::vector>() == cc::vector{4, 3, 1, 2, 0, 1, 2});
+    CHECK(cr::concat(v, cr::range(0, 0)).to<cc::vector>() == cc::vector{4, 3, 1, 2});
+    CHECK(cr::concat(v, cr::range(0, 0), cr::range(0, 3)).to<cc::vector>() == cc::vector{4, 3, 1, 2, 0, 1, 2});
+    CHECK(cr::concat(cr::range(0, 0), v, cr::range(0, 3)).to<cc::vector>() == cc::vector{4, 3, 1, 2, 0, 1, 2});
+
+    CHECK(!cr::range(v).is_empty());
+    CHECK(cr::range(v).is_non_empty());
+
+    CHECK(cr::drop(v, 2).sum() == 3);
+    CHECK(cr::drop(v, 10).is_empty());
+    CHECK(cr::drop(v, 2).to<cc::vector>() == cc::vector{1, 2});
+    CHECK(cr::drop_while(v, is_odd).to<cc::vector>() == cc::vector{4, 3, 1, 2});
+    CHECK(cr::drop_while(v, is_positive).to<cc::vector>() == cc::vector<int>());
+    CHECK(cr::drop_while_not(v, is_odd).to<cc::vector>() == cc::vector{3, 1, 2});
+
+    CHECK(cr::inf_range(3).take(5).to<cc::vector>() == cc::vector{3, 4, 5, 6, 7});
+    CHECK(cr::inf_range(-3).take_while(is_negative).to<cc::vector>() == cc::vector{-3, -2, -1});
+    CHECK(cr::inf_range(-3).take_while_not(is_positive).to<cc::vector>() == cc::vector{-3, -2, -1, 0});
+
     // reminder: int v[] = {4, 3, 1, 2};
+    //           v_uneq0 = {4, 5, 1, 2};
 }
 
 TEST("cr modifying algorithms")
 {
     cc::vector<int> v;
     cc::array<int> v2;
+    cc::array<int> v3;
     int x = 10;
 
     v = {2, 3, 4};
@@ -270,4 +301,21 @@ TEST("cr modifying algorithms")
     v = {1, 2, 3};
     cr::where(v, is_odd).fill(4);
     CHECK(v == cc::vector{4, 2, 4});
+
+    v = {4, 2, 1};
+    v2 = {3, 2, 1, 0};
+    v3 = {1, 2, 3, 4, 5};
+    for (auto&& [a, b, c] : cr::zip(v, v2, v3))
+    {
+        c += a - b;
+
+        if (a == b)
+        {
+            a += 1;
+            b -= 1;
+        }
+    }
+    CHECK(v == cc::vector{4, 3, 2});
+    CHECK(cr::to<cc::vector>(v2) == cc::vector{3, 1, 0, 0});
+    CHECK(cr::to<cc::vector>(v3) == cc::vector{2, 2, 3, 4, 5});
 }
