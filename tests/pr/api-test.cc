@@ -197,7 +197,7 @@ TEST("pr::api")
     // load mesh buffers
     {
         // load a mesh from disk
-        auto const mesh = inc::assets::load_binary_mesh("extern/arcana-sample-resources/phi/mesh/ball.mesh");
+        auto const mesh = inc::assets::load_binary_mesh("res/arcana-sample-resources/phi/mesh/ball.mesh");
 
         // create an upload buffer and memcpy the mesh data to it
         auto const upbuff = ctx.make_upload_buffer(mesh.get_vertex_size_bytes() + mesh.get_index_size_bytes());
