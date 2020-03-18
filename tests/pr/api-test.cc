@@ -1,11 +1,11 @@
 #include <nexus/test.hh>
 
+#include <arcana-incubator/asset-loading/mesh_loader.hh>
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
 #include <phantasm-renderer/PrimitivePipeline.hh>
-#include <phantasm-renderer/immediate.hh>
 #include <phantasm-renderer/reflection/vertex_attributes.hh>
 
 namespace
@@ -23,16 +23,12 @@ char const* sample_shader_text = R"(
                     struct vs_out
                     {
                         float4 SV_P : SV_POSITION;
-                        float3x3 TBN : VO_TBN;
-                        float3 WorldPos : VO_WP;
-                        float2 Texcoord : VO_UV;
+                        float3 N : VO_NORM;
                     };
 
                     struct camera_constants
                     {
                         float4x4 view_proj;
-                        float3 cam_pos;
-                        float runtime;
                     };
 
                     struct model_constants
@@ -40,25 +36,7 @@ char const* sample_shader_text = R"(
                         uint model_mat_index;
                     };
 
-                    static const float PI = 3.141592;
-                    static const float Epsilon = 0.00001;
-                    // Constant normal incidence Fresnel factor for all dielectrics.
-                    static const float3 Fdielectric = 0.04;
-
                     StructuredBuffer<float4x4> g_model_matrices         : register(t0, space0);
-
-                    Texture2D g_albedo                                  : register(t0, space1);
-                    Texture2D g_normal                                  : register(t1, space1);
-                    Texture2D g_metallic                                : register(t2, space1);
-                    Texture2D g_roughness                               : register(t3, space1);
-
-                    SamplerState g_sampler                              : register(s0, space1);
-
-                    TextureCube g_ibl_specular                          : register(t0, space2);
-                    TextureCube g_ibl_irradiance                        : register(t1, space2);
-                    Texture2D g_ibl_specular_lut                        : register(t2, space2);
-
-                    SamplerState g_lut_sampler                          : register(s0, space2);
 
                     ConstantBuffer<camera_constants> g_frame_data       : register(b0, space0);
 
@@ -71,194 +49,26 @@ char const* sample_shader_text = R"(
                         const float4x4 model = g_model_matrices[g_model_data.model_mat_index];
                         const float4x4 mvp = mul(g_frame_data.view_proj, model);
                         Out.SV_P = mul(mvp, float4(v_in.P, 1.0));
-                        Out.WorldPos = mul(model, float4(v_in.P, 1.0)).xyz;
                         float3 N = normalize(mul((float3x3)model, v_in.N));
-                        Out.Texcoord = v_in.Texcoord;
-
-                        float3 tangent = mul((float3x3)model, v_in.Tangent.xyz);
-                        // gram-schmidt re-orthogonalization
-                        tangent = normalize(tangent) - dot(normalize(tangent), v_in.N) * v_in.N;
-
-                        float3 bitangent = mul((float3x3)model, cross(tangent, v_in.N));
-                        Out.TBN = transpose(float3x3(normalize(tangent), normalize(bitangent), normalize(N)));
-
+                        Out.N = normalize(N);
                         return Out;
-                    }
-
-                    float get_pointlight_contrib(float3 normal, float3 worldpos, float3 lightpos)
-                    {
-                        const float3 L = normalize(lightpos - worldpos);
-                        return saturate(dot(normal, L));
-                    }
-
-                    // GGX/Towbridge-Reitz normal distribution function.
-                    // Uses Disney's reparametrization of alpha = roughness^2.
-                    float ndfGGX(float cosLh, float roughness)
-                    {
-                        float alpha   = roughness * roughness;
-                        float alphaSq = alpha * alpha;
-
-                        float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
-                        return alphaSq / (PI * denom * denom);
-                    }
-
-                    // Single term for separable Schlick-GGX below.
-                    float gaSchlickG1(float cosTheta, float k)
-                    {
-                        return cosTheta / (cosTheta * (1.0 - k) + k);
-                    }
-
-                    // Schlick-GGX approximation of geometric attenuation function using Smith's method.
-                    float gaSchlickGGX(float cosLi, float cosLo, float roughness)
-                    {
-                        float r = roughness + 1.0;
-                        float k = (r * r) / 8.0; // Epic suggests using this roughness remapping for analytic lights.
-                        return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
-                    }
-
-                    // Schlick's approximation of the Fresnel factor.
-                    float3 fresnelSchlick(float3 F0, float cosTheta)
-                    {
-                        return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
-                    }
-
-                    float3 calculateDirectLight(float3 Li, float3 Lo, float cosLo, float3 Lradiance, float3 N, float3 F0, float roughness, float metalness, float3 albedo)
-                    {
-                        // Half-vector between Li and Lo.
-                        float3 Lh = normalize(Li + Lo);
-
-                        // Calculate angles between surface normal and various light vectors.
-                        float cosLi = max(0.0, dot(N, Li));
-                        float cosLh = max(0.0, dot(N, Lh));
-
-                        // Calculate Fresnel term for direct lighting.
-                        float3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
-                        // Calculate normal distribution for specular BRDF.
-                        float D = ndfGGX(cosLh, roughness);
-                        // Calculate geometric attenuation for specular BRDF.
-                        float G = gaSchlickGGX(cosLi, cosLo, roughness);
-
-                        // Diffuse scattering happens due to light being refracted multiple times by a dielectric medium.
-                        // Metals on the other hand either reflect or absorb energy, so diffuse contribution is always zero.
-                        // To be energy conserving we must scale diffuse BRDF contribution based on Fresnel factor & metalness.
-                        float3 kd = lerp(float3(1, 1, 1) - F, float3(0, 0, 0), metalness);
-
-                        // Lambert diffuse BRDF.
-                        // We don't scale by 1/PI for lighting & material units to be more convenient.
-                        // See: https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
-                        float3 diffuseBRDF = kd * albedo;
-
-                        // Cook-Torrance specular microfacet BRDF.
-                        float3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
-
-                        // Total contribution for this light.
-                        return (diffuseBRDF + specularBRDF) * Lradiance * cosLi;
-                    }
-
-                    // Returns number of mipmap levels for specular IBL environment map.
-                    uint querySpecularTextureLevels()
-                    {
-                        uint width, height, levels;
-                        g_ibl_specular.GetDimensions(0, width, height, levels);
-                        return levels;
-                    }
-
-                    float3 calculateIndirectLight(float3 N, float3 F0, float3 Lo, float cosLo, float metalness, float roughness, float3 albedo)
-                    {
-                        // Sample diffuse irradiance at normal direction.
-                        float3 irradiance = g_ibl_irradiance.Sample(g_sampler, N).rgb;
-
-                        // Calculate Fresnel term for ambient lighting.
-                        // Since we use pre-filtered cubemap(s) and irradiance is coming from many directions
-                        // use cosLo instead of angle with light's half-vector (cosLh above).
-                        // See: https://seblagarde.wordpress.com/2011/08/17/hello-world/
-                        float3 F = fresnelSchlick(F0, cosLo);
-
-                        // Specular reflection vector.
-                        float3 Lr = 2.0 * cosLo * N - Lo;
-
-                        // Get diffuse contribution factor (as with direct lighting).
-                        float3 kd = lerp(1.0 - F, 0.0, metalness);
-
-                        // Irradiance map contains exitant radiance assuming Lambertian BRDF, no need to scale by 1/PI here either.
-                        float3 diffuseIBL = kd * albedo * irradiance;
-
-                        // Sample pre-filtered specular reflection environment at correct mipmap level.
-                        uint specularTextureLevels = querySpecularTextureLevels();
-                        float3 specularIrradiance = g_ibl_specular.SampleLevel(g_sampler, Lr, roughness * specularTextureLevels).rgb;
-
-                        // Split-sum approximation factors for Cook-Torrance specular BRDF.
-                        float2 specularBRDF = g_ibl_specular_lut.Sample(g_lut_sampler, float2(cosLo, roughness)).rg;
-
-                        // Total specular IBL contribution.
-                        float3 specularIBL = (F0 * specularBRDF.x + specularBRDF.y) * specularIrradiance;
-
-                        // Total ambient lighting contribution.
-                        return diffuseIBL + specularIBL;
                     }
 
                     float4 main_ps(vs_out p_in) : SV_TARGET
                     {
-                        float3 N = normalize(2.0 * g_normal.Sample(g_sampler, p_in.Texcoord).rgb - 1.0);
-                        N = normalize(mul(p_in.TBN, N));
+                        float3 Li =  normalize(float3(-2, 2, 3));
+                        float dotNL = dot(p_in.N, Li);
 
-                        const float3 Lo = normalize(g_frame_data.cam_pos - p_in.WorldPos);
-
-                        const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
-                        const float metalness = g_metallic.Sample(g_sampler, p_in.Texcoord).r;
-                        const float roughness = g_roughness.Sample(g_sampler, p_in.Texcoord).r;
-
-                        // Angle between surface normal and outgoing light direction.
-                        float cosLo = max(0.0, dot(N, Lo));
-
-                        // Fresnel reflectance at normal incidence (for metals use albedo color).
-                        float3 F0 = lerp(Fdielectric, albedo, metalness);
-
-                        float3 directLighting = 0.0;
-
-                        float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
-                        directLighting += calculateDirectLight(Li, Lo, cosLo, 1.0, N, F0, roughness, metalness, albedo);
-                        float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
-                        return float4(directLighting + indirect, 1.0);
+                        return float4(dotNL, dotNL, dotNL, 1.0);
                     }
 
 
                     )";
 
-struct my_vertex
+struct cam_constants
 {
-    tg::pos3 pos;
-    tg::color3 color;
+    tg::mat4 vp;
 };
-template <class I>
-constexpr void introspect(I&& i, my_vertex& v)
-{
-    i(v.pos, "pos");
-    i(v.color, "color");
-}
-
-struct camera_data : pr::resources
-{
-    tg::mat4 proj;
-    tg::mat4 view;
-};
-template <class I>
-constexpr void introspect(I&& i, camera_data& v)
-{
-    i(v.proj, "proj");
-    i(v.view, "view");
-}
-
-struct instance_data : pr::immediate
-{
-    tg::mat4 model;
-};
-template <class I>
-constexpr void introspect(I&& i, instance_data& v)
-{
-    i(v.model, "model");
-}
-
 
 }
 
@@ -271,53 +81,105 @@ TEST("pr::api")
 
     pr::Context ctx(phi::window_handle{window.getSdlWindow()});
 
+    ctx.start_capture();
+
     auto const shader_vertex = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
     auto const shader_pixel = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
 
     phi::arg::framebuffer_config fbconf;
     fbconf.add_render_target(pr::format::rgba16f);
-    fbconf.depth_target.push_back(pr::format::depth32f);
+    fbconf.add_depth_target(pr::format::depth32f);
 
-    auto const vert_attrs = pr::get_vertex_attributes<my_vertex>();
+    auto const arg_shape = phi::arg::shader_arg_shape{1, 0, 0, true};
 
-    auto const pso = ctx.make_graphics_pipeline_state({vert_attrs, sizeof(my_vertex)}, fbconf, {}, false, {}, shader_vertex, shader_pixel);
+    auto const pso = ctx.make_graphics_pipeline_state<inc::assets::simple_vertex>(fbconf, cc::span{arg_shape}, true, {}, shader_vertex, shader_pixel);
 
-    int w = 1;
-    int h = 1;
+    pr::buffer b_indices;
+    pr::buffer b_vertices;
 
-    cc::vector<my_vertex> vertices; // = ...
-    vertices.emplace_back();
-
-    camera_data data;
-    data.proj = tg::mat4(); // ...
-    data.view = tg::mat4(); // ...
-
-    instance_data instanceA; // = ...
-    instance_data instanceB; // = ...
-
-    auto t_depth = ctx.make_target({w, h}, pr::format::depth32f);
-    auto t_color = ctx.make_target({w, h}, pr::format::rgba16f);
-    auto vertex_buffer = ctx.make_upload_buffer(unsigned(sizeof(my_vertex) * vertices.size()), unsigned(sizeof(my_vertex)));
+    pr::render_target t_depth;
+    pr::render_target t_color;
 
     {
-        auto frame = ctx.make_frame();
+        // load a mesh from disk
+        auto const mesh = inc::assets::load_binary_mesh("res/pr/liveness_sample/mesh/ball.mesh");
+
+        // create an upload buffer and memcpy the mesh data to it
+        auto const upbuff = ctx.make_upload_buffer(mesh.get_vertex_size_bytes() + mesh.get_index_size_bytes());
+        ctx.write_buffer(upbuff, mesh.vertices.data(), mesh.get_vertex_size_bytes());
+        ctx.write_buffer(upbuff, mesh.indices.data(), mesh.get_index_size_bytes(), mesh.get_vertex_size_bytes());
+
+        // create device-memory vertex/index buffers
+        b_vertices = ctx.make_buffer(mesh.get_vertex_size_bytes(), sizeof(inc::assets::simple_vertex));
+        b_indices = ctx.make_buffer(mesh.get_index_size_bytes(), sizeof(uint32_t));
 
         {
-            // trying to start another pass while this one is active is a CONTRACT VIOLATION
-            // by default sets viewport to min over image sizes
-            auto fb = frame.render_to(t_color, t_depth);
+            auto frame = ctx.make_frame();
 
-            // framebuffer + shader + config = pass
-            auto pass = fb.pipeline(pso);
+            // copy to them
+            frame.copy(upbuff, b_vertices);
+            frame.copy(upbuff, b_indices, mesh.get_vertex_size_bytes());
 
-            // issue draw command (explicit bind)
-            pass.draw(vertex_buffer);
-
-            // issue draw command (variadic draw)
-            pass.draw(vertex_buffer);
+            ctx.submit(frame);
         }
 
-        // submit frame
-        ctx.submit(frame);
+        ctx.flush();
     }
+
+    cc::vector<tg::mat4> modelmats;
+    modelmats.emplace_back();
+
+    auto modelmat_srv = ctx.make_upload_buffer(sizeof(tg::mat4) * modelmats.size(), sizeof(tg::mat4));
+    auto camconst_cbv = ctx.make_upload_buffer(sizeof(cam_constants));
+
+    ctx.write_buffer(modelmat_srv, modelmats.data(), modelmats.size() * sizeof(modelmats[0]));
+    ctx.write_buffer_t(modelmat_srv, cam_constants{tg::mat4::identity});
+
+    pr::shader_view sv;
+    sv.add_srv(modelmat_srv);
+
+    auto const svb = ctx.make_argument(sv);
+
+    auto create_targets = [&](tg::isize2 size) {
+        t_depth = ctx.make_target(size, pr::format::depth32f);
+        t_color = ctx.make_target(size, pr::format::rgba16f);
+    };
+
+    create_targets(ctx.get_backbuffer_size());
+
+    while ((void)window.pollEvents(), !window.isRequestingClose())
+    {
+        if (!window.isMinimized())
+        {
+            if (window.clearPendingResize())
+                ctx.on_window_resize(window.getSize());
+
+            if (ctx.clear_backbuffer_resize())
+                create_targets(ctx.get_backbuffer_size());
+
+
+            {
+                auto frame = ctx.make_frame();
+
+                {
+                    auto fb = frame.render_to(t_color, t_depth);
+                    auto pass = fb.pipeline(pso);
+
+                    pass.add_argument(svb, camconst_cbv);
+
+                    for (auto i = 0u; i < modelmats.size(); ++i)
+                    {
+                        pass.write_root_constants(i);
+                        pass.draw_indexed(b_vertices, b_indices);
+                    }
+                }
+
+                ctx.submit(frame);
+            }
+            ctx.present();
+        }
+    }
+
+    ctx.flush();
+    ctx.end_capture();
 }
