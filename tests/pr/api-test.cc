@@ -197,7 +197,7 @@ TEST("pr::api")
     // load mesh buffers
     {
         // load a mesh from disk
-        auto const mesh = inc::assets::load_binary_mesh("res/pr/liveness_sample/mesh/ball.mesh");
+        auto const mesh = inc::assets::load_binary_mesh("extern/arcana-sample-resources/phi/mesh/ball.mesh");
 
         // create an upload buffer and memcpy the mesh data to it
         auto const upbuff = ctx.make_upload_buffer(mesh.get_vertex_size_bytes() + mesh.get_index_size_bytes());
@@ -281,13 +281,20 @@ TEST("pr::api")
                     }
                 }
 
+                auto backbuffer = ctx.acquire_backbuffer();
+
+                frame.transition(backbuffer, phi::resource_state::render_target);
+                frame.transition(t_color, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+
                 {
-                    auto fb = frame.render_to(ctx.acquire_backbuffer());
+                    auto fb = frame.render_to(backbuffer);
                     auto pass = fb.pipeline(pso_blit);
 
                     pass.add_argument(sv_blit);
                     pass.draw(3);
                 }
+
+                frame.transition(backbuffer, phi::resource_state::present);
 
                 ctx.submit(frame);
             }
