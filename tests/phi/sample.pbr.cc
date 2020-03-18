@@ -134,7 +134,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             l_res.mat_metallic = tex_creator.load_texture(phi_test::sample_metallic_path, format::r8un, gc_enable_compute_mips, false);
             l_res.mat_roughness = tex_creator.load_texture(phi_test::sample_roughness_path, format::r8un, gc_enable_compute_mips, false);
 
-            l_res.ibl_specular = tex_creator.load_filtered_specular_map("res/pr/liveness_sample/texture/ibl/mono_lake.hdr");
+            l_res.ibl_specular = tex_creator.load_filtered_specular_map("extern/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
             l_res.ibl_irradiance = tex_creator.create_diffuse_irradiance_map(l_res.ibl_specular);
             l_res.ibl_lut = tex_creator.create_brdf_lut(256);
 

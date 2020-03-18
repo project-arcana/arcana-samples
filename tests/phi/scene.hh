@@ -35,13 +35,13 @@ inline tg::mat4 get_view_matrix(tg::pos3 const& cam_pos)
 inline tg::mat4 get_view_projection_matrix(tg::pos3 const& cam_pos, int w, int h) { return get_projection_matrix(w, h) * get_view_matrix(cam_pos); }
 
 
-inline constexpr auto sample_mesh_path = massive_sample ? "res/pr/liveness_sample/mesh/icosphere.obj" : "res/pr/liveness_sample/mesh/ball.mesh";
+inline constexpr auto sample_mesh_path = massive_sample ? "extern/arcana-sample-resources/phi/mesh/icosphere.obj" : "extern/arcana-sample-resources/phi/mesh/ball.mesh";
 inline constexpr auto sample_mesh_binary = massive_sample ? false : true;
 
-inline constexpr auto sample_albedo_path = massive_sample ? "res/pr/liveness_sample/texture/uv_checker.png" : "res/pr/liveness_sample/texture/ball/albedo.png";
-inline constexpr auto sample_normal_path = "res/pr/liveness_sample/texture/ball/normal.png";
-inline constexpr auto sample_metallic_path = "res/pr/liveness_sample/texture/ball/metallic.png";
-inline constexpr auto sample_roughness_path = "res/pr/liveness_sample/texture/ball/roughness.png";
+inline constexpr auto sample_albedo_path = massive_sample ? "extern/arcana-sample-resources/phi/texture/uv_checker.png" : "extern/arcana-sample-resources/phi/texture/ball/albedo.png";
+inline constexpr auto sample_normal_path = "extern/arcana-sample-resources/phi/texture/ball/normal.png";
+inline constexpr auto sample_metallic_path = "extern/arcana-sample-resources/phi/texture/ball/metallic.png";
+inline constexpr auto sample_roughness_path = "extern/arcana-sample-resources/phi/texture/ball/roughness.png";
 
 struct global_data
 {
