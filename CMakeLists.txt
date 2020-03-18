@@ -62,6 +62,7 @@ add_subdirectory(extern/polymesh)
 add_subdirectory(extern/phantasm-hardware-interface)
 
 # shader compiler
+set(DXCWRAP_BUILD_STANDALONE ON)
 add_subdirectory(extern/dxc-wrapper)
 
 # phantasm renderer
