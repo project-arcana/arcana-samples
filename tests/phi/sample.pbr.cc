@@ -127,7 +127,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         static_assert(true);
         {
             inc::texture_creator tex_creator;
-            tex_creator.initialize(backend, "res/pr/liveness_sample/shader/bin");
+            tex_creator.initialize(backend, "res/phi/shader/bin");
 
             l_res.mat_albedo = tex_creator.load_texture(phi_test::sample_albedo_path, format::rgba8un, gc_enable_compute_mips, gc_enable_compute_mips);
             l_res.mat_normal = tex_creator.load_texture(phi_test::sample_normal_path, format::rgba8un, gc_enable_compute_mips, false);
@@ -191,8 +191,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             arg::shader_arg_shape(3, 0, 1),
         };
 
-        auto const vs = get_shader_binary("vertex", sample_config.shader_ending);
-        auto const ps = get_shader_binary("pixel", sample_config.shader_ending);
+        auto const vs = get_shader_binary("mesh_pbr_vs", sample_config.shader_ending);
+        auto const ps = get_shader_binary("mesh_pbr_ps", sample_config.shader_ending);
         CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
 
         cc::array const shader_stages
@@ -215,8 +215,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         // Argument 0, blit target SRV + sampler
         cc::array const payload_shape = {arg::shader_arg_shape(1, 0, 1)};
 
-        auto const vs = get_shader_binary("blit_vertex", sample_config.shader_ending);
-        auto const ps = get_shader_binary("blit_pixel", sample_config.shader_ending);
+        auto const vs = get_shader_binary("fullscreen_vs", sample_config.shader_ending);
+        auto const ps = get_shader_binary("postprocess_ps", sample_config.shader_ending);
         CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
 
         cc::array const shader_stages
