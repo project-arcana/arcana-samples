@@ -43,3 +43,9 @@
 [submodule "extern/clean-ranges"]
 	path = extern/clean-ranges
 	url = git@github.com:project-arcana/clean-ranges.git
+[submodule "extern/dxc-wrapper"]
+	path = extern/dxc-wrapper
+	url = git@github.com:project-arcana/dxc-wrapper.git
+[submodule "res/arcana-sample-resources"]
+	path = res/arcana-sample-resources
+	url = https://github.com/project-arcana/arcana-sample-resources.git

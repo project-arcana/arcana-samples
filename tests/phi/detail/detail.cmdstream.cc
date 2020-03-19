@@ -5,6 +5,7 @@
 #include <clean-core/defer.hh>
 
 #include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/command_reading.hh>
 
 using namespace phi;
 
@@ -17,13 +18,13 @@ struct callback
     int num_transition = 0;
     int num_end_rp = 0;
 
-    void execute(cmd::begin_render_pass const&) { ++num_beg_rp; }
-    void execute(cmd::draw const&) { ++num_draw; }
-    void execute(cmd::transition_resources const&) { ++num_transition; }
-    void execute(cmd::end_render_pass const&) { ++num_end_rp; }
+    [[maybe_unused]] void execute(cmd::begin_render_pass const&) { ++num_beg_rp; }
+    [[maybe_unused]] void execute(cmd::draw const&) { ++num_draw; }
+    [[maybe_unused]] void execute(cmd::transition_resources const&) { ++num_transition; }
+    [[maybe_unused]] void execute(cmd::end_render_pass const&) { ++num_end_rp; }
 
     template <class CmdT>
-    void execute(CmdT const&)
+    [[maybe_unused]] void execute(CmdT const&)
     {
         // catch-all for additional commands
     }
@@ -35,7 +36,7 @@ FUZZ_TEST("pr backend detail - command stream")(tg::rng& rng)
     constexpr size_t buffer_size = 1024 * 1024;
 
     constexpr auto max_num_cmds = 2000u;
-    static_assert(cmd::detail::max_command_size * max_num_cmds < buffer_size);
+    static_assert(cmd::detail::compute_max_command_size() * max_num_cmds < buffer_size);
 
     // allocate a buffer (1kb, which is why this test costs 3ms)
     auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));

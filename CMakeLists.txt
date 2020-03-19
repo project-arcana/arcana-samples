@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.11)
 project(Arcana)
 
+include(cmake/SourceGroup.cmake)
 
 # ===============================================
 # Global settings
@@ -63,6 +64,10 @@ add_subdirectory(extern/polymesh)
 # phantasm hardware interface
 add_subdirectory(extern/phantasm-hardware-interface)
 
+# shader compiler
+set(DXCWRAP_BUILD_STANDALONE ON)
+add_subdirectory(extern/dxc-wrapper)
+
 # phantasm renderer
 add_subdirectory(extern/phantasm-renderer)
 
@@ -95,6 +100,9 @@ if (ARC_ENABLE_ASAN AND ARC_ENABLE_MSAN)
     message(FATAL_ERROR "Can only enable one of ASan or MSan at a time")
 endif()
 
+option(ARC_DISABLE_EXCEPTIONS "Set compiler flags to disable exception handling" OFF)
+option(ARC_DISABLE_RTTI "Set compiler flags to disable RTTI" OFF)
+
 # ===============================================
 # Compile flags
 
@@ -105,11 +113,27 @@ if (MSVC)
     list(APPEND COMMON_COMPILER_FLAGS
         /MP
     )
+
+    if (ARC_DISABLE_EXCEPTIONS)
+        string(REPLACE "/EHsc" "/EHs-c- /D _HAS_EXCEPTIONS=0" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    endif()
+
+    if (ARC_DISABLE_RTTI)
+        string(REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    endif()
 else()
     list(APPEND COMMON_COMPILER_FLAGS
         -Wall
         -Wno-unused-variable
     )
+
+    if (ARC_DISABLE_EXCEPTIONS)
+        list(APPEND COMMON_COMPILER_FLAGS -fno-exceptions)
+    endif()
+
+    if (ARC_DISABLE_RTTI)
+        list(APPEND COMMON_COMPILER_FLAGS -fno-rtti)
+    endif()
 
     if (ARC_ENABLE_ASAN OR ARC_ENABLE_TSAN OR ARC_ENABLE_MSAN OR ARC_ENABLE_UBSAN)
         list(APPEND COMMON_COMPILER_FLAGS -fno-omit-frame-pointer -g)
@@ -150,8 +174,7 @@ endif()
 # Tests and samples
 
 function(add_arcana_test TEST_NAME SOURCES)
-    # proper folder structure in VS
-    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
+    arcana_source_group(SOURCES)
 
     # create target
     add_executable(${TEST_NAME} ${SOURCES})

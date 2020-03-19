@@ -1,4 +1,0 @@
-
-IBL precomputation compute shaders adapted from:
-https://github.com/Nadrin/PBR/tree/master/data/shaders/hlsl
-MIT License
