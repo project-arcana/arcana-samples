@@ -56,16 +56,20 @@ add_subdirectory(extern/task-dispatcher)
 # logging
 add_subdirectory(extern/rich-log)
 
+
 ## Main
 
 # half-edge meshes
 add_subdirectory(extern/polymesh)
 
+# SDL2
+add_subdirectory(extern/sdl2-dev)
+
 # phantasm hardware interface
 add_subdirectory(extern/phantasm-hardware-interface)
 
 # shader compiler
-set(DXCWRAP_BUILD_STANDALONE ON)
+set(DXCWRAP_BUILD_STANDALONE ON CACHE BOOL "" FORCE)
 add_subdirectory(extern/dxc-wrapper)
 
 # phantasm renderer
@@ -174,7 +178,7 @@ endif()
 # Tests and samples
 
 function(add_arcana_test TEST_NAME SOURCES)
-    arcana_source_group(SOURCES)
+    # arcana_source_group(SOURCES)
 
     # create target
     add_executable(${TEST_NAME} ${SOURCES})
@@ -208,6 +212,17 @@ foreach(TARGET_NAME
     rich-log
     task-dispatcher
     structured-interface
+    arcana-incubator
+    dxc-wrapper
+    dxc-wrap
+    clean-ranges
+    phantasm-hardware-interface
 )
-    set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
+set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
+endforeach()
+
+foreach(TARGET_NAME
+    dxc-wrapper-standalone    
+)
+    set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Tools")
 endforeach()
