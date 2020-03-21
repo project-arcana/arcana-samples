@@ -191,6 +191,15 @@ TEST("cr modifying algorithms")
     cc::array<int> v3;
     int x = 10;
 
+    struct foo
+    {
+        int v;
+
+        foo() = default;
+        explicit foo(int v) : v(v) {}
+    };
+    cc::vector<foo> fv;
+
     v = {2, 3, 4};
     cr::single(v, is_odd) = 10;
     CHECK(v == cc::vector{2, 10, 4});
@@ -338,4 +347,19 @@ TEST("cr modifying algorithms")
     cr::pad_with(v, x).take(6).each() += 2;
     CHECK(v == cc::vector{4, 3, 5});
     CHECK(x == 13);
+
+    v = {2, 1, 3};
+    for (auto&& [idx, val] : cr::indexed(v))
+        val += int(idx);
+    CHECK(v == cc::vector{2, 2, 5});
+
+    fv = {foo(2), foo(5)};
+    for (auto&& [idx, val] : cr::indexed(fv))
+        val.v += int(idx) + 1;
+    CHECK(cr::map(fv, &foo::v) == cc::vector{3, 7});
+
+    fv = {foo(2), foo(5)};
+    for (auto&& [idx, val] : cr::indexed(fv, &foo::v))
+        val += int(idx) + 1;
+    CHECK(cr::map(fv, &foo::v) == cc::vector{3, 7});
 }
