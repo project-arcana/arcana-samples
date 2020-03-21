@@ -53,6 +53,16 @@ TEST("cr copy guarantees")
     CHECK(cr::range(ir).map(plus_one).where(is_odd).sum() == 3 + 5);
     CHECK(cr::range(ir).map(plus_one).where_not(is_odd).sum() == 2 + 4 + 6);
     CHECK(cr::range(ir).map_where(plus_one, is_odd).sum() == 2 + 4 + 6);
-
-    // TODO: zip, concat
+    CHECK(cr::range(ir).concat(ir) == cc::vector{1, 2, 3, 4, 5, 1, 2, 3, 4, 5});
+    CHECK(cr::range(ir).where(is_odd).concat(ir) == cc::vector{1, 3, 5, 1, 2, 3, 4, 5});
+    CHECK(cr::range(ir).where(is_odd).zip(ir).count() == 3);
+    CHECK(cr::range(ir).drop(2) == cc::vector{3, 4, 5});
+    CHECK(cr::range(ir).drop_while(is_odd) == cc::vector{2, 3, 4, 5});
+    CHECK(cr::range(ir).drop_while_not(is_odd) == cc::vector{1, 2, 3, 4, 5});
+    CHECK(cr::range(ir).take(2) == cc::vector{1, 2});
+    CHECK(cr::range(ir).take_while(is_odd) == cc::vector{1});
+    CHECK(cr::range(ir).take_while_not(is_odd) == cc::vector<int>{});
+    CHECK(cr::range(ir).cast_to<double>() == cc::vector{1., 2., 3., 4., 5.});
+    CHECK(cr::range(ir).repeat(plus_one).take(7) == cc::vector{2, 3, 4, 5, 6, 2, 3});
+    CHECK(cr::range(ir).times(2) == cc::vector{1, 2, 3, 4, 5, 1, 2, 3, 4, 5});
 }

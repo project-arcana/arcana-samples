@@ -170,6 +170,16 @@ TEST("cr algorithms")
     CHECK(cr::inf_range(-3).take_while(is_negative).to<cc::vector>() == cc::vector{-3, -2, -1});
     CHECK(cr::inf_range(-3).take_while_not(is_positive).to<cc::vector>() == cc::vector{-3, -2, -1, 0});
 
+    CHECK(cr::repeat(v).take(10) == cc::vector{4, 3, 1, 2, 4, 3, 1, 2, 4, 3});
+    CHECK(cr::pad_with(v, 7).take(6) == cc::vector{4, 3, 1, 2, 7, 7});
+    CHECK(cr::times(v, 0) == cc::vector<int>{});
+    CHECK(cr::times(v, 1) == cc::vector{4, 3, 1, 2});
+    CHECK(cr::times(v, 2) == cc::vector{4, 3, 1, 2, 4, 3, 1, 2});
+    CHECK(cr::times(v, 3) == cc::vector{4, 3, 1, 2, 4, 3, 1, 2, 4, 3, 1, 2});
+    CHECK(cr::times(cc::vector<int>{}, 0) == cc::vector<int>{});
+    CHECK(cr::times(cc::vector<int>{}, 1) == cc::vector<int>{});
+    CHECK(cr::times(cc::vector<int>{}, 2) == cc::vector<int>{});
+
     // reminder: int v[] = {4, 3, 1, 2};
     //           v_uneq0 = {4, 5, 1, 2};
 }
@@ -318,4 +328,14 @@ TEST("cr modifying algorithms")
     CHECK(v == cc::vector{4, 3, 2});
     CHECK(cr::to<cc::vector>(v2) == cc::vector{3, 1, 0, 0});
     CHECK(cr::to<cc::vector>(v3) == cc::vector{2, 2, 3, 4, 5});
+
+    v = {3, 2, 5};
+    cr::each(v) += 3;
+    CHECK(v == cc::vector{6, 5, 8});
+
+    v = {2, 1, 3};
+    x = 7;
+    cr::pad_with(v, x).take(6).each() += 2;
+    CHECK(v == cc::vector{4, 3, 5});
+    CHECK(x == 13);
 }
