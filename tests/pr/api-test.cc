@@ -5,7 +5,7 @@
 
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
-#include <phantasm-renderer/PrimitivePipeline.hh>
+#include <phantasm-renderer/GraphicsPass.hh>
 #include <phantasm-renderer/reflection/vertex_attributes.hh>
 
 namespace
@@ -172,8 +172,8 @@ TEST("pr::api")
     pr::render_target t_depth;
     pr::render_target t_color;
 
-    pr::baked_shader_view sv_render;
-    pr::baked_shader_view sv_blit;
+    pr::baked_argument sv_render;
+    pr::baked_argument sv_blit;
 
     unsigned const num_instances = 3;
 
@@ -248,8 +248,8 @@ TEST("pr::api")
     }
 
     {
-        pr::shader_view sv;
-        sv.add_srv(b_modelmats);
+        pr::argument sv;
+        sv.add(b_modelmats);
         sv_render = ctx.make_argument(sv);
     }
 
@@ -261,8 +261,8 @@ TEST("pr::api")
                         * tg::look_at_directx(tg::pos3(5, 5, 5), tg::pos3(0, 0, 0), tg::vec3(0, 1, 0));
         ctx.write_buffer_t(b_camconsts, cam_constants{vp});
 
-        pr::shader_view sv;
-        sv.add_srv(t_color);
+        pr::argument sv;
+        sv.add(t_color);
         sv.add_sampler(phi::sampler_filter::min_mag_mip_point);
         sv_blit = ctx.make_argument(sv);
     };
@@ -273,51 +273,46 @@ TEST("pr::api")
     {
         window.pollEvents();
 
-        if (!window.isMinimized())
+        if (window.isMinimized())
+            continue;
+
+        if (window.clearPendingResize())
+            ctx.on_window_resize(window.getSize());
+
+        if (ctx.clear_backbuffer_resize())
+            create_targets(ctx.get_backbuffer_size());
+
         {
-            if (window.clearPendingResize())
-                ctx.on_window_resize(window.getSize());
-
-            if (ctx.clear_backbuffer_resize())
-                create_targets(ctx.get_backbuffer_size());
-
+            auto frame = ctx.make_frame();
 
             {
-                auto frame = ctx.make_frame();
+                auto fb = frame.render_to(t_color, t_depth);
+                auto pass = fb.make_pass(pso_render).bind(sv_render, b_camconsts);
 
+                for (auto i = 0u; i < num_instances; ++i)
                 {
-                    auto fb = frame.render_to(t_color, t_depth);
-                    auto pass = fb.pipeline(pso_render);
-
-                    pass.add_argument(sv_render, b_camconsts);
-
-                    for (auto i = 0u; i < num_instances; ++i)
-                    {
-                        pass.write_root_constants(i);
-                        pass.draw_indexed(b_vertices, b_indices);
-                    }
+                    pass.write_root_constants(i);
+                    pass.draw(b_vertices, b_indices);
                 }
-
-                auto backbuffer = ctx.acquire_backbuffer();
-
-                frame.transition(backbuffer, phi::resource_state::render_target);
-                frame.transition(t_color, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-
-                {
-                    auto fb = frame.render_to(backbuffer);
-                    auto pass = fb.pipeline(pso_blit);
-
-                    pass.add_argument(sv_blit);
-                    pass.draw(3);
-                }
-
-                frame.transition(backbuffer, phi::resource_state::present);
-
-                ctx.submit(frame);
             }
 
-            ctx.present();
+            auto backbuffer = ctx.acquire_backbuffer();
+
+            frame.transition(t_color, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+
+            {
+                auto fb = frame.render_to(backbuffer);
+                auto pass = fb.make_pass(pso_blit).bind(sv_blit);
+
+                pass.draw(3);
+            }
+
+            frame.transition(backbuffer, phi::resource_state::present);
+
+            ctx.submit(frame);
         }
+
+        ctx.present();
     }
 
     ctx.flush();
