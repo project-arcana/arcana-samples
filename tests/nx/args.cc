@@ -63,6 +63,7 @@ TEST("nx::args")
         cc::string txt;
         cc::string txt2;
         cc::string txt3;
+        cc::string txt4;
         bool a = false;
         int n = 0;
 
@@ -77,6 +78,7 @@ TEST("nx::args")
                         .add(txt, "text", "")
                         .add(txt2, "t", "")
                         .add(txt3, "text3", "")
+                        .add(txt4, "text4", "")
                         .add(a, "a", "")
                         .add(n, "n", "");
 
@@ -86,13 +88,20 @@ TEST("nx::args")
             "-ccc",                        //
             "--count",                     //
             "-ku",                         //
+            "abc",                         //
             "-i=8",                        //
             "-f1.5",                       //
             "-s",           "17",          //
             "--text=hello",                //
             "-tblub",                      //
+            "def",                         //
             "--text3",      "hello world", //
+            "--text4",      "--",          //
             "-an100",                      //
+            "--",                          //
+            "-a",                          //
+            "--x",                         //
+            "end",                         //
         };
         auto ok = args.parse(sizeof(argv) / sizeof(argv[0]), argv);
         CHECK(ok);
@@ -110,9 +119,12 @@ TEST("nx::args")
         CHECK(txt == "hello");
         CHECK(txt2 == "blub");
         CHECK(txt3 == "hello world");
+        CHECK(txt4 == "--");
         CHECK(a);
         CHECK(n == 100);
         CHECK(args.get_or("s", 9) == 17);
         CHECK(args.get_or("undef", 9) == 9);
+
+        CHECK(args.positional_args() == cc::vector<cc::string>{"abc", "def", "-a", "--x", "end"});
     }
 }
