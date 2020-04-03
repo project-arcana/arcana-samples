@@ -23,6 +23,11 @@ void introspect(I&& i, foo& v)
 
 TEST("si api", disabled)
 {
+    // see https://docs.microsoft.com/en-us/dotnet/framework/wpf/controls/control-library
+    // see https://docs.microsoft.com/en-us/dotnet/framework/wpf/controls/controls-by-category
+    // see https://getbootstrap.com/docs/4.4/components
+    // see https://bootswatch.com/journal/
+
     float my_float = 1;
     int my_int = 1;
     bool my_bool = false;
@@ -65,10 +70,28 @@ TEST("si api", disabled)
         si::listbox("floats", my_float, some_floats);
         si::combobox("floats", my_float, some_floats);
 
+        // progress
+        // TODO: progress bar
+        // TODO: spinner + growing spinner
+        
+        // buttons
+        // TODO: icons
+        // TODO: button groups
+
         // 3D
         if (si::gizmo(my_pos))
         {
             // TODO: update something
+        }
+
+        // grid
+        if (auto g = si::grid())
+        {
+            // TODO: allow per row, per col, individual cells
+            si::text("in container");
+        }
+        if (auto r = si::row()) // single row
+        {
         }
 
         // trees
@@ -100,10 +123,55 @@ TEST("si api", disabled)
         }
 #endif
 
+        // tooltips & popovers
+        si::text("hover over me").tooltip("I'm a tooltip!");
+        // TODO: popover
+
+        // images
+
+        // modals
+
+        // menu
+
+        // status bar
+
+        // collapsibles
+
+        // tabs
+        if (auto t = si::tabs())
+        {
+            if (auto t = si::tab("tab A"))
+            {
+            }
+            if (auto t = si::tab("tab B"))
+            {
+            }
+        }
+
         // layouting
 
         // animation
 
         // plotting
+
+        // cached computation
+
+        // cards
+
+        // carousel
+
+        // custom drawing
+
+        // docking
+
+        // themes and style
+
+        // pagination
+
+        // events
+        // TODO: click, hover
+        // TODO: disabled
+        // TODO: validation
+        // TODO: drag'n'drop
     }
 }

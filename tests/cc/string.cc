@@ -40,9 +40,9 @@ MONTE_CARLO_TEST("cc::string mct")
         addOp("op[]", [](tg::rng& rng, string_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, string_t const& s) {
             return s.size() > 0;
         });
-        addOp("data[]", [](tg::rng& rng, string_t const& s) { return s.data()[uniform(rng, 0, int(s.size()) - 1)]; }).when([](tg::rng&, string_t const& s) {
-            return s.size() > 0;
-        });
+        addOp("data[]", [](tg::rng& rng, string_t const& s) {
+            return s.data()[uniform(rng, 0, int(s.size()) - 1)];
+        }).when([](tg::rng&, string_t const& s) { return s.size() > 0; });
 
         addOp("fill", [](string_t& s, char v) {
             for (auto& c : s)
@@ -73,4 +73,157 @@ MONTE_CARLO_TEST("cc::string mct")
     addType(cc::string(), true);
 
     testEquivalence<std::string, cc::string>();
+}
+
+TEST("cc::string processing")
+{
+    cc::string s;
+
+    s = "foo";
+    s.pad_end(5, '_');
+    CHECK(s == "foo__");
+
+    s = "foo";
+    s.pad_start(5, '_');
+    CHECK(s == "__foo");
+
+    s = "too long";
+    s.pad_start(5);
+    s.pad_end(5);
+    CHECK(s == "too long");
+
+    auto const replaced = [](cc::string s, cc::string_view old, cc::string_view replacement) {
+        auto refs = s.replaced(old, replacement);
+        s.replace(old, replacement);
+        CHECK(s == refs);
+        return s;
+    };
+    auto const ireplaced = [](cc::string s, size_t pos, size_t count, cc::string_view replacement) {
+        auto refs = s.replaced(pos, count, replacement);
+        s.replace(pos, count, replacement);
+        CHECK(s == refs);
+        return s;
+    };
+    auto const creplaced = [](cc::string s, char old, char replacement) {
+        auto refs = s.replaced(old, replacement);
+        s.replace(old, replacement);
+        CHECK(s == refs);
+        return s;
+    };
+
+    CHECK(creplaced("hello", 'l', 'x') == "hexxo");
+    CHECK(creplaced("hello", 'c', 'x') == "hello");
+    CHECK(creplaced("hello", 'h', 'x') == "xello");
+
+    CHECK(replaced("hello", "l", "") == "heo");
+    CHECK(replaced("hello", "x", "") == "hello");
+    CHECK(replaced("hello", "ello", "ola") == "hola");
+    CHECK(replaced("hello", "l", "ll") == "hellllo");
+    CHECK(replaced("hello", "l", "r") == "herro");
+    CHECK(replaced("hello", "e", "ello") == "hellollo");
+    CHECK(replaced("hello", "hello", "bla") == "bla");
+    CHECK(replaced("hello", "h", "hh") == "hhello");
+    CHECK(replaced("", "h", "hh") == "");
+
+    CHECK(ireplaced("hello", 0, 0, "abc") == "abchello");
+    CHECK(ireplaced("hello", 3, 0, "abc") == "helabclo");
+    CHECK(ireplaced("hello", 5, 0, "abc") == "helloabc");
+    CHECK(ireplaced("hello", 1, 1, "a") == "hallo");
+    CHECK(ireplaced("hello", 1, 1, "") == "hllo");
+    CHECK(ireplaced("hello", 1, 1, "aaa") == "haaallo");
+    CHECK(ireplaced("hello", 2, 2, "r") == "hero");
+
+    s = "hello";
+    CHECK(s.removed_prefix(2) == "llo");
+    CHECK(s.removed_prefix(5) == "");
+    CHECK(s.removed_suffix(2) == "hel");
+    CHECK(s.removed_suffix(5) == "");
+    CHECK(s.removed_prefix("hel") == "lo");
+    CHECK(s.removed_prefix("") == "hello");
+    CHECK(s.removed_prefix("hello") == "");
+    CHECK(s.removed_suffix("llo") == "he");
+    CHECK(s.removed_suffix("") == "hello");
+    CHECK(s.removed_suffix("hello") == "");
+
+    s = "  bla   ";
+    CHECK(s.trimmed() == "bla");
+    CHECK(s.trimmed_start() == "bla   ");
+    CHECK(s.trimmed_end() == "  bla");
+
+    s = "--bla---";
+    CHECK(s.trimmed('-') == "bla");
+    CHECK(s.trimmed_start('-') == "bla---");
+    CHECK(s.trimmed_end('-') == "--bla");
+
+    s = "--bla---";
+    s.trim_start('-');
+    CHECK(s == "bla---");
+
+    s = "--bla---";
+    s.trim_end('-');
+    CHECK(s == "--bla");
+
+    s = "--bla---";
+    s.trim('-');
+    CHECK(s == "bla");
+
+    s = "hello";
+    s.fill('x');
+    CHECK(s == "xxxxx");
+    s.fill('a', 2);
+    CHECK(s == "aa");
+    s.fill('b', 0);
+    CHECK(s == "");
+    s.fill('-', 3);
+    CHECK(s == "---");
+
+    s = "aBcD";
+    CHECK(s.to_lower() == "abcd");
+    CHECK(s.to_upper() == "ABCD");
+    CHECK(s.capitalized() == "Abcd");
+    s.capitalize();
+    CHECK(s == "Abcd");
+
+    for (auto ts : {"", " ", " s", "s", "s ", "  abc", "   abc  ", "abc  ", " a bc "})
+    {
+        {
+            s = ts;
+            auto r = s.trimmed_start();
+            s.trim_start();
+            CHECK(r == s);
+        }
+        {
+            s = ts;
+            auto r = s.trimmed_end();
+            s.trim_end();
+            CHECK(r == s);
+        }
+        {
+            s = ts;
+            auto r = s.trimmed();
+            s.trim();
+            CHECK(r == s);
+        }
+    }
+
+    for (auto n = 0; n <= 5; ++n)
+    {
+        {
+            s = "hello";
+            auto rs = s.removed_prefix(n);
+            s.remove_prefix(n);
+            CHECK(s == rs);
+        }
+        {
+            s = "hello";
+            auto rs = s.removed_suffix(n);
+            s.remove_suffix(n);
+            CHECK(s == rs);
+        }
+        {
+            s = "hello";
+            CHECK(s.first(n) == cc::string_view(s).first(n));
+            CHECK(s.last(n) == cc::string_view(s).last(n));
+        }
+    }
 }
