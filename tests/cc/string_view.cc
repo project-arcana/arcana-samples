@@ -56,27 +56,35 @@ TEST("cc::string_view")
 
 TEST("cc::string_view split")
 {
-    auto const test = [](cc::string_view s, std::initializer_list<cc::string> result, cc::split_options opts = cc::split_options::keep_empty) {
+    auto const split_s = [](cc::string_view s, std::initializer_list<cc::string> result, cc::split_options opts = cc::split_options::keep_empty) {
         CHECK(cc::vector<cc::string>(s.split(' ', opts)) == cc::vector<cc::string>(result));
     };
+    auto const split = [](cc::string_view s, std::initializer_list<cc::string> result) {
+        CHECK(cc::vector<cc::string>(s.split()) == cc::vector<cc::string>(result));
+    };
 
-    test("", {});
-    test(" ", {"", ""});
-    test("abc", {"abc"});
-    test("hello world", {"hello", "world"});
-    test(" hello world", {"", "hello", "world"});
-    test("hello world ", {"hello", "world", ""});
-    test(" hello world  ", {"", "hello", "world", "", ""});
-    test("   a  b c", {"", "", "", "a", "", "b", "c"});
+    split_s("", {});
+    split_s(" ", {"", ""});
+    split_s("abc", {"abc"});
+    split_s("hello world", {"hello", "world"});
+    split_s(" hello world", {"", "hello", "world"});
+    split_s("hello world ", {"hello", "world", ""});
+    split_s(" hello world  ", {"", "hello", "world", "", ""});
+    split_s("   a  b c", {"", "", "", "a", "", "b", "c"});
 
-    test("", {}, cc::split_options::skip_empty);
-    test(" ", {}, cc::split_options::skip_empty);
-    test("abc", {"abc"}, cc::split_options::skip_empty);
-    test("hello world", {"hello", "world"}, cc::split_options::skip_empty);
-    test(" hello world", {"hello", "world"}, cc::split_options::skip_empty);
-    test("hello world ", {"hello", "world"}, cc::split_options::skip_empty);
-    test(" hello world  ", {"hello", "world"}, cc::split_options::skip_empty);
-    test("   a  b c", {"a", "b", "c"}, cc::split_options::skip_empty);
+    split_s("", {}, cc::split_options::skip_empty);
+    split_s(" ", {}, cc::split_options::skip_empty);
+    split_s("abc", {"abc"}, cc::split_options::skip_empty);
+    split_s("hello world", {"hello", "world"}, cc::split_options::skip_empty);
+    split_s(" hello world", {"hello", "world"}, cc::split_options::skip_empty);
+    split_s("hello world ", {"hello", "world"}, cc::split_options::skip_empty);
+    split_s(" hello world  ", {"hello", "world"}, cc::split_options::skip_empty);
+    split_s("   a  b c", {"a", "b", "c"}, cc::split_options::skip_empty);
+
+    split("", {});
+    split(" ", {});
+    split(" a", {"a"});
+    split("ab c ", {"ab", "c"});
 
     CHECK(cc::vector<cc::string>(cc::string_view("barxolite").split([](char c) { return c == 'a' || c == 'x'; })) == cc::vector<cc::string>{"b", "r", "olite"});
 }

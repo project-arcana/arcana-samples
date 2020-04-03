@@ -128,8 +128,12 @@ TEST("si api", disabled)
         // TODO: popover
 
         // images
+        // TODO: si::image
 
         // modals
+
+        // dialogs
+        // TODO: file dialog
 
         // menu
 
@@ -147,6 +151,9 @@ TEST("si api", disabled)
             {
             }
         }
+
+        // tables
+        // TODO: freezing, reordering, hiding, resizing, sorting, style
 
         // layouting
 
@@ -173,5 +180,11 @@ TEST("si api", disabled)
         // TODO: disabled
         // TODO: validation
         // TODO: drag'n'drop
+        
+        // render minimap
+
+        // custom controls
+
+        // transparency
     }
 }

@@ -218,7 +218,7 @@ foreach(TARGET_NAME
     clean-ranges
     phantasm-hardware-interface
 )
-set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
+    set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
 endforeach()
 
 foreach(TARGET_NAME
