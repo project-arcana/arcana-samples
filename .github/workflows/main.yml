@@ -37,11 +37,12 @@ jobs:
             name: "Ubuntu Latest Clang 7", artifact: "Linux-Clang7-Debug.tar.xz",
             os: ubuntu-latest,
             build_type: "Debug",
-            cc: "clang-7", cxx: "clang++-7"
+            cc: "clang7", cxx: "clang++7"
           }
 
     steps:
     - uses: actions/checkout@v2
+        submodules: true
 
     - name: Download Ninja and CMake
       id: cmake_and_ninja
@@ -107,8 +108,6 @@ jobs:
             -D CMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
             -G Ninja
             -D CMAKE_MAKE_PROGRAM=ninja
-            -D CMAKE_C_COMPILER=${{ matrix.config.cc }}
-            -D CMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
           RESULT_VARIABLE result
         )
         if (NOT result EQUAL 0)
