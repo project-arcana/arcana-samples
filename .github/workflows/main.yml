@@ -107,6 +107,8 @@ jobs:
             -D CMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
             -G Ninja
             -D CMAKE_MAKE_PROGRAM=ninja
+            -D CMAKE_C_COMPILER=${{ matrix.config.cc }}
+            -D CMAKE_CXX_COMPILER=${{ matrix.config.cxx }}
           RESULT_VARIABLE result
         )
         if (NOT result EQUAL 0)
