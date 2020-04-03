@@ -127,23 +127,6 @@ float4 main_ps(vs_out In) : SV_TARGET
 }
 )";
 
-inline tg::mat4 get_projection_matrix(int w, int h) { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100000.f); }
-
-inline tg::pos3 get_cam_pos(float runtime, float distance_mult)
-{
-    auto res = tg::rotate_y(tg::pos3(1, 1.5f, 1) * 10.f * distance_mult, tg::radians(runtime * 0.05f))
-               + tg::vec3(0, tg::sin(tg::radians(runtime * 0.125f)) * 10.f * distance_mult, 0);
-    return res;
-}
-
-inline tg::mat4 get_view_matrix(tg::pos3 const& cam_pos)
-{
-    constexpr auto target = tg::pos3(0, 1.45f, 0);
-    return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
-}
-
-inline tg::mat4 get_view_projection_matrix(tg::pos3 const& cam_pos, int w, int h) { return get_projection_matrix(w, h) * get_view_matrix(cam_pos); }
-
 struct cam_constants
 {
     tg::mat4 vp;
@@ -286,7 +269,7 @@ TEST("pr::api")
             auto frame = ctx.make_frame();
 
             {
-                auto fb = frame.render_to(t_color, t_depth);
+                auto fb = frame.make_framebuffer(t_color, t_depth);
                 auto pass = fb.make_pass(pso_render).bind(sv_render, b_camconsts);
 
                 for (auto i = 0u; i < num_instances; ++i)
@@ -301,7 +284,7 @@ TEST("pr::api")
             frame.transition(t_color, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
             {
-                auto fb = frame.render_to(backbuffer);
+                auto fb = frame.make_framebuffer(backbuffer);
                 auto pass = fb.make_pass(pso_blit).bind(sv_blit);
 
                 pass.draw(3);
