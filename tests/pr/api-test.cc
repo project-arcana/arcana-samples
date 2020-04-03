@@ -5,7 +5,7 @@
 
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
-#include <phantasm-renderer/PrimitivePipeline.hh>
+#include <phantasm-renderer/GraphicsPass.hh>
 #include <phantasm-renderer/reflection/vertex_attributes.hh>
 
 namespace
@@ -56,8 +56,7 @@ vs_out main_vs(vs_in v_in)
 float4 main_ps(vs_out p_in) : SV_TARGET
 {
     float3 Li =  normalize(float3(-2, 2, 3));
-    float dotNL = dot(p_in.N, Li);
-
+    float dotNL = saturate(dot(p_in.N, Li)) * 0.55;
     return float4(dotNL, dotNL, dotNL, 1.0);
 }
 )";
@@ -142,9 +141,7 @@ TEST("pr::api")
     inc::da::SDLWindow window;
     window.initialize("api test");
 
-    pr::Context ctx(phi::window_handle{window.getSdlWindow()});
-
-    ctx.start_capture();
+    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()});
 
     pr::graphics_pipeline_state pso_render;
     pr::graphics_pipeline_state pso_blit;
@@ -158,8 +155,8 @@ TEST("pr::api")
     pr::render_target t_depth;
     pr::render_target t_color;
 
-    pr::baked_shader_view sv_render;
-    pr::baked_shader_view sv_blit;
+    pr::baked_argument sv_render;
+    pr::baked_argument sv_blit;
 
     unsigned const num_instances = 3;
 
@@ -225,18 +222,17 @@ TEST("pr::api")
     {
         cc::vector<tg::mat4> modelmats;
         for (auto i = 0u; i < num_instances; ++i)
-            modelmats.emplace_back();
+            modelmats.push_back(tg::translation(tg::pos3((-1 + int(i)) * 3.f, 0, 0)) * tg::scaling(0.21f, 0.21f, 0.21f));
 
         b_modelmats = ctx.make_upload_buffer(sizeof(tg::mat4) * modelmats.size(), sizeof(tg::mat4));
         b_camconsts = ctx.make_upload_buffer(sizeof(cam_constants));
 
-        ctx.write_buffer(b_modelmats, modelmats.data(), modelmats.size() * sizeof(modelmats[0]));
-        ctx.write_buffer_t(b_modelmats, cam_constants{tg::mat4::identity});
+        ctx.write_buffer(b_modelmats, modelmats.data(), sizeof(tg::mat4) * modelmats.size());
     }
 
     {
-        pr::shader_view sv;
-        sv.add_srv(b_modelmats);
+        pr::argument sv;
+        sv.add(b_modelmats);
         sv_render = ctx.make_argument(sv);
     }
 
@@ -244,8 +240,12 @@ TEST("pr::api")
         t_depth = ctx.make_target(size, pr::format::depth32f);
         t_color = ctx.make_target(size, pr::format::rgba16f);
 
-        pr::shader_view sv;
-        sv.add_srv(t_color);
+        auto const vp = tg::perspective_directx(60_deg, size.width / float(size.height), 0.1f, 10000.f)
+                        * tg::look_at_directx(tg::pos3(5, 5, 5), tg::pos3(0, 0, 0), tg::vec3(0, 1, 0));
+        ctx.write_buffer_t(b_camconsts, cam_constants{vp});
+
+        pr::argument sv;
+        sv.add(t_color);
         sv.add_sampler(phi::sampler_filter::min_mag_mip_point);
         sv_blit = ctx.make_argument(sv);
     };
@@ -256,53 +256,136 @@ TEST("pr::api")
     {
         window.pollEvents();
 
-        if (!window.isMinimized())
+        if (window.isMinimized())
+            continue;
+
+        if (window.clearPendingResize())
+            ctx.on_window_resize(window.getSize());
+
+        if (ctx.clear_backbuffer_resize())
+            create_targets(ctx.get_backbuffer_size());
+
         {
-            if (window.clearPendingResize())
-                ctx.on_window_resize(window.getSize());
-
-            if (ctx.clear_backbuffer_resize())
-                create_targets(ctx.get_backbuffer_size());
-
+            auto frame = ctx.make_frame();
 
             {
-                auto frame = ctx.make_frame();
+                auto fb = frame.make_framebuffer(t_color, t_depth);
+                auto pass = fb.make_pass(pso_render).bind(sv_render, b_camconsts);
 
+                for (auto i = 0u; i < num_instances; ++i)
                 {
-                    auto fb = frame.render_to(t_color, t_depth);
-                    auto pass = fb.pipeline(pso_render);
-
-                    pass.add_argument(sv_render, b_camconsts);
-
-                    for (auto i = 0u; i < num_instances; ++i)
-                    {
-                        pass.write_root_constants(i);
-                        pass.draw_indexed(b_vertices, b_indices);
-                    }
+                    pass.write_root_constants(i);
+                    pass.draw(b_vertices, b_indices);
                 }
-
-                auto backbuffer = ctx.acquire_backbuffer();
-
-                frame.transition(backbuffer, phi::resource_state::render_target);
-                frame.transition(t_color, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-
-                {
-                    auto fb = frame.render_to(backbuffer);
-                    auto pass = fb.pipeline(pso_blit);
-
-                    pass.add_argument(sv_blit);
-                    pass.draw(3);
-                }
-
-                frame.transition(backbuffer, phi::resource_state::present);
-
-                ctx.submit(frame);
             }
 
-            ctx.present();
+            auto backbuffer = ctx.acquire_backbuffer();
+
+            frame.transition(t_color, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+
+            {
+                auto fb = frame.make_framebuffer(backbuffer);
+                auto pass = fb.make_pass(pso_blit).bind(sv_blit);
+
+                pass.draw(3);
+            }
+
+            frame.transition(backbuffer, phi::resource_state::present);
+
+            ctx.submit(frame);
         }
+
+        ctx.present();
     }
 
     ctx.flush();
-    ctx.end_capture();
 }
+
+#if 0
+// bind versions
+{
+    auto pass = ...;
+
+    struct my_data
+    {
+        int idx;
+        tg::color4 color;
+    };
+
+    // trivially copyable T
+    {
+        tg::mat4 transform = ...;
+        pass.bind(transform).draw(...);
+
+        my_data data = ...;
+        pass.bind(data).draw(...);
+    }
+
+    // contiguous range of trivially copyable T
+    {
+        cc::vector<tg::mat4> transforms = ...;
+        pass.bind(transforms).draw(...);
+
+        cc::array<my_data> data = ...;
+        pass.bind(data).draw(...);
+    }
+
+    // custom setup
+    {
+        struct my_arg : pr::shader_arg
+        {
+            tg::mat4 model;
+            pr::ImageView2D tex_albedo;
+            pr::ImageView2D tex_normal;
+
+            // alternatively also via reflection
+            void setup()
+            {
+                add(model);
+                add(tex_albedo);
+                add(tex_normal);
+            }
+        };
+
+        my_arg arg = ...;
+        pass.bind(arg).draw(...);
+    }
+
+    // directly some resources
+    {
+        pr::Buffer buffer = ...;
+        pass.bind(buffer).draw(...);
+
+        cc::vector<pr::Buffer> buffers = ...;
+        pass.bind(buffers).draw(...);
+
+        pr::Image2D tex = ...;
+        pass.bind(tex).draw(...);
+
+        cc::vector<pr::Image2D> textures = ...;
+        pass.bind(textures).draw(...);
+
+        pr::Image2D texA, texB, texC = ...;
+        pass.bind({texA, texB, texC}).draw(...);
+    }
+
+    // shader arg builder
+    {
+        pr::Buffer buffer = ...;
+        cc::vector<pr::Buffer> buffers = ...;
+        pr::Image2D tex = ...;
+        cc::vector<pr::Image2D> textures = ...;
+        my_data data = ...;
+        tg::mat4 transform = ...;
+
+        pr::shader_arg arg;
+        arg.add(buffer);
+        arg.add(buffers);
+        arg.add(tex, "my_tex"); // name is optional for verification
+        arg.add(textures);
+        arg.add(data);
+        arg.add(transform);
+        pass.bind(arg).draw(...);
+    }
+}
+#endif

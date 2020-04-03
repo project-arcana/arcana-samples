@@ -250,9 +250,9 @@ MONTE_CARLO_TEST("cc::vector mct")
         addOp("op[]", [](tg::rng& rng, vector_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, vector_t const& s) {
             return s.size() > 0;
         });
-        addOp("data[]", [](tg::rng& rng, vector_t const& s) { return s.data()[uniform(rng, 0, int(s.size()) - 1)]; }).when([](tg::rng&, vector_t const& s) {
-            return s.size() > 0;
-        });
+        addOp("data[]", [](tg::rng& rng, vector_t const& s) {
+            return s.data()[uniform(rng, 0, int(s.size()) - 1)];
+        }).when([](tg::rng&, vector_t const& s) { return s.size() > 0; });
 
         addOp("fill", [](vector_t& s, int v) {
             for (auto& c : s)
@@ -289,4 +289,46 @@ MONTE_CARLO_TEST("cc::vector mct")
     };
 
     testType(int{});
+}
+
+TEST("cc::vector interior references")
+{
+    struct foo
+    {
+        bool is_moved_from = false;
+        bool is_destroyed = false;
+
+        foo() = default;
+
+        foo(foo& f)
+        {
+            CC_ASSERT(!f.is_moved_from);
+            CC_ASSERT(!f.is_destroyed);
+            f.is_moved_from = true;
+        }
+        foo& operator=(foo& f)
+        {
+            CC_ASSERT(!f.is_moved_from);
+            CC_ASSERT(!f.is_destroyed);
+            f.is_moved_from = true;
+            return *this;
+        }
+        foo(foo const& f)
+        {
+            CC_ASSERT(!f.is_moved_from);
+            CC_ASSERT(!f.is_destroyed);
+        }
+        foo& operator=(foo const& f)
+        {
+            CC_ASSERT(!f.is_moved_from);
+            CC_ASSERT(!f.is_destroyed);
+            return *this;
+        }
+        ~foo() { is_destroyed = true; }
+    };
+
+    cc::vector<foo> fs;
+    fs.push_back({});
+    for (auto i = 0; i < 100; ++i)
+        fs.push_back(fs[0]);
 }

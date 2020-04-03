@@ -40,9 +40,15 @@
 [submodule "extern/phantasm-hardware-interface"]
 	path = extern/phantasm-hardware-interface
 	url = git@github.com:project-arcana/phantasm-hardware-interface.git
+[submodule "extern/clean-ranges"]
+	path = extern/clean-ranges
+	url = git@github.com:project-arcana/clean-ranges.git
 [submodule "extern/dxc-wrapper"]
 	path = extern/dxc-wrapper
 	url = git@github.com:project-arcana/dxc-wrapper.git
 [submodule "res/arcana-sample-resources"]
 	path = res/arcana-sample-resources
 	url = https://github.com/project-arcana/arcana-sample-resources.git
+[submodule "extern/sdl2-dev"]
+	path = extern/sdl2-dev
+	url = git@github.com:project-arcana/sdl2-dev.git
