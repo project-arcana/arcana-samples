@@ -14,6 +14,10 @@ cd clean-core
 git merge origin/develop
 cd ..
 
+cd clean-ranges
+git merge origin/develop
+cd ..
+
 cd nexus
 git merge origin/develop
 cd ..
