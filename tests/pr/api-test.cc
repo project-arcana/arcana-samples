@@ -143,7 +143,7 @@ TEST("pr::api")
 
     auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()});
 
-    pr::graphics_pipeline_state pso_render;
+    // pr::graphics_pipeline_state pso_render;
     pr::graphics_pipeline_state pso_blit;
 
     pr::buffer b_indices;
@@ -159,34 +159,24 @@ TEST("pr::api")
 
     unsigned const num_instances = 3;
 
+    auto const render_vs = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
+    auto const pixel_vs = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
+
     // create psos
     {
         static_assert(true, "clang format fix");
 
         {
-            auto const s_vertex = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
-            auto const s_pixel = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
+            //            auto const s_vertex = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
+            //            auto const s_pixel = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
 
-            pso_render = ctx.build_pipeline_state()
-                             .add_shader(s_vertex)
-                             .add_shader(s_pixel)
-                             .add_render_target(pr::format::rgba16f)
-                             .add_depth_target(pr::format::depth32f)
-                             .set_vertex_format<inc::assets::simple_vertex>()
-                             .add_argument_shape(1, 0, 0, true)
-                             .add_root_constants()
-                             .make_graphics();
-        }
-        {
+            //            auto gp = pr::graphics_pass<inc::assets::simple_vertex>({}, s_vertex, s_pixel).arg(1, 0, 0, true).root_consts();
+            //            pso_render = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rgba16f).depth(pr::format::depth32f));
+        } {
             auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
             auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
 
-            pso_blit = ctx.build_pipeline_state()
-                           .add_shader(s_vertex)
-                           .add_shader(s_pixel)
-                           .add_render_target(ctx.get_backbuffer_format())
-                           .add_argument_shape(1, 0, 1, false)
-                           .make_graphics();
+            pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1), pr::framebuffer(ctx.get_backbuffer_format()));
         }
     }
 
@@ -260,7 +250,10 @@ TEST("pr::api")
 
             {
                 auto fb = frame.make_framebuffer(t_color, t_depth);
-                auto pass = fb.make_pass(pso_render).bind(sv_render, b_camconsts);
+
+                auto gp = pr::graphics_pass<inc::assets::simple_vertex>({}, render_vs, pixel_vs).arg(1, 0, 0, true).root_consts();
+
+                auto pass = fb.make_pass(gp).bind(sv_render, b_camconsts);
 
                 for (auto i = 0u; i < num_instances; ++i)
                 {
@@ -295,92 +288,3 @@ TEST("pr::api")
 
     ctx.flush();
 }
-
-#if 0
-// bind versions
-{
-    auto pass = ...;
-
-    struct my_data
-    {
-        int idx;
-        tg::color4 color;
-    };
-
-    // trivially copyable T
-    {
-        tg::mat4 transform = ...;
-        pass.bind(transform).draw(...);
-
-        my_data data = ...;
-        pass.bind(data).draw(...);
-    }
-
-    // contiguous range of trivially copyable T
-    {
-        cc::vector<tg::mat4> transforms = ...;
-        pass.bind(transforms).draw(...);
-
-        cc::array<my_data> data = ...;
-        pass.bind(data).draw(...);
-    }
-
-    // custom setup
-    {
-        struct my_arg : pr::shader_arg
-        {
-            tg::mat4 model;
-            pr::ImageView2D tex_albedo;
-            pr::ImageView2D tex_normal;
-
-            // alternatively also via reflection
-            void setup()
-            {
-                add(model);
-                add(tex_albedo);
-                add(tex_normal);
-            }
-        };
-
-        my_arg arg = ...;
-        pass.bind(arg).draw(...);
-    }
-
-    // directly some resources
-    {
-        pr::Buffer buffer = ...;
-        pass.bind(buffer).draw(...);
-
-        cc::vector<pr::Buffer> buffers = ...;
-        pass.bind(buffers).draw(...);
-
-        pr::Image2D tex = ...;
-        pass.bind(tex).draw(...);
-
-        cc::vector<pr::Image2D> textures = ...;
-        pass.bind(textures).draw(...);
-
-        pr::Image2D texA, texB, texC = ...;
-        pass.bind({texA, texB, texC}).draw(...);
-    }
-
-    // shader arg builder
-    {
-        pr::Buffer buffer = ...;
-        cc::vector<pr::Buffer> buffers = ...;
-        pr::Image2D tex = ...;
-        cc::vector<pr::Image2D> textures = ...;
-        my_data data = ...;
-        tg::mat4 transform = ...;
-
-        pr::shader_arg arg;
-        arg.add(buffer);
-        arg.add(buffers);
-        arg.add(tex, "my_tex"); // name is optional for verification
-        arg.add(textures);
-        arg.add(data);
-        arg.add(transform);
-        pass.bind(arg).draw(...);
-    }
-}
-#endif
