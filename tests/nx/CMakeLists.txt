@@ -9,5 +9,6 @@ add_arcana_test(nx-tests "${SOURCES}")
 
 target_link_libraries(nx-tests PUBLIC
     clean-core
+    clean-ranges
     typed-geometry
 )
