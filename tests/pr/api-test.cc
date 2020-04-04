@@ -3,6 +3,8 @@
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 
+#include <rich-log/log.hh>
+
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
 #include <phantasm-renderer/GraphicsPass.hh>
@@ -136,8 +138,6 @@ struct cam_constants
 
 TEST("pr::api")
 {
-    //
-
     inc::da::SDLWindow window;
     window.initialize("api test");
 
@@ -156,7 +156,6 @@ TEST("pr::api")
     pr::render_target t_color;
 
     pr::baked_argument sv_render;
-    pr::baked_argument sv_blit;
 
     unsigned const num_instances = 3;
 
@@ -230,11 +229,7 @@ TEST("pr::api")
         ctx.write_buffer(b_modelmats, modelmats.data(), sizeof(tg::mat4) * modelmats.size());
     }
 
-    {
-        pr::argument sv;
-        sv.add(b_modelmats);
-        sv_render = ctx.make_argument(sv);
-    }
+    sv_render = ctx.build_argument().add(b_modelmats).make_graphics();
 
     auto create_targets = [&](tg::isize2 size) {
         t_depth = ctx.make_target(size, pr::format::depth32f);
@@ -243,11 +238,6 @@ TEST("pr::api")
         auto const vp = tg::perspective_directx(60_deg, size.width / float(size.height), 0.1f, 10000.f)
                         * tg::look_at_directx(tg::pos3(5, 5, 5), tg::pos3(0, 0, 0), tg::vec3(0, 1, 0));
         ctx.write_buffer_t(b_camconsts, cam_constants{vp});
-
-        pr::argument sv;
-        sv.add(t_color);
-        sv.add_sampler(phi::sampler_filter::min_mag_mip_point);
-        sv_blit = ctx.make_argument(sv);
     };
 
     create_targets(ctx.get_backbuffer_size());
@@ -285,7 +275,12 @@ TEST("pr::api")
 
             {
                 auto fb = frame.make_framebuffer(backbuffer);
-                auto pass = fb.make_pass(pso_blit).bind(sv_blit);
+
+                pr::argument arg;
+                arg.add(t_color);
+                arg.add_sampler(phi::sampler_filter::min_mag_mip_point);
+
+                auto pass = fb.make_pass(pso_blit).bind(arg);
 
                 pass.draw(3);
             }
