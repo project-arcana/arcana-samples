@@ -34,10 +34,10 @@ jobs:
             cc: "gcc-8", cxx: "g++-8"
           }
         - {
-            name: "Ubuntu Latest Clang 7", artifact: "Linux-Clang7-Debug.tar.xz",
+            name: "Ubuntu Latest Clang 8", artifact: "Linux-Clang8-Debug.tar.xz",
             os: ubuntu-latest,
             build_type: "Debug",
-            cc: "clang7", cxx: "clang++7"
+            cc: "clang-8", cxx: "clang++-8"
           }
 
     steps:
