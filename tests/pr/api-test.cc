@@ -161,26 +161,16 @@ TEST("pr::api")
     auto const render_vs = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
     auto const pixel_vs = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
 
-    // create psos
+    // create persisted PSO
     {
-        static_assert(true, "clang format fix");
+        auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
+        auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
 
-        {
-            //            auto const s_vertex = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
-            //            auto const s_pixel = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
+        phi::pipeline_config config;
+        config.depth = phi::depth_function::none;
+        config.cull = phi::cull_mode::none;
 
-            //            auto gp = pr::graphics_pass<inc::assets::simple_vertex>({}, s_vertex, s_pixel).arg(1, 0, 0, true).root_consts();
-            //            pso_render = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rgba16f).depth(pr::format::depth32f));
-        } {
-            auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
-            auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
-
-            phi::pipeline_config config;
-            config.depth = phi::depth_function::none;
-            config.cull = phi::cull_mode::none;
-
-            pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1).config(config), pr::framebuffer(ctx.get_backbuffer_format()));
-        }
+        pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1).config(config), pr::framebuffer(ctx.get_backbuffer_format()));
     }
 
     // load mesh buffers
@@ -254,11 +244,13 @@ TEST("pr::api")
             {
                 auto fb = frame.make_framebuffer(t_color, t_depth);
 
+                // create a pass using cache access
                 phi::pipeline_config config;
                 config.depth = phi::depth_function::less;
                 config.cull = phi::cull_mode::back;
                 auto gp = pr::graphics_pass<inc::assets::simple_vertex>(config, render_vs, pixel_vs).arg(1, 0, 0, true).constants();
 
+                // bind a persisted argument, plus a CBV
                 auto pass = fb.make_pass(gp).bind(sv_render, b_camconsts);
 
                 for (auto i = 0u; i < num_instances; ++i)
@@ -274,14 +266,15 @@ TEST("pr::api")
 
             {
                 auto fb = frame.make_framebuffer(backbuffer);
+                // create a pass from a persisted PSO
+                auto pass = fb.make_pass(pso_blit);
 
+                // bind an argument using cache access
                 pr::argument arg;
                 arg.add(t_color);
                 arg.add_sampler(phi::sampler_filter::min_mag_mip_point);
 
-                auto pass = fb.make_pass(pso_blit).bind(arg);
-
-                pass.draw(3);
+                pass.bind(arg).draw(3);
             }
 
             frame.transition(backbuffer, phi::resource_state::present);
