@@ -124,7 +124,6 @@ float4 main_ps(vs_out In) : SV_TARGET
    float4 hdr = g_texture.Sample(g_sampler, In.Texcoord);
 
    float4 color = float4(tonemap_uc2(hdr.xyz), 1.0);
-
    return color;
 }
 )";
@@ -141,7 +140,7 @@ TEST("pr::api")
     inc::da::SDLWindow window;
     window.initialize("api test");
 
-    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()});
+    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()}, pr::backend_type::vulkan);
 
     // pr::graphics_pipeline_state pso_render;
     pr::graphics_pipeline_state pso_blit;
@@ -155,7 +154,7 @@ TEST("pr::api")
     pr::render_target t_depth;
     pr::render_target t_color;
 
-    pr::baked_argument sv_render;
+    pr::prebuilt_argument sv_render;
 
     unsigned const num_instances = 3;
 
@@ -176,7 +175,11 @@ TEST("pr::api")
             auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
             auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
 
-            pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1), pr::framebuffer(ctx.get_backbuffer_format()));
+            phi::pipeline_config config;
+            config.depth = phi::depth_function::none;
+            config.cull = phi::cull_mode::none;
+
+            pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1).config(config), pr::framebuffer(ctx.get_backbuffer_format()));
         }
     }
 
@@ -251,13 +254,16 @@ TEST("pr::api")
             {
                 auto fb = frame.make_framebuffer(t_color, t_depth);
 
-                auto gp = pr::graphics_pass<inc::assets::simple_vertex>({}, render_vs, pixel_vs).arg(1, 0, 0, true).root_consts();
+                phi::pipeline_config config;
+                config.depth = phi::depth_function::less;
+                config.cull = phi::cull_mode::back;
+                auto gp = pr::graphics_pass<inc::assets::simple_vertex>(config, render_vs, pixel_vs).arg(1, 0, 0, true).constants();
 
                 auto pass = fb.make_pass(gp).bind(sv_render, b_camconsts);
 
                 for (auto i = 0u; i < num_instances; ++i)
                 {
-                    pass.write_root_constants(i);
+                    pass.write_constants(i);
                     pass.draw(b_vertices, b_indices);
                 }
             }
