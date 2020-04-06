@@ -205,6 +205,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         fbconf.depth_target.push_back(format::depth24un_stencil8u);
 
         pipeline_config config;
+        config.cull = cull_mode::back;
+        config.depth = depth_function::less;
         config.samples = gc_msaa_samples;
 
         l_res.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
