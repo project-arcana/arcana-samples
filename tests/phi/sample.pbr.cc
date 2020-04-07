@@ -30,8 +30,8 @@
 
 #include <arcana-incubator/profiling/remotery.hh>
 
-#include <arcana-incubator/pr-util/mesh_util.hh>
-#include <arcana-incubator/pr-util/texture_creation.hh>
+#include <arcana-incubator/phi-util/mesh_util.hh>
+#include <arcana-incubator/phi-util/texture_creation.hh>
 
 #include "scene.hh"
 #include "texture_util.hh"
