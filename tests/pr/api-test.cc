@@ -1,4 +1,4 @@
-#include <nexus/test.hh>
+#include <nexus/app.hh>
 
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
@@ -135,7 +135,7 @@ struct cam_constants
 
 }
 
-TEST("pr::api")
+APP("api_test")
 {
     inc::da::SDLWindow window;
     window.initialize("api test");
@@ -143,18 +143,18 @@ TEST("pr::api")
     auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()}, pr::backend_type::vulkan);
 
     // pr::graphics_pipeline_state pso_render;
-    pr::graphics_pipeline_state pso_blit;
+    pr::auto_graphics_pipeline_state pso_blit;
 
-    pr::buffer b_indices;
-    pr::buffer b_vertices;
+    pr::auto_buffer b_indices;
+    pr::auto_buffer b_vertices;
 
-    pr::buffer b_modelmats;
-    pr::buffer b_camconsts;
+    pr::auto_buffer b_modelmats;
+    pr::auto_buffer b_camconsts;
 
-    pr::render_target t_depth;
-    pr::render_target t_color;
+    pr::auto_render_target t_depth;
+    pr::auto_render_target t_color;
 
-    pr::prebuilt_argument sv_render;
+    pr::auto_prebuilt_argument sv_render;
 
     unsigned const num_instances = 3;
 
