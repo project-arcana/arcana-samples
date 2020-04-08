@@ -31,14 +31,24 @@ struct instance
 
 struct instance_gpudata
 {
-    tg::mat4 transform;
+    tg::mat4 model;
+    tg::mat4 mv; // model * view
 };
 
 struct scene_gpudata
 {
-    tg::mat4 view_proj;
+    tg::mat4 proj;
+    tg::mat4 proj_inv;
+    tg::mat4 view;
+    tg::mat4 view_inv;
+    tg::mat4 vp;
+    tg::mat4 vp_inv;
+    tg::mat4 clean_proj;
+    tg::mat4 prev_clean_proj;
     tg::pos3 cam_pos;
     float runtime;
+
+    void fill_data(tg::isize2 res, tg::pos3 campos, tg::pos3 camtarget);
 };
 
 struct scene
@@ -50,6 +60,7 @@ struct scene
 
     //
     // global data
+    tg::isize2 resolution;
     scene_gpudata camdata;
 
     //
@@ -73,20 +84,9 @@ struct scene
     per_frame_resource_t& current_frame() { return per_frame_resources[current_frame_index]; }
     per_frame_resource_t& next_frame() { return per_frame_resources[cc::wrapped_increment(current_frame_index, num_backbuffers)]; }
 
-    void on_next_frame() { current_frame_index = cc::wrapped_increment(current_frame_index, num_backbuffers); }
+    void on_next_frame();
 
     void upload_current_frame();
     void flush_current_frame_upload(pr::Context& ctx);
-};
-
-struct camera
-{
-    tg::mat4 projection;
-    tg::pos3 position = tg::pos3(5, 5, 5);
-    tg::pos3 target = tg::pos3(0, 0, 0);
-
-    void recalculate_proj(int w, int h);
-    tg::mat4 get_view();
-    tg::mat4 get_vp();
 };
 }

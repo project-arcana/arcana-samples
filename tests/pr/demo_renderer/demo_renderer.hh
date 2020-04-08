@@ -61,7 +61,6 @@ private:
 
     global_targets mTargets;
     scene mScene;
-    camera mCamera;
 
     struct
     {

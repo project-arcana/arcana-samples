@@ -6,7 +6,7 @@
 dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window) : mWindow(window)
 {
     mWindow.initialize("Demo Renderer");
-    mContext.initialize({mWindow.getSdlWindow()}, pr::backend_type::vulkan);
+    mContext.initialize({mWindow.getSdlWindow()}, pr::backend_type::d3d12);
 
     mTexProcessingPSOs.init(mContext, "res/pr/demo_render/bin/preprocess/");
 
@@ -82,10 +82,7 @@ void dr::DemoRenderer::execute()
 {
     mScene.on_next_frame();
 
-    mScene.camdata.view_proj = mCamera.get_vp();
-    mScene.camdata.cam_pos = mCamera.position;
-    mScene.camdata.runtime = 0.f;
-
+    mScene.camdata.fill_data(mScene.resolution, tg::pos3(5, 5, 5), tg::pos3(0, 0, 0));
     mScene.upload_current_frame();
 
     pr::CompiledFrame cf_depthpre;
@@ -137,5 +134,5 @@ void dr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
 {
     mTargets.recreate_rts(mContext, new_size);
     mTargets.recreate_buffers(mContext, new_size);
-    mCamera.recalculate_proj(new_size.width, new_size.height);
+    mScene.resolution = new_size;
 }

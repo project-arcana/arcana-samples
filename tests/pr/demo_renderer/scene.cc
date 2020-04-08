@@ -24,9 +24,17 @@ void dr::scene::init(pr::Context& ctx, unsigned max_num_instances)
     current_frame_index = 0;
 }
 
+void dr::scene::on_next_frame() { current_frame_index = cc::wrapped_increment(current_frame_index, num_backbuffers); }
+
 void dr::scene::upload_current_frame()
 {
     auto& frame = current_frame();
+
+    // recalculate MV matrices for current gpu instances
+    for (instance_gpudata& inst : instance_transforms)
+    {
+        inst.mv = camdata.view * inst.model;
+    }
 
     std::memcpy(frame.cb_camdata_map, &camdata, sizeof(camdata));
     std::memcpy(frame.sb_modeldata_map, instance_transforms.data(), sizeof(instance_gpudata) * instance_transforms.size());
@@ -39,13 +47,20 @@ void dr::scene::flush_current_frame_upload(pr::Context& ctx)
     ctx.flush_buffer_writes(frame.sb_modeldata);
 }
 
-
-void dr::camera::recalculate_proj(int w, int h)
+void dr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::pos3 camtarget)
 {
-    //
-    projection = tg::perspective_directx(60_deg, w / float(h), 0.1f, 10000.f);
+    prev_clean_proj = clean_proj;
+    clean_proj = tg::perspective_reverse_z_directx(60_deg, res.width / float(res.height), 0.1f);
+
+    proj = clean_proj; // TODO jitter
+    proj_inv = tg::inverse(proj);
+
+    view = tg::look_at_directx(campos, camtarget, tg::vec3(0, 1, 0));
+    view_inv = tg::inverse(view);
+
+    vp = proj * view;
+    vp_inv = tg::inverse(vp);
+
+    cam_pos = campos;
+    runtime = 0.f;
 }
-
-tg::mat4 dr::camera::get_view() { return tg::look_at_directx(position, target, tg::vec3(0, 1, 0)); }
-
-tg::mat4 dr::camera::get_vp() { return projection * get_view(); }
