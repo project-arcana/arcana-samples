@@ -7,7 +7,6 @@ struct model_constants
 };
 
 StructuredBuffer<mesh_transform> g_mesh_transforms                          : register(t0, space0);
-StructuredBuffer<mesh_transform> g_prev_mesh_transforms                     : register(t1, space0);
 
 ConstantBuffer<camera_constants> g_frame_data                               : register(b0, space0);
 
@@ -17,14 +16,13 @@ vs_out main_vs(vs_in v_in)
 {
     vs_out Out;
 
-    const float4x4 model_view = g_mesh_transforms[g_root_consts.model_mat_index].mv;
-    float4 pos_cam = mul(model_view, float4(v_in.P, 1.0));
-    // non-premultiplied projection for optimal depth precision (Upchurch and Desbrun 2012)
-    float4 pos_clip = mul(g_frame_data.proj, pos_cam);
-    Out.SV_P = pos_clip;
-
     const float4x4 model = g_mesh_transforms[g_root_consts.model_mat_index].model;
     float4 pos_world = mul(model, float4(v_in.P, 1.0));
+    float4 pos_cam = mul(g_frame_data.view, pos_world);
+    // non-premultiplied projection for optimal depth precision (Upchurch and Desbrun 2012)
+    float4 pos_clip = mul(g_frame_data.proj, pos_cam);
+    
+    Out.SV_P = pos_clip;
     Out.WorldPos = pos_world.xyz;
 
     float3 N = normalize(mul((float3x3)model, v_in.N));

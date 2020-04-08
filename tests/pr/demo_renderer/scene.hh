@@ -32,7 +32,7 @@ struct instance
 struct instance_gpudata
 {
     tg::mat4 model;
-    tg::mat4 mv; // model * view
+    tg::mat4 prev_model;
 };
 
 struct scene_gpudata

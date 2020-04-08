@@ -20,5 +20,5 @@ struct camera_constants
 struct mesh_transform
 {
     float4x4 model;
-    float4x4 mv; // view * model
+    float4x4 prev_model;
 };

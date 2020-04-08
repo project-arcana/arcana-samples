@@ -1,22 +1,30 @@
 #include "demo_renderer.hh"
 
+#include <phantasm-hardware-interface/config.hh>
+
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Frame.hh>
 
-dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window) : mWindow(window)
+dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
 {
     mWindow.initialize("Demo Renderer");
-    mContext.initialize({mWindow.getSdlWindow()}, pr::backend_type::d3d12);
+
+    phi::backend_config config;
+    config.adapter = phi::adapter_preference::highest_vram;
+    config.validation = phi::validation_level::on_extended;
+
+    mContext.initialize({mWindow.getSdlWindow()}, backend_type, config);
 
     mTexProcessingPSOs.init(mContext, "res/pr/demo_render/bin/preprocess/");
 
     // load and preprocess IBL resources
+    inc::pre::filtered_specular_result specular_intermediate;
     {
         auto frame = mContext.make_frame();
 
-        auto specular_res = mTexProcessingPSOs.load_filtered_specular_map(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
+        specular_intermediate = mTexProcessingPSOs.load_filtered_specular_map(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
 
-        mPasses.forward.tex_ibl_spec = cc::move(specular_res.filtered_env);
+        mPasses.forward.tex_ibl_spec = cc::move(specular_intermediate.filtered_env);
         mPasses.forward.tex_ibl_irr = mTexProcessingPSOs.create_diffuse_irradiance_map(frame, mPasses.forward.tex_ibl_spec);
         mPasses.forward.tex_ibl_lut = mTexProcessingPSOs.create_brdf_lut(frame, 256);
 
@@ -25,7 +33,6 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window) : mWindow(window)
         frame.transition(mPasses.forward.tex_ibl_lut, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
         mContext.submit(frame);
-        mContext.flush();
     }
 
     mPasses.depthpre.init(mContext);
@@ -36,6 +43,7 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window) : mWindow(window)
     onBackbufferResize(mContext.get_backbuffer_size());
 
     mScene.init(mContext, 500);
+    mContext.flush();
 }
 
 dr::DemoRenderer::~DemoRenderer() { mContext.flush(); }

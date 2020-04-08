@@ -30,12 +30,6 @@ void dr::scene::upload_current_frame()
 {
     auto& frame = current_frame();
 
-    // recalculate MV matrices for current gpu instances
-    for (instance_gpudata& inst : instance_transforms)
-    {
-        inst.mv = camdata.view * inst.model;
-    }
-
     std::memcpy(frame.cb_camdata_map, &camdata, sizeof(camdata));
     std::memcpy(frame.sb_modeldata_map, instance_transforms.data(), sizeof(instance_gpudata) * instance_transforms.size());
 }

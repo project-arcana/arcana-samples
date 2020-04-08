@@ -14,7 +14,7 @@ namespace dr
 class DemoRenderer
 {
 public:
-    DemoRenderer(inc::da::SDLWindow& window);
+    DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type);
     ~DemoRenderer();
 
     /// loads a mesh from disk

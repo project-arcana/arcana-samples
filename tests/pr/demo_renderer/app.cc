@@ -4,10 +4,12 @@
 
 #include "demo_renderer.hh"
 
-APP("demo_renderer")
+namespace
+{
+void run_demo_renderer(pr::backend_type type)
 {
     inc::da::SDLWindow window;
-    dr::DemoRenderer renderer(window);
+    dr::DemoRenderer renderer(window, type);
 
     auto const mesh_ball = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/ball.mesh", true);
     auto const mat_ball = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/ball/albedo.png",   //
@@ -24,3 +26,8 @@ APP("demo_renderer")
     }
     renderer.mainLoop([&](pr::Context&) { renderer.execute(); });
 }
+
+}
+
+APP("demo_renderer_vk") { run_demo_renderer(pr::backend_type::vulkan); }
+APP("demo_renderer_d3d12") { run_demo_renderer(pr::backend_type::d3d12); }

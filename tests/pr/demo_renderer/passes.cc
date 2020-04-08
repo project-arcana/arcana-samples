@@ -19,7 +19,7 @@ void dr::depthpre_pass::init(pr::Context& ctx)
     config.cull = phi::cull_mode::back;
     config.depth = phi::depth_function::greater;
 
-    auto gp = pr::graphics_pass(vs).arg(2, 0, 0, true).constants().vertex<inc::assets::simple_vertex>().config(config);
+    auto gp = pr::graphics_pass(vs).arg(1, 0, 0, true).constants().vertex<inc::assets::simple_vertex>().config(config);
     pso_depthpre = ctx.make_pipeline_state(gp, pr::framebuffer().depth(pr::format::depth32f));
 }
 
@@ -27,7 +27,6 @@ void dr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_tar
 {
     pr::argument arg;
     arg.add(scene.current_frame().sb_modeldata);
-    arg.add(scene.last_frame().sb_modeldata);
 
     auto fb = frame.build_framebuffer().clear_depth(targets.t_depth, 0.f).make();
     auto pass = fb.make_pass(pso_depthpre).bind(arg, scene.current_frame().cb_camdata);
@@ -51,7 +50,7 @@ void dr::forward_pass::init(pr::Context& ctx)
     config.depth_readonly = true;
 
     auto gp = pr::graphics_pass(vs, ps)                  //
-                  .arg(2, 0, 0, true)                    // Mesh data
+                  .arg(1, 0, 0, true)                    // Mesh data
                   .arg(3, 0, 2)                          // IBL data, samplers
                   .arg(4, 0, 0)                          // Material data
                   .constants()                           //
@@ -84,7 +83,6 @@ void dr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targ
 
     pr::argument model_arg;
     model_arg.add(scene.current_frame().sb_modeldata);
-    model_arg.add(scene.last_frame().sb_modeldata);
 
     auto pass = fb.make_pass(pso_pbr) //
                     .bind(model_arg, scene.current_frame().cb_camdata)
