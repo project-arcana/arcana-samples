@@ -41,7 +41,7 @@ void dr::scene::flush_current_frame_upload(pr::Context& ctx)
     ctx.flush_buffer_writes(frame.sb_modeldata);
 }
 
-void dr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::pos3 camtarget)
+void dr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward)
 {
     prev_clean_proj = clean_proj;
     clean_proj = tg::perspective_reverse_z_directx(60_deg, res.width / float(res.height), 0.1f);
@@ -49,7 +49,7 @@ void dr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::pos3 camt
     proj = clean_proj; // TODO jitter
     proj_inv = tg::inverse(proj);
 
-    view = tg::look_at_directx(campos, camtarget, tg::vec3(0, 1, 0));
+    view = tg::look_at_directx(campos, camforward, tg::vec3(0, 1, 0));
     view_inv = tg::inverse(view);
 
     vp = proj * view;

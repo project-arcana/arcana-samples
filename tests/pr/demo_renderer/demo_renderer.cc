@@ -5,9 +5,49 @@
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Frame.hh>
 
+#include <arcana-incubator/device-abstraction/stringhash.hh>
+
+namespace
+{
+enum e_input : uint64_t
+{
+    ge_input_forward,
+    ge_input_left,
+    ge_input_back,
+    ge_input_right,
+    ge_input_up,
+    ge_input_down,
+    ge_input_speedup,
+    ge_input_slowdown,
+    ge_input_camlook_active,
+    ge_input_camlook_x,
+    ge_input_camlook_y
+};
+
+}
+
 dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
 {
-    mWindow.initialize("Demo Renderer");
+    mWindow.initialize("Demo Renderer", 1280, 720);
+
+    // input setup
+    {
+        mInput.initialize(100);
+
+        mInput.bindKey(ge_input_forward, SDL_SCANCODE_W);
+        mInput.bindKey(ge_input_left, SDL_SCANCODE_A);
+        mInput.bindKey(ge_input_back, SDL_SCANCODE_S);
+        mInput.bindKey(ge_input_right, SDL_SCANCODE_D);
+        mInput.bindKey(ge_input_up, SDL_SCANCODE_E);
+        mInput.bindKey(ge_input_down, SDL_SCANCODE_Q);
+        mInput.bindKey(ge_input_speedup, SDL_SCANCODE_LSHIFT);
+        mInput.bindKey(ge_input_slowdown, SDL_SCANCODE_LCTRL);
+
+        mInput.bindMouseButton(ge_input_camlook_active, SDL_BUTTON_RIGHT);
+
+        mInput.bindMouseAxis(ge_input_camlook_x, 0, -1.f);
+        mInput.bindMouseAxis(ge_input_camlook_y, 1, 1.f);
+    }
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
@@ -86,11 +126,42 @@ dr::material dr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_
     return res;
 }
 
-void dr::DemoRenderer::execute()
+void dr::DemoRenderer::execute(float dt)
 {
     mScene.on_next_frame();
 
-    mScene.camdata.fill_data(mScene.resolution, tg::pos3(5, 5, 5), tg::pos3(0, 0, 0));
+    // camera update
+    {
+        auto speed_mul = 10.f;
+
+        if (mInput.get(ge_input_speedup).isActive())
+            speed_mul *= 2.f;
+
+        if (mInput.get(ge_input_slowdown).isActive())
+            speed_mul *= .5f;
+
+        auto const delta_move = tg::vec3{mInput.get(ge_input_left).getAnalog() - mInput.get(ge_input_right).getAnalog(),
+                                         mInput.get(ge_input_up).getAnalog() - mInput.get(ge_input_down).getAnalog(),
+                                         mInput.get(ge_input_back).getAnalog() - mInput.get(e_input::ge_input_forward).getAnalog()
+
+                                }
+                                * dt * speed_mul;
+
+        mCamera.target.move_relative(delta_move);
+
+        if (mInput.get(ge_input_camlook_active).isActive())
+        {
+            SDL_ShowCursor(0);
+            mCamera.target.mouselook(mInput.get(ge_input_camlook_x).getDelta() * dt, mInput.get(ge_input_camlook_y).getDelta() * dt);
+        }
+        else
+        {
+            SDL_ShowCursor(1);
+        }
+
+        mCamera.interpolate_to_target(dt);
+        mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward);
+    }
     mScene.upload_current_frame();
 
     pr::CompiledFrame cf_depthpre;
@@ -123,9 +194,19 @@ void dr::DemoRenderer::execute()
     mContext.present();
 }
 
-bool dr::DemoRenderer::handleResizes()
+bool dr::DemoRenderer::handleEvents()
 {
-    mWindow.pollEvents();
+    // input and polling
+    {
+        mInput.updatePrePoll();
+
+        SDL_Event e;
+        while (mWindow.pollSingleEvent(e))
+            mInput.processEvent(e);
+
+        mInput.updatePostPoll();
+    }
+
     if (mWindow.isMinimized())
         return false;
 
@@ -134,7 +215,6 @@ bool dr::DemoRenderer::handleResizes()
 
     if (mContext.clear_backbuffer_resize())
         onBackbufferResize(mContext.get_backbuffer_size());
-
     return true;
 }
 

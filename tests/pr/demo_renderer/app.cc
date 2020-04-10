@@ -24,7 +24,7 @@ void run_demo_renderer(pr::backend_type type)
         auto const modelmat = tg::translation(tg::pos3((-1 + int(i)) * 3.f, 0, 0)) * tg::scaling(0.21f, 0.21f, 0.21f);
         renderer.addInstance(mesh_ball, mat_ball, modelmat);
     }
-    renderer.mainLoop([&](pr::Context&) { renderer.execute(); });
+    renderer.mainLoop([&](pr::Context& ctx, float dt) { renderer.execute(dt); });
 }
 
 }

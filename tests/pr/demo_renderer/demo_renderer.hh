@@ -4,6 +4,9 @@
 
 #include <phantasm-renderer/Context.hh>
 
+#include <arcana-incubator/device-abstraction/freefly_camera.hh>
+#include <arcana-incubator/device-abstraction/input.hh>
+#include <arcana-incubator/device-abstraction/timer.hh>
 #include <arcana-incubator/pr-util/resource_loading.hh>
 #include <arcana-incubator/pr-util/texture_processing.hh>
 
@@ -31,27 +34,34 @@ public:
     template <class F>
     void mainLoop(F&& func)
     {
+        mTimer.restart();
         while (!mWindow.isRequestingClose())
         {
-            if (!handleResizes())
+            if (!handleEvents())
                 continue;
 
-            func(mContext);
+            auto const dt = mTimer.elapsedSeconds();
+            mTimer.restart();
+            func(mContext, dt);
         }
 
         mContext.flush();
     }
 
-    void execute();
+    void execute(float dt);
 
 private:
-    bool handleResizes();
+    bool handleEvents();
 
     void onBackbufferResize(tg::isize2 new_size);
 
 private:
     inc::da::SDLWindow& mWindow;
     pr::Context mContext;
+
+    inc::da::Timer mTimer;
+    inc::da::input_manager mInput;
+    inc::da::smooth_fps_cam mCamera;
 
     inc::pre::texture_processing mTexProcessingPSOs;
 

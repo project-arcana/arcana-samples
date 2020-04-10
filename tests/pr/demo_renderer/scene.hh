@@ -48,7 +48,7 @@ struct scene_gpudata
     tg::pos3 cam_pos;
     float runtime;
 
-    void fill_data(tg::isize2 res, tg::pos3 campos, tg::pos3 camtarget);
+    void fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward);
 };
 
 struct scene

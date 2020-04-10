@@ -57,7 +57,7 @@ void dr::forward_pass::init(pr::Context& ctx)
                   .config(config)                        //
                   .vertex<inc::assets::simple_vertex>(); //
 
-    pso_pbr = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rgba16f, pr::format::rg16f).depth(pr::format::depth32f));
+    pso_pbr = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf, pr::format::rg16f).depth(pr::format::depth32f));
 
     auto lut_sampler = phi::sampler_config(phi::sampler_filter::min_mag_mip_linear, 1);
     lut_sampler.address_u = phi::sampler_address_mode::clamp;

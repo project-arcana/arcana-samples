@@ -5,7 +5,7 @@
 void dr::global_targets::recreate_rts(pr::Context& ctx, tg::isize2 new_size)
 {
     t_depth = ctx.make_target(new_size, pr::format::depth32f, 0.f);
-    t_forward_hdr = ctx.make_target(new_size, pr::format::rgba16f);
+    t_forward_hdr = ctx.make_target(new_size, pr::format::b10g11r11uf);
     t_forward_velocity = ctx.make_target(new_size, pr::format::rg16f);
 
     t_post_a = ctx.make_target(new_size, pr::format::rgba16f);
