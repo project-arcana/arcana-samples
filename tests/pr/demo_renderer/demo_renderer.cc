@@ -51,7 +51,7 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type back
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::on_extended;
+    config.validation = phi::validation_level::off;
 
     mContext.initialize({mWindow.getSdlWindow()}, backend_type, config);
 
@@ -151,12 +151,18 @@ void dr::DemoRenderer::execute(float dt)
 
         if (mInput.get(ge_input_camlook_active).isActive())
         {
-            SDL_ShowCursor(0);
+            if (!mMouseCaptured)
+            {
+                SDL_SetRelativeMouseMode(SDL_TRUE);
+                mMouseCaptured = true;
+            }
+
             mCamera.target.mouselook(mInput.get(ge_input_camlook_x).getDelta() * dt, mInput.get(ge_input_camlook_y).getDelta() * dt);
         }
-        else
+        else if (mMouseCaptured)
         {
-            SDL_ShowCursor(1);
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+            mMouseCaptured = false;
         }
 
         mCamera.interpolate_to_target(dt);

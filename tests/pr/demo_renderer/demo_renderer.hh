@@ -62,6 +62,7 @@ private:
     inc::da::Timer mTimer;
     inc::da::input_manager mInput;
     inc::da::smooth_fps_cam mCamera;
+    bool mMouseCaptured = false;
 
     inc::pre::texture_processing mTexProcessingPSOs;
 
