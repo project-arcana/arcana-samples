@@ -1,5 +1,7 @@
 #include <nexus/test.hh>
 
+#include <rich-log/log.hh>
+
 #include <structured-interface/detail/debug.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/si.hh>
@@ -18,7 +20,7 @@ TEST("si basics")
     si::gui ui;
 
     // creating si:: ui elements inside the lambda records them in 'r'
-    auto r = ui.record([] {
+    auto r = ui.record([&] {
         // without a window there is an implicit container around everything
         si::button("press");
     });
