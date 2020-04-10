@@ -65,7 +65,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             auto const ps_bin = get_shader_binary("imgui_ps", sample_config.shader_ending);
             auto const vs_bin = get_shader_binary("imgui_vs", sample_config.shader_ending);
             CC_RUNTIME_ASSERT(ps_bin.is_valid() && vs_bin.is_valid() && "Failed to load imgui shaders");
-            imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
+            imgui_implementation.initialize(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
         }
     }
 
@@ -563,7 +563,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     for (auto const& pfr : l_res.per_frame_resources)
         backend.freeVariadic(pfr.cb_camdata, pfr.sb_modeldata, pfr.shaderview_render_vertex);
 
-    imgui_implementation.shutdown();
+    imgui_implementation.destroy();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 
