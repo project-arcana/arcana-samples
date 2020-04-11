@@ -45,8 +45,8 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type back
 
         mInput.bindMouseButton(ge_input_camlook_active, SDL_BUTTON_RIGHT);
 
-        mInput.bindMouseAxis(ge_input_camlook_x, 0, -1.f);
-        mInput.bindMouseAxis(ge_input_camlook_y, 1, 1.f);
+        mInput.bindMouseAxis(ge_input_camlook_x, 0, -.75f);
+        mInput.bindMouseAxis(ge_input_camlook_y, 1, -.75f);
     }
 
     phi::backend_config config;
@@ -140,9 +140,9 @@ void dr::DemoRenderer::execute(float dt)
         if (mInput.get(ge_input_slowdown).isActive())
             speed_mul *= .5f;
 
-        auto const delta_move = tg::vec3{mInput.get(ge_input_left).getAnalog() - mInput.get(ge_input_right).getAnalog(),
+        auto const delta_move = tg::vec3{mInput.get(ge_input_right).getAnalog() - mInput.get(ge_input_left).getAnalog(),
                                          mInput.get(ge_input_up).getAnalog() - mInput.get(ge_input_down).getAnalog(),
-                                         mInput.get(ge_input_back).getAnalog() - mInput.get(e_input::ge_input_forward).getAnalog()
+                                         mInput.get(e_input::ge_input_forward).getAnalog() - mInput.get(ge_input_back).getAnalog()
 
                                 }
                                 * dt * speed_mul;
