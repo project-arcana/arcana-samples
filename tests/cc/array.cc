@@ -5,8 +5,8 @@
 
 #include <clean-core/array.hh>
 #include <clean-core/assert.hh>
-#include <clean-core/fwd_array.hh>
 #include <clean-core/capped_array.hh>
+#include <clean-core/fwd_array.hh>
 #include <clean-core/vector.hh>
 
 #include <typed-geometry/tg.hh>

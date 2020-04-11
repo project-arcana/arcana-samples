@@ -1,9 +1,9 @@
 #include <nexus/test.hh>
 
 #include <clean-ranges/algorithms/count.hh>
+#include <clean-ranges/algorithms/element_at.hh>
 #include <clean-ranges/algorithms/find.hh>
 #include <clean-ranges/algorithms/for_each.hh>
-#include <clean-ranges/algorithms/element_at.hh>
 #include <clean-ranges/algorithms/single.hh>
 #include <clean-ranges/algorithms/sum.hh>
 #include <clean-ranges/range.hh>

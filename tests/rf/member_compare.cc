@@ -11,7 +11,7 @@ struct bar
     int x;
     char _padding[14];
     int y;
-    alignas (std::max_align_t) char _aligned_padding[3];
+    alignas(std::max_align_t) char _aligned_padding[3];
     void* z;
 };
 template <class I>

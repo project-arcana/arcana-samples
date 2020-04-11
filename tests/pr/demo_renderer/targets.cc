@@ -18,7 +18,7 @@ void dr::global_targets::recreate_rts(pr::Context& ctx, tg::isize2 new_size)
     t_post_ldr = ctx.make_target(new_size, pr::format::rgba8un);
 }
 
-void dr::global_targets::recreate_buffers(pr::Context &ctx, tg::isize2 new_size)
+void dr::global_targets::recreate_buffers(pr::Context& ctx, tg::isize2 new_size)
 {
     // TODO
 }
