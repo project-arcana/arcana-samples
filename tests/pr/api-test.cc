@@ -1,4 +1,4 @@
-#include <nexus/test.hh>
+#include <nexus/app.hh>
 
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
@@ -124,7 +124,6 @@ float4 main_ps(vs_out In) : SV_TARGET
    float4 hdr = g_texture.Sample(g_sampler, In.Texcoord);
 
    float4 color = float4(tonemap_uc2(hdr.xyz), 1.0);
-
    return color;
 }
 )";
@@ -136,58 +135,42 @@ struct cam_constants
 
 }
 
-TEST("pr::api")
+APP("api_test")
 {
     inc::da::SDLWindow window;
     window.initialize("api test");
 
-    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()});
+    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()}, pr::backend_type::vulkan);
 
-    pr::graphics_pipeline_state pso_render;
-    pr::graphics_pipeline_state pso_blit;
+    // pr::graphics_pipeline_state pso_render;
+    pr::auto_graphics_pipeline_state pso_blit;
 
-    pr::buffer b_indices;
-    pr::buffer b_vertices;
+    pr::auto_buffer b_indices;
+    pr::auto_buffer b_vertices;
 
-    pr::buffer b_modelmats;
-    pr::buffer b_camconsts;
+    pr::auto_buffer b_modelmats;
+    pr::auto_buffer b_camconsts;
 
-    pr::render_target t_depth;
-    pr::render_target t_color;
+    pr::auto_render_target t_depth;
+    pr::auto_render_target t_color;
 
-    pr::baked_argument sv_render;
+    pr::auto_prebuilt_argument sv_render;
 
     unsigned const num_instances = 3;
 
-    // create psos
+    auto const render_vs = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
+    auto const pixel_vs = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
+
+    // create persisted PSO
     {
-        static_assert(true, "clang format fix");
+        auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
+        auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
 
-        {
-            auto const s_vertex = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
-            auto const s_pixel = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
+        phi::pipeline_config config;
+        config.depth = phi::depth_function::none;
+        config.cull = phi::cull_mode::none;
 
-            pso_render = ctx.build_pipeline_state()
-                             .add_shader(s_vertex)
-                             .add_shader(s_pixel)
-                             .add_render_target(pr::format::rgba16f)
-                             .add_depth_target(pr::format::depth32f)
-                             .set_vertex_format<inc::assets::simple_vertex>()
-                             .add_argument_shape(1, 0, 0, true)
-                             .add_root_constants()
-                             .make_graphics();
-        }
-        {
-            auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
-            auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
-
-            pso_blit = ctx.build_pipeline_state()
-                           .add_shader(s_vertex)
-                           .add_shader(s_pixel)
-                           .add_render_target(ctx.get_backbuffer_format())
-                           .add_argument_shape(1, 0, 1, false)
-                           .make_graphics();
-        }
+        pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1).config(config), pr::framebuffer(ctx.get_backbuffer_format()));
     }
 
     // load mesh buffers
@@ -260,11 +243,19 @@ TEST("pr::api")
 
             {
                 auto fb = frame.make_framebuffer(t_color, t_depth);
-                auto pass = fb.make_pass(pso_render).bind(sv_render, b_camconsts);
+
+                // create a pass using cache access
+                phi::pipeline_config config;
+                config.depth = phi::depth_function::less;
+                config.cull = phi::cull_mode::back;
+                auto gp = pr::graphics_pass<inc::assets::simple_vertex>(config, render_vs, pixel_vs).arg(1, 0, 0, true).constants();
+
+                // bind a persisted argument, plus a CBV
+                auto pass = fb.make_pass(gp).bind(sv_render, b_camconsts);
 
                 for (auto i = 0u; i < num_instances; ++i)
                 {
-                    pass.write_root_constants(i);
+                    pass.write_constants(i);
                     pass.draw(b_vertices, b_indices);
                 }
             }
@@ -275,14 +266,15 @@ TEST("pr::api")
 
             {
                 auto fb = frame.make_framebuffer(backbuffer);
+                // create a pass from a persisted PSO
+                auto pass = fb.make_pass(pso_blit);
 
+                // bind an argument using cache access
                 pr::argument arg;
                 arg.add(t_color);
                 arg.add_sampler(phi::sampler_filter::min_mag_mip_point);
 
-                auto pass = fb.make_pass(pso_blit).bind(arg);
-
-                pass.draw(3);
+                pass.bind(arg).draw(3);
             }
 
             frame.transition(backbuffer, phi::resource_state::present);
@@ -295,92 +287,3 @@ TEST("pr::api")
 
     ctx.flush();
 }
-
-#if 0
-// bind versions
-{
-    auto pass = ...;
-
-    struct my_data
-    {
-        int idx;
-        tg::color4 color;
-    };
-
-    // trivially copyable T
-    {
-        tg::mat4 transform = ...;
-        pass.bind(transform).draw(...);
-
-        my_data data = ...;
-        pass.bind(data).draw(...);
-    }
-
-    // contiguous range of trivially copyable T
-    {
-        cc::vector<tg::mat4> transforms = ...;
-        pass.bind(transforms).draw(...);
-
-        cc::array<my_data> data = ...;
-        pass.bind(data).draw(...);
-    }
-
-    // custom setup
-    {
-        struct my_arg : pr::shader_arg
-        {
-            tg::mat4 model;
-            pr::ImageView2D tex_albedo;
-            pr::ImageView2D tex_normal;
-
-            // alternatively also via reflection
-            void setup()
-            {
-                add(model);
-                add(tex_albedo);
-                add(tex_normal);
-            }
-        };
-
-        my_arg arg = ...;
-        pass.bind(arg).draw(...);
-    }
-
-    // directly some resources
-    {
-        pr::Buffer buffer = ...;
-        pass.bind(buffer).draw(...);
-
-        cc::vector<pr::Buffer> buffers = ...;
-        pass.bind(buffers).draw(...);
-
-        pr::Image2D tex = ...;
-        pass.bind(tex).draw(...);
-
-        cc::vector<pr::Image2D> textures = ...;
-        pass.bind(textures).draw(...);
-
-        pr::Image2D texA, texB, texC = ...;
-        pass.bind({texA, texB, texC}).draw(...);
-    }
-
-    // shader arg builder
-    {
-        pr::Buffer buffer = ...;
-        cc::vector<pr::Buffer> buffers = ...;
-        pr::Image2D tex = ...;
-        cc::vector<pr::Image2D> textures = ...;
-        my_data data = ...;
-        tg::mat4 transform = ...;
-
-        pr::shader_arg arg;
-        arg.add(buffer);
-        arg.add(buffers);
-        arg.add(tex, "my_tex"); // name is optional for verification
-        arg.add(textures);
-        arg.add(data);
-        arg.add(transform);
-        pass.bind(arg).draw(...);
-    }
-}
-#endif
