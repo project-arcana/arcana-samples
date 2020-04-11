@@ -6,7 +6,7 @@
 #include <structured-interface/gui.hh>
 #include <structured-interface/si.hh>
 
-TEST("si basics")
+TEST("si basics", disabled)
 {
     // idea for now:
     // - recording phase

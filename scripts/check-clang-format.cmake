@@ -1,3 +1,5 @@
+# to be executed in arcana-samples root dir
+
 FILE(GLOB_RECURSE files 
     "tests/*.cc"
     "tests/*.hh"
@@ -33,7 +35,7 @@ foreach(filename ${files})
 
             if (NOT ONLY_CHECK)
                 message(" .. formatting ${filename}")
-                
+
                 execute_process(
                     COMMAND clang-format-7 -i -style=file ${filename}
                     RESULT_VARIABLE status

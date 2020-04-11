@@ -19,7 +19,7 @@ TEST("ct::scope")
 TEST("ct::scope + inner null")
 {
     auto const cntA = 10;
-    auto const cntB = 10'000'000;
+    auto const cntB = 1'000'000;
 
     ct::scope s;
     for (auto i = 0; i < cntA; ++i)
