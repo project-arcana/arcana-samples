@@ -107,6 +107,7 @@ jobs:
             -S .
             -B build
             -D CMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
+            -D CC_STRICT=ON
             -G Ninja
             -D CMAKE_MAKE_PROGRAM=ninja
           RESULT_VARIABLE result
