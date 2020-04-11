@@ -25,7 +25,7 @@ struct material
 
 struct instance
 {
-    mesh mesh;
+    struct mesh mesh;
     material mat;
 };
 

@@ -28,7 +28,9 @@ TEST("ct::scope + inner null")
 
         ct::null_scope ns;
         for (auto i = 0; i < cntB; ++i)
+        {
             TRACE("null");
+        }
     }
 
     CHECK(s.trace().compute_events().size() == cntA * 2);
