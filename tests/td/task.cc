@@ -106,7 +106,9 @@ TEST("td::container::Task (static)")
             td::container::task([](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).execute_and_cleanup();
             check_increment();
 
-            td::container::task(+[](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).execute_and_cleanup();
+            td::container::task(
+                +[](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment)
+                .execute_and_cleanup();
             check_increment();
 
             td::container::task(test_func, &stack_increment).execute_and_cleanup();
@@ -117,7 +119,9 @@ TEST("td::container::Task (static)")
         td::container::task([](void*) {}).execute_and_cleanup();
         td::container::task(+[](void*) {}).execute_and_cleanup();
         td::container::task([](void*) {}, nullptr).execute_and_cleanup();
-        td::container::task(+[](void*) {}, nullptr).execute_and_cleanup();
+        td::container::task(
+            +[](void*) {}, nullptr)
+            .execute_and_cleanup();
 
         // Lambda variant, takes lambdas and function pointers void()
         td::container::task([] {}).execute_and_cleanup();

@@ -37,12 +37,12 @@ TEST("cc::map")
             CHECK(v == 5);
     }
     CHECK(cnt == 2);
-    
+
     for (auto&& [k, v] : m)
         v += k;
     CHECK(m[3] == 7);
     CHECK(m[1] == 6);
-    
+
     for (auto k : m.keys())
     {
         CHECK(k == cc::any_of(3, 1));

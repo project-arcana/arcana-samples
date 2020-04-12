@@ -291,6 +291,44 @@ MONTE_CARLO_TEST("cc::vector mct")
     testType(int{});
 }
 
+TEST("cc::vector remove")
+{
+    cc::vector<int> v = {3, 2, 1, 3};
+    v.remove(3);
+    CHECK(v.size() == 2);
+    CHECK(v == cc::vector{2, 1});
+    v.remove(2);
+    CHECK(v == cc::vector{1});
+    CHECK(v.size() == 1);
+    v.push_back(4);
+    v.push_back(4);
+    CHECK(v == cc::vector{1, 4, 4});
+    CHECK(v.size() == 3);
+    v.remove(2);
+    CHECK(v == cc::vector{1, 4, 4});
+    CHECK(v.size() == 3);
+    v.remove(1);
+    CHECK(v == cc::vector{4, 4});
+    CHECK(v.size() == 2);
+    v.remove(4);
+    CHECK(v.empty());
+    CHECK(v.size() == 0);
+
+    v = {3, 2, 4};
+    v.remove_at(0);
+    CHECK(v == cc::vector{2, 4});
+    v.remove_at(1);
+    CHECK(v == cc::vector{2});
+    v = {3, 2, 4};
+    v.remove_range(1, 2);
+    CHECK(v == cc::vector{3});
+    v = {3, 4, 4};
+    v.remove_first([](int i) { return i == 4; });
+    CHECK(v == cc::vector{3, 4});
+    v.remove_first([](int i) { return i == 5; });
+    CHECK(v == cc::vector{3, 4});
+}
+
 TEST("cc::vector interior references")
 {
     struct foo

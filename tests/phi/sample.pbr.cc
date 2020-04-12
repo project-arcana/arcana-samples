@@ -30,8 +30,8 @@
 
 #include <arcana-incubator/profiling/remotery.hh>
 
-#include <arcana-incubator/pr-util/mesh_util.hh>
-#include <arcana-incubator/pr-util/texture_creation.hh>
+#include <arcana-incubator/phi-util/mesh_util.hh>
+#include <arcana-incubator/phi-util/texture_creation.hh>
 
 #include "scene.hh"
 #include "texture_util.hh"
@@ -65,7 +65,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             auto const ps_bin = get_shader_binary("imgui_ps", sample_config.shader_ending);
             auto const vs_bin = get_shader_binary("imgui_vs", sample_config.shader_ending);
             CC_RUNTIME_ASSERT(ps_bin.is_valid() && vs_bin.is_valid() && "Failed to load imgui shaders");
-            imgui_implementation.init(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(), sample_config.align_mip_rows);
+            imgui_implementation.initialize(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(),
+                                            sample_config.align_mip_rows);
         }
     }
 
@@ -205,6 +206,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         fbconf.depth_target.push_back(format::depth24un_stencil8u);
 
         pipeline_config config;
+        config.cull = cull_mode::back;
+        config.depth = depth_function::less;
         config.samples = gc_msaa_samples;
 
         l_res.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
@@ -381,59 +384,61 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             {
                 INC_RMT_TRACE_NAMED("TaskDispatch");
 
-                td::submit_batched_n(render_sync,
-                                     [&](unsigned start, unsigned end, unsigned i) {
-                                         INC_RMT_TRACE_NAMED("CommandRecordTask");
+                td::submit_batched_n(
+                    render_sync,
+                    [&](unsigned start, unsigned end, unsigned i) {
+                        INC_RMT_TRACE_NAMED("CommandRecordTask");
 
-                                         command_stream_writer cmd_writer(thread_cmd_buffer_mem[i + 1], THREAD_BUFFER_SIZE);
+                        command_stream_writer cmd_writer(thread_cmd_buffer_mem[i + 1], THREAD_BUFFER_SIZE);
 
-                                         auto const is_first_batch = i == 0;
-                                         auto const clear_or_load = is_first_batch ? rt_clear_type::clear : rt_clear_type::load;
+                        auto const is_first_batch = i == 0;
+                        auto const clear_or_load = is_first_batch ? rt_clear_type::clear : rt_clear_type::load;
 
-                                         if (is_first_batch)
-                                         {
-                                             cmd::transition_resources tcmd;
-                                             tcmd.add(l_res.colorbuffer, resource_state::render_target);
-                                             cmd_writer.add_command(tcmd);
-                                         }
-                                         {
-                                             cmd::begin_render_pass bcmd;
-                                             bcmd.viewport = backend.getBackbufferSize();
-                                             bcmd.add_2d_rt(l_res.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
-                                             bcmd.set_2d_depth_stencil(l_res.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
-                                             cmd_writer.add_command(bcmd);
-                                         }
+                        if (is_first_batch)
+                        {
+                            cmd::transition_resources tcmd;
+                            tcmd.add(l_res.colorbuffer, resource_state::render_target);
+                            cmd_writer.add_command(tcmd);
+                        }
+                        {
+                            cmd::begin_render_pass bcmd;
+                            bcmd.viewport = backend.getBackbufferSize();
+                            bcmd.add_2d_rt(l_res.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
+                            bcmd.set_2d_depth_stencil(l_res.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
+                            cmd_writer.add_command(bcmd);
+                        }
 
-                                         {
-                                             cmd::draw dcmd;
-                                             dcmd.init(l_res.pso_render, l_res.num_indices, l_res.vertex_buffer, l_res.index_buffer);
-                                             dcmd.add_shader_arg(l_res.current_frame().cb_camdata, 0, l_res.current_frame().shaderview_render_vertex);
-                                             dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render);
-                                             dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render_ibl);
+                        {
+                            cmd::draw dcmd;
+                            dcmd.init(l_res.pso_render, l_res.num_indices, l_res.vertex_buffer, l_res.index_buffer);
+                            dcmd.add_shader_arg(l_res.current_frame().cb_camdata, 0, l_res.current_frame().shaderview_render_vertex);
+                            dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render);
+                            dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render_ibl);
 
-                                             for (auto inst = start; inst < end; ++inst)
-                                             {
-                                                 dcmd.write_root_constants(static_cast<unsigned>(inst));
-                                                 cmd_writer.add_command(dcmd);
-                                             }
-                                         }
+                            for (auto inst = start; inst < end; ++inst)
+                            {
+                                dcmd.write_root_constants(static_cast<unsigned>(inst));
+                                cmd_writer.add_command(dcmd);
+                            }
+                        }
 
-                                         cmd_writer.add_command(cmd::end_render_pass{});
+                        cmd_writer.add_command(cmd::end_render_pass{});
 
-                                         {
-                                             INC_RMT_TRACE_NAMED("CommandRecordTaskBackend");
-                                             render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
-                                         }
-                                     },
-                                     phi_test::num_instances, phi_test::num_render_threads);
+                        {
+                            INC_RMT_TRACE_NAMED("CommandRecordTaskBackend");
+                            render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                        }
+                    },
+                    phi_test::num_instances, phi_test::num_render_threads);
 
 
-                td::submit_batched(modeldata_upload_sync,
-                                   [run_time, model_data, position_modulos](unsigned start, unsigned end) {
-                                       INC_RMT_TRACE_NAMED("ModelMatrixTask");
-                                       phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
-                                   },
-                                   phi_test::num_instances, phi_test::num_render_threads);
+                td::submit_batched(
+                    modeldata_upload_sync,
+                    [run_time, model_data, position_modulos](unsigned start, unsigned end) {
+                        INC_RMT_TRACE_NAMED("ModelMatrixTask");
+                        phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
+                    },
+                    phi_test::num_instances, phi_test::num_render_threads);
             }
 
             cc::capped_vector<handle::command_list, 3> backbuffer_cmd_lists;
@@ -561,7 +566,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     for (auto const& pfr : l_res.per_frame_resources)
         backend.freeVariadic(pfr.cb_camdata, pfr.sb_modeldata, pfr.shaderview_render_vertex);
 
-    imgui_implementation.shutdown();
+    imgui_implementation.destroy();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 

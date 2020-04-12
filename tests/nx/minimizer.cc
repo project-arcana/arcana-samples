@@ -4,7 +4,7 @@
 #include <clean-ranges/algorithms/contains.hh>
 
 
-MONTE_CARLO_TEST("mct minimize")
+MONTE_CARLO_TEST("mct minimize", disabled)
 {
     addValue("empty", cc::vector<int>());
     addOp("add", [](cc::vector<int>& v, tg::rng& rng) { v.push_back(uniform(rng, -10, 10)); });

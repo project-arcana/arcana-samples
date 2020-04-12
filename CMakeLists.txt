@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 project(Arcana)
 
-include(cmake/SourceGroup.cmake)
-
 # ===============================================
 # Global settings
 
@@ -178,8 +176,6 @@ endif()
 # Tests and samples
 
 function(add_arcana_test TEST_NAME SOURCES)
-    # arcana_source_group(SOURCES)
-
     # create target
     add_executable(${TEST_NAME} ${SOURCES})
 
@@ -222,7 +218,7 @@ foreach(TARGET_NAME
 endforeach()
 
 foreach(TARGET_NAME
-    dxc-wrapper-standalone    
+    dxc-wrapper-standalone
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Tools")
 endforeach()

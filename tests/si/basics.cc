@@ -1,9 +1,12 @@
 #include <nexus/test.hh>
 
+#include <rich-log/log.hh>
+
+#include <structured-interface/detail/debug.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/si.hh>
 
-TEST("si basics")
+TEST("si basics", disabled)
 {
     // idea for now:
     // - recording phase
@@ -16,13 +19,13 @@ TEST("si basics")
 
     si::gui ui;
 
-    {
-        // creating si:: ui elements inside this scope records them in 'ui'
-        auto _ = ui.record();
-
+    // creating si:: ui elements inside the lambda records them in 'r'
+    auto r = ui.record([&] {
         // without a window there is an implicit container around everything
         si::button("press");
-    }
+    });
+
+    si::debug::print(r);
 
     CHECK(ui.has("press"));
 
@@ -44,7 +47,7 @@ TEST("si basics")
     // - glyph atlases
     // - reuse shadow stuff?
     // - effects: shadows, outlines, glass
-    
+
     // UI testing
     // - has / get / find
     // - is visible / not visible

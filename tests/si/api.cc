@@ -73,7 +73,7 @@ TEST("si api", disabled)
         // progress
         // TODO: progress bar
         // TODO: spinner + growing spinner
-        
+
         // buttons
         // TODO: icons
         // TODO: button groups
@@ -152,6 +152,12 @@ TEST("si api", disabled)
             }
         }
 
+        // canvas
+        if (auto c = si::canvas())
+        {
+            // TODO: draw commands, vector api, something
+        }
+
         // tables
         // TODO: freezing, reordering, hiding, resizing, sorting, style
 
@@ -180,7 +186,7 @@ TEST("si api", disabled)
         // TODO: disabled
         // TODO: validation
         // TODO: drag'n'drop
-        
+
         // render minimap
 
         // custom controls
