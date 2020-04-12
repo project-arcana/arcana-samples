@@ -7,6 +7,7 @@ FILE(GLOB_RECURSE files
     "extern/*.hh"
 )
 
+set(FORMATTER "clang-format-7" CACHE STRING "binary used to format files")
 option(ONLY_CHECK "if true, only checks if anything changed, otherwise executes clang format as well" ON)
 
 set(FINE TRUE)
@@ -21,7 +22,7 @@ foreach(filename ${files})
     file(READ ${filename} content)
 
     execute_process(
-        COMMAND clang-format-7 -style=file ${filename}
+        COMMAND ${FORMATTER} -style=file ${filename}
         OUTPUT_VARIABLE formatted
         RESULT_VARIABLE status
     )
@@ -37,7 +38,7 @@ foreach(filename ${files})
                 message(" .. formatting ${filename}")
 
                 execute_process(
-                    COMMAND clang-format-7 -i -style=file ${filename}
+                    COMMAND ${FORMATTER} -i -style=file ${filename}
                     RESULT_VARIABLE status
                 )
 
