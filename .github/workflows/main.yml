@@ -147,7 +147,7 @@ jobs:
         endif()
 
     - name: Run Tests
-      run: ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake -P ../scripts/run-tests.cmake
+      run: ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake -P scripts/run-tests.cmake
 
     - name: Pack
       working-directory: bin
