@@ -93,7 +93,7 @@ TEST("td::Scheduler", exclusive)
     // Run with constrained threads
     {
         scheduler_config config;
-        config.num_threads = 4;
+        config.num_threads = 2;
 
         Scheduler scheduler(config);
         auto iterations = 150;
