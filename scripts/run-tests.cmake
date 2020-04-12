@@ -8,6 +8,10 @@ else()
     FILE(GLOB_RECURSE tests "bin/${TEST_BUILD_TYPE}/*-tests")
 endif()
 
+if (NOT tests)
+    message(FATAL_ERROR "no tests found (wrong working directory?) CMAKE_CURRENT_SOURCE_DIR is '${CMAKE_CURRENT_SOURCE_DIR}'")
+endif()
+
 SET(FINE TRUE)
 SET(FAILS "")
 
@@ -37,5 +41,5 @@ if (NOT FINE)
     foreach (test ${FAILS})
         message("  ${test}")
     endforeach()
-    message(FATAL_ERROR "some tests are failing")
+    message(FATAL_ERROR "some tests are failing (run 'cmake -P scripts/run-tests.cmake' in arcana-samples root to execute this check manually)")
 endif()
