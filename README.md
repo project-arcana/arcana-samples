@@ -1,6 +1,6 @@
 # Arcana Samples
 
-![develop build](https://github.com/project-arcana/arcana-samples/workflows/CMake%20Build%20Matrix/badge.svg?branch=develop)
+![builds](https://github.com/project-arcana/arcana-samples/workflows/builds/badge.svg?branch=develop)
 
 This repository contains *samples* and *tests* for all arcana libraries.
 
