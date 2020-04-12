@@ -7,7 +7,7 @@ FILE(GLOB_RECURSE files
     "extern/*.hh"
 )
 
-set(FORMATTER "clang-format-7" CACHE STRING "binary used to format files")
+set(FORMATTER "clang-format-9" CACHE STRING "binary used to format files")
 option(ONLY_CHECK "if true, only checks if anything changed, otherwise executes clang format as well" ON)
 
 set(FINE TRUE)

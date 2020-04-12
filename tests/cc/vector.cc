@@ -250,9 +250,9 @@ MONTE_CARLO_TEST("cc::vector mct")
         addOp("op[]", [](tg::rng& rng, vector_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, vector_t const& s) {
             return s.size() > 0;
         });
-        addOp("data[]", [](tg::rng& rng, vector_t const& s) { return s.data()[uniform(rng, 0, int(s.size()) - 1)]; }).when([](tg::rng&, vector_t const& s) {
-            return s.size() > 0;
-        });
+        addOp("data[]", [](tg::rng& rng, vector_t const& s) {
+            return s.data()[uniform(rng, 0, int(s.size()) - 1)];
+        }).when([](tg::rng&, vector_t const& s) { return s.size() > 0; });
 
         addOp("fill", [](vector_t& s, int v) {
             for (auto& c : s)

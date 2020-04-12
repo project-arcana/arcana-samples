@@ -86,9 +86,9 @@ MONTE_CARLO_TEST("cc::array + fwd_array mct")
         addOp("op[]", [](tg::rng& rng, array_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, array_t const& s) {
             return s.size() > 0;
         });
-        addOp("data[]", [](tg::rng& rng, array_t const& s) { return s.data()[uniform(rng, 0, int(s.size()) - 1)]; }).when([](tg::rng&, array_t const& s) {
-            return s.size() > 0;
-        });
+        addOp("data[]", [](tg::rng& rng, array_t const& s) {
+            return s.data()[uniform(rng, 0, int(s.size()) - 1)];
+        }).when([](tg::rng&, array_t const& s) { return s.size() > 0; });
 
         addOp("fill", [](array_t& s, int v) {
             for (auto& c : s)

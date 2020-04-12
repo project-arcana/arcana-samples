@@ -31,15 +31,13 @@ jobs:
             name: "Ubuntu Latest GCC 8", artifact: "Linux-GCC8-Debug.tar.xz",
             os: ubuntu-latest,
             build_type: "Debug",
-            cc: "gcc-8", cxx: "g++-8",
-            formatter: "clang-format-8"
+            cc: "gcc-8", cxx: "g++-8"
           }
         - {
             name: "Ubuntu Latest Clang 8", artifact: "Linux-Clang8-Debug.tar.xz",
             os: ubuntu-latest,
             build_type: "Debug",
-            cc: "clang-8", cxx: "clang++-8",
-            formatter: "clang-format-8"
+            cc: "clang-8", cxx: "clang++-8"
           }
 
     steps:
@@ -85,7 +83,7 @@ jobs:
 
     - name: Clang Format Check
       if: matrix.config.os == 'ubuntu-latest'
-      run: ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake -DFORMATTER=${{ matrix.config.formatter }} -P scripts/check-clang-format.cmake
+      run: ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake -P scripts/check-clang-format.cmake
 
     - name: Configure
       shell: cmake -P {0}

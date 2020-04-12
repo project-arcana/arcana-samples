@@ -384,59 +384,61 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             {
                 INC_RMT_TRACE_NAMED("TaskDispatch");
 
-                td::submit_batched_n(render_sync,
-                                     [&](unsigned start, unsigned end, unsigned i) {
-                                         INC_RMT_TRACE_NAMED("CommandRecordTask");
+                td::submit_batched_n(
+                    render_sync,
+                    [&](unsigned start, unsigned end, unsigned i) {
+                        INC_RMT_TRACE_NAMED("CommandRecordTask");
 
-                                         command_stream_writer cmd_writer(thread_cmd_buffer_mem[i + 1], THREAD_BUFFER_SIZE);
+                        command_stream_writer cmd_writer(thread_cmd_buffer_mem[i + 1], THREAD_BUFFER_SIZE);
 
-                                         auto const is_first_batch = i == 0;
-                                         auto const clear_or_load = is_first_batch ? rt_clear_type::clear : rt_clear_type::load;
+                        auto const is_first_batch = i == 0;
+                        auto const clear_or_load = is_first_batch ? rt_clear_type::clear : rt_clear_type::load;
 
-                                         if (is_first_batch)
-                                         {
-                                             cmd::transition_resources tcmd;
-                                             tcmd.add(l_res.colorbuffer, resource_state::render_target);
-                                             cmd_writer.add_command(tcmd);
-                                         }
-                                         {
-                                             cmd::begin_render_pass bcmd;
-                                             bcmd.viewport = backend.getBackbufferSize();
-                                             bcmd.add_2d_rt(l_res.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
-                                             bcmd.set_2d_depth_stencil(l_res.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
-                                             cmd_writer.add_command(bcmd);
-                                         }
+                        if (is_first_batch)
+                        {
+                            cmd::transition_resources tcmd;
+                            tcmd.add(l_res.colorbuffer, resource_state::render_target);
+                            cmd_writer.add_command(tcmd);
+                        }
+                        {
+                            cmd::begin_render_pass bcmd;
+                            bcmd.viewport = backend.getBackbufferSize();
+                            bcmd.add_2d_rt(l_res.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
+                            bcmd.set_2d_depth_stencil(l_res.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
+                            cmd_writer.add_command(bcmd);
+                        }
 
-                                         {
-                                             cmd::draw dcmd;
-                                             dcmd.init(l_res.pso_render, l_res.num_indices, l_res.vertex_buffer, l_res.index_buffer);
-                                             dcmd.add_shader_arg(l_res.current_frame().cb_camdata, 0, l_res.current_frame().shaderview_render_vertex);
-                                             dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render);
-                                             dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render_ibl);
+                        {
+                            cmd::draw dcmd;
+                            dcmd.init(l_res.pso_render, l_res.num_indices, l_res.vertex_buffer, l_res.index_buffer);
+                            dcmd.add_shader_arg(l_res.current_frame().cb_camdata, 0, l_res.current_frame().shaderview_render_vertex);
+                            dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render);
+                            dcmd.add_shader_arg(handle::null_resource, 0, l_res.shaderview_render_ibl);
 
-                                             for (auto inst = start; inst < end; ++inst)
-                                             {
-                                                 dcmd.write_root_constants(static_cast<unsigned>(inst));
-                                                 cmd_writer.add_command(dcmd);
-                                             }
-                                         }
+                            for (auto inst = start; inst < end; ++inst)
+                            {
+                                dcmd.write_root_constants(static_cast<unsigned>(inst));
+                                cmd_writer.add_command(dcmd);
+                            }
+                        }
 
-                                         cmd_writer.add_command(cmd::end_render_pass{});
+                        cmd_writer.add_command(cmd::end_render_pass{});
 
-                                         {
-                                             INC_RMT_TRACE_NAMED("CommandRecordTaskBackend");
-                                             render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
-                                         }
-                                     },
-                                     phi_test::num_instances, phi_test::num_render_threads);
+                        {
+                            INC_RMT_TRACE_NAMED("CommandRecordTaskBackend");
+                            render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                        }
+                    },
+                    phi_test::num_instances, phi_test::num_render_threads);
 
 
-                td::submit_batched(modeldata_upload_sync,
-                                   [run_time, model_data, position_modulos](unsigned start, unsigned end) {
-                                       INC_RMT_TRACE_NAMED("ModelMatrixTask");
-                                       phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
-                                   },
-                                   phi_test::num_instances, phi_test::num_render_threads);
+                td::submit_batched(
+                    modeldata_upload_sync,
+                    [run_time, model_data, position_modulos](unsigned start, unsigned end) {
+                        INC_RMT_TRACE_NAMED("ModelMatrixTask");
+                        phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
+                    },
+                    phi_test::num_instances, phi_test::num_render_threads);
             }
 
             cc::capped_vector<handle::command_list, 3> backbuffer_cmd_lists;

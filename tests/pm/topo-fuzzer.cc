@@ -131,7 +131,9 @@ MONTE_CARLO_TEST("pm::Mesh topology mct", disabled)
 
     // edges
     addOp("add_or_get edge vv", [&](Mesh3D& m, unsigned va, unsigned vb) { m.mesh->edges().add_or_get(get_vertex(m, va), get_vertex(m, vb)); }).when(can_add_or_get_edge_vv);
-    addOp("add_or_get edge hh", [&](Mesh3D& m, unsigned ha, unsigned hb) { m.mesh->edges().add_or_get(get_halfedge(m, ha), get_halfedge(m, hb)); }).when(can_add_or_get_edge_hh);
+    addOp("add_or_get edge hh", [&](Mesh3D& m, unsigned ha, unsigned hb) {
+        m.mesh->edges().add_or_get(get_halfedge(m, ha), get_halfedge(m, hb));
+    }).when(can_add_or_get_edge_hh);
     addOp("split edge", split_edge).when(has_edges_rng);
 
     // faces
@@ -141,12 +143,10 @@ MONTE_CARLO_TEST("pm::Mesh topology mct", disabled)
     // TODO
 
     // "pseudo invariants"
-    addOp("edge exists",
-          [](Mesh3D const& m, tg::rng& rng) {
-              auto e = m.mesh->edges().random(rng);
-              CHECK(pm::are_adjacent(e.vertexA(), e.vertexB()));
-          })
-        .when(has_edges_rng);
+    addOp("edge exists", [](Mesh3D const& m, tg::rng& rng) {
+        auto e = m.mesh->edges().random(rng);
+        CHECK(pm::are_adjacent(e.vertexA(), e.vertexB()));
+    }).when(has_edges_rng);
 
     // invariants
     addInvariant("consistent", [](Mesh3D const& m) { m.mesh->assert_consistency(); });

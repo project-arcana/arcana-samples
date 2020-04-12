@@ -76,14 +76,16 @@ TEST("td API - compilation", exclusive)
 
                 // Without arguments
                 td::submit(s1, [] {});
-                td::submit(s1, +[] {});
+                td::submit(
+                    s1, +[] {});
                 td::submit(s1, fun);
 
                 // foo f;
                 // auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
 
                 // With arguments
-                td::submit(s1, [](float arg) { gSink += int(arg); }, 1.f);
+                td::submit(
+                    s1, [](float arg) { gSink += int(arg); }, 1.f);
                 td::submit(s1, argfun, 4, 5, 6);
 
                 td::wait_for(s1);
@@ -145,17 +147,20 @@ TEST("td API - compilation", exclusive)
             {
                 td::sync s1;
 
-                td::submit_n(s1, [](auto i) { gSink += i; }, 50);
+                td::submit_n(
+                    s1, [](auto i) { gSink += i; }, 50);
 
                 std::array<int, 50> values;
-                td::submit_each_ref<int>(s1, [](int& val) { ++val; }, values);
+                td::submit_each_ref<int>(
+                    s1, [](int& val) { ++val; }, values);
 
-                td::submit_batched(s1,
-                                   [](auto begin, auto end) {
-                                       for (auto i = begin; i < end; ++i)
-                                           gSink += i;
-                                   },
-                                   500);
+                td::submit_batched(
+                    s1,
+                    [](auto begin, auto end) {
+                        for (auto i = begin; i < end; ++i)
+                            gSink += i;
+                    },
+                    500);
 
                 td::wait_for(s1);
             }
@@ -189,7 +194,8 @@ TEST("td API - compilation", exclusive)
 
             td::sync s;
             td::submit(s, std::move(l_moveonly));
-            td::submit(s, [](std::unique_ptr<int> const& u) { gSink += *u; }, u2);
+            td::submit(
+                s, [](std::unique_ptr<int> const& u) { gSink += *u; }, u2);
             // td::submit(s, [](std::unique_ptr<int> u) { gSink += *u; }, std::move(u3)); // TODO: Error!
 
             td::wait_for(s);
