@@ -7,7 +7,7 @@
 
 #include <arcana-incubator/device-abstraction/stringhash.hh>
 
-dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
+dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
 {
     mWindow.initialize("Demo Renderer", 1280, 720);
 
@@ -15,10 +15,9 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type back
     mInput.initialize(100);
     mCamera.setup_default_inputs(mInput);
 
-
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::off;
+    config.validation = phi::validation_level::on_extended;
 
     mContext.initialize({mWindow.getSdlWindow()}, backend_type, config);
 
@@ -53,18 +52,18 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type back
     mContext.flush();
 }
 
-dr::DemoRenderer::~DemoRenderer() { mContext.flush(); }
+dmr::DemoRenderer::~DemoRenderer() { mContext.flush(); }
 
-dr::mesh dr::DemoRenderer::loadMesh(const char* path, bool binary)
+dmr::mesh dmr::DemoRenderer::loadMesh(const char* path, bool binary)
 {
     auto const& new_mesh = mUniqueMeshes.push_back(inc::pre::load_mesh(mContext, path, binary));
-    dr::mesh res;
+    dmr::mesh res;
     res.vertex = new_mesh.vertex;
     res.index = new_mesh.index;
     return res;
 }
 
-dr::material dr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_normal, const char* p_metal, const char* p_rough)
+dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_normal, const char* p_metal, const char* p_rough)
 {
     auto frame = mContext.make_frame();
 
@@ -81,7 +80,7 @@ dr::material dr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_
     mContext.submit(frame);
 
     auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument().add(albedo).add(normal).add(metal).add(rough).make_graphics());
-    dr::material res;
+    dmr::material res;
     res.outer_sv = new_sv;
 
     // move to unique array to keep alive
@@ -93,7 +92,7 @@ dr::material dr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_
     return res;
 }
 
-void dr::DemoRenderer::execute(float dt)
+void dmr::DemoRenderer::execute(float dt)
 {
     mScene.on_next_frame();
 
@@ -134,7 +133,7 @@ void dr::DemoRenderer::execute(float dt)
     mContext.present();
 }
 
-bool dr::DemoRenderer::handleEvents()
+bool dmr::DemoRenderer::handleEvents()
 {
     // input and polling
     {
@@ -158,7 +157,7 @@ bool dr::DemoRenderer::handleEvents()
     return true;
 }
 
-void dr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
+void dmr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
 {
     mTargets.recreate_rts(mContext, new_size);
     mTargets.recreate_buffers(mContext, new_size);

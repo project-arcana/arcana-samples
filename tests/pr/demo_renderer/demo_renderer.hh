@@ -12,7 +12,7 @@
 
 #include "passes.hh"
 
-namespace dr
+namespace dmr
 {
 class DemoRenderer
 {
@@ -21,11 +21,11 @@ public:
     ~DemoRenderer();
 
     /// loads a mesh from disk
-    [[nodiscard]] dr::mesh loadMesh(char const* path, bool binary = false);
+    [[nodiscard]] dmr::mesh loadMesh(char const* path, bool binary = false);
 
-    [[nodiscard]] dr::material loadMaterial(char const* p_albedo, char const* p_normal, char const* p_metal, char const* p_rough);
+    [[nodiscard]] dmr::material loadMaterial(char const* p_albedo, char const* p_normal, char const* p_metal, char const* p_rough);
 
-    void addInstance(dr::mesh const& mesh, dr::material const& mat, tg::mat4 transform)
+    void addInstance(dmr::mesh const& mesh, dmr::material const& mat, tg::mat4 transform)
     {
         mScene.instances.push_back({mesh, mat});
         mScene.instance_transforms.push_back({transform});

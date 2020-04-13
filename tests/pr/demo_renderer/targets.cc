@@ -2,7 +2,7 @@
 
 #include <phantasm-renderer/Context.hh>
 
-void dr::global_targets::recreate_rts(pr::Context& ctx, tg::isize2 new_size)
+void dmr::global_targets::recreate_rts(pr::Context& ctx, tg::isize2 new_size)
 {
     t_depth = ctx.make_target(new_size, pr::format::depth32f, 0.f);
     t_forward_hdr = ctx.make_target(new_size, pr::format::b10g11r11uf);
@@ -18,7 +18,7 @@ void dr::global_targets::recreate_rts(pr::Context& ctx, tg::isize2 new_size)
     t_post_ldr = ctx.make_target(new_size, pr::format::rgba8un);
 }
 
-void dr::global_targets::recreate_buffers(pr::Context& ctx, tg::isize2 new_size)
+void dmr::global_targets::recreate_buffers(pr::Context& ctx, tg::isize2 new_size)
 {
     // TODO
 }

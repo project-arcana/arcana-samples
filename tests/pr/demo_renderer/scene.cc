@@ -4,7 +4,7 @@
 
 #include <typed-geometry/tg.hh>
 
-void dr::scene::init(pr::Context& ctx, unsigned max_num_instances)
+void dmr::scene::init(pr::Context& ctx, unsigned max_num_instances)
 {
     num_backbuffers = ctx.get_num_backbuffers();
 
@@ -24,27 +24,26 @@ void dr::scene::init(pr::Context& ctx, unsigned max_num_instances)
     current_frame_index = 0;
 }
 
-void dr::scene::on_next_frame() { current_frame_index = cc::wrapped_increment(current_frame_index, num_backbuffers); }
+void dmr::scene::on_next_frame() { current_frame_index = cc::wrapped_increment(current_frame_index, num_backbuffers); }
 
-void dr::scene::upload_current_frame()
+void dmr::scene::upload_current_frame()
 {
     auto& frame = current_frame();
 
-    std::memcpy(frame.cb_camdata_map, &camdata, sizeof(camdata));
+    std::memcpy(frame.cb_camdata_map, &camdata, sizeof(scene_gpudata));
     std::memcpy(frame.sb_modeldata_map, instance_transforms.data(), sizeof(instance_gpudata) * instance_transforms.size());
 }
 
-void dr::scene::flush_current_frame_upload(pr::Context& ctx)
+void dmr::scene::flush_current_frame_upload(pr::Context& ctx)
 {
     auto& frame = current_frame();
     ctx.flush_buffer_writes(frame.cb_camdata);
     ctx.flush_buffer_writes(frame.sb_modeldata);
 }
 
-void dr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward)
+void dmr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward)
 {
-    prev_clean_proj = clean_proj;
-    clean_proj = tg::perspective_reverse_z_directx(60_deg, res.width / float(res.height), 0.1f);
+    auto const clean_proj = tg::perspective_reverse_z_directx(60_deg, res.width / float(res.height), 0.1f);
 
     proj = clean_proj; // TODO jitter
     proj_inv = tg::inverse(proj);
@@ -54,6 +53,9 @@ void dr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camf
 
     vp = proj * view;
     vp_inv = tg::inverse(vp);
+
+    prev_clean_vp = clean_vp;
+    clean_vp = clean_proj * view;
 
     cam_pos = campos;
     runtime = 0.f;

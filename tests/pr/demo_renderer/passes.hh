@@ -5,7 +5,7 @@
 #include "scene.hh"
 #include "targets.hh"
 
-namespace dr
+namespace dmr
 {
 struct pass
 {

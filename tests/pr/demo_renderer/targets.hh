@@ -4,7 +4,7 @@
 
 #include <phantasm-renderer/resource_types.hh>
 
-namespace dr
+namespace dmr
 {
 struct global_targets
 {

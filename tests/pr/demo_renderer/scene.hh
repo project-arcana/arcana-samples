@@ -9,7 +9,7 @@
 #include <phantasm-renderer/argument.hh>
 #include <phantasm-renderer/resource_types.hh>
 
-namespace dr
+namespace dmr
 {
 struct mesh
 {
@@ -33,6 +33,8 @@ struct instance_gpudata
 {
     tg::mat4 model;
     tg::mat4 prev_model;
+
+    instance_gpudata(tg::mat4 initial_transform) : model(initial_transform), prev_model(initial_transform) {}
 };
 
 struct scene_gpudata
@@ -43,8 +45,8 @@ struct scene_gpudata
     tg::mat4 view_inv;
     tg::mat4 vp;
     tg::mat4 vp_inv;
-    tg::mat4 clean_proj;
-    tg::mat4 prev_clean_proj;
+    tg::mat4 clean_vp;
+    tg::mat4 prev_clean_vp;
     tg::pos3 cam_pos;
     float runtime;
 

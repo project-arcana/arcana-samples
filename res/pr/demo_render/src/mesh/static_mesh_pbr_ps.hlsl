@@ -132,13 +132,7 @@ float3 calculateIndirectLight(float3 N, float3 F0, float3 Lo, float cosLo, float
     return diffuseIBL + specularIBL;
 }
 
-struct ps_out
-{
-    float4 Color : SV_Target0;
-    float2 Velocity : SV_Target1;
-};
-
-ps_out main_ps(vs_out p_in) : SV_TARGET
+float4 main_ps(vs_out p_in) : SV_TARGET
 {
     float3 N = normalize(2.0 * g_normal.Sample(g_sampler, p_in.Texcoord).rgb - 1.0);
     N = normalize(mul(p_in.TBN, N));
@@ -161,8 +155,5 @@ ps_out main_ps(vs_out p_in) : SV_TARGET
     directLighting += calculateDirectLight(Li, Lo, cosLo, 1.0, N, F0, roughness, metalness, albedo);
     float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
 
-    ps_out res;
-    res.Color = float4(directLighting + indirect, 1.0);
-    res.Velocity = float2(0.25, 0.75);
-    return res;
+    return float4(directLighting + indirect, 1.0);
 } 

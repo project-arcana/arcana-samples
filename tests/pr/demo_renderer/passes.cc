@@ -11,24 +11,25 @@
 
 #include <phantasm-renderer/pr.hh>
 
-void dr::depthpre_pass::init(pr::Context& ctx)
+void dmr::depthpre_pass::init(pr::Context& ctx)
 {
     auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/depth_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
+    auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/depth_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
 
     phi::pipeline_config config;
     config.cull = phi::cull_mode::back;
     config.depth = phi::depth_function::greater;
 
-    auto gp = pr::graphics_pass(vs).arg(1, 0, 0, true).constants().vertex<inc::assets::simple_vertex>().config(config);
-    pso_depthpre = ctx.make_pipeline_state(gp, pr::framebuffer().depth(pr::format::depth32f));
+    auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 0, true).constants().vertex<inc::assets::simple_vertex>().config(config);
+    pso_depthpre = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rg16f).depth(pr::format::depth32f));
 }
 
-void dr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dr::scene& scene)
+void dmr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
     pr::argument arg;
     arg.add(scene.current_frame().sb_modeldata);
 
-    auto fb = frame.build_framebuffer().clear_depth(targets.t_depth, 0.f).make();
+    auto fb = frame.build_framebuffer().clear_target(targets.t_forward_velocity).clear_depth(targets.t_depth, 0.f).make();
     auto pass = fb.make_pass(pso_depthpre).bind(arg, scene.current_frame().cb_camdata);
 
     for (auto i = 0u; i < scene.instances.size(); ++i)
@@ -39,7 +40,7 @@ void dr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_tar
     }
 }
 
-void dr::forward_pass::init(pr::Context& ctx)
+void dmr::forward_pass::init(pr::Context& ctx)
 {
     auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/pbr_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
     auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/pbr_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
@@ -57,7 +58,7 @@ void dr::forward_pass::init(pr::Context& ctx)
                   .config(config)                        //
                   .vertex<inc::assets::simple_vertex>(); //
 
-    pso_pbr = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf, pr::format::rg16f).depth(pr::format::depth32f));
+    pso_pbr = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf).depth(pr::format::depth32f));
 
     auto lut_sampler = phi::sampler_config(phi::sampler_filter::min_mag_mip_linear, 1);
     lut_sampler.address_u = phi::sampler_address_mode::clamp;
@@ -73,11 +74,10 @@ void dr::forward_pass::init(pr::Context& ctx)
                  .make_graphics();
 }
 
-void dr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dr::scene& scene)
+void dmr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
     auto fb = frame.build_framebuffer()
-                  .clear_target(targets.t_forward_hdr)      //
-                  .clear_target(targets.t_forward_velocity) //
+                  .clear_target(targets.t_forward_hdr) //
                   .load_target(targets.t_depth)
                   .make();
 
@@ -96,11 +96,11 @@ void dr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targ
     }
 }
 
-void dr::taa_pass::init(pr::Context& ctx) {}
+void dmr::taa_pass::init(pr::Context& ctx) {}
 
-void dr::taa_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dr::scene& scene) {}
+void dmr::taa_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene) {}
 
-void dr::postprocess_pass::init(pr::Context& ctx)
+void dmr::postprocess_pass::init(pr::Context& ctx)
 {
     auto [vs, b1] = inc::pre::load_shader(ctx, "post/fullscreen_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
     auto [ps, b2] = inc::pre::load_shader(ctx, "post/tonemap_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
@@ -109,7 +109,7 @@ void dr::postprocess_pass::init(pr::Context& ctx)
     pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(ctx.get_backbuffer_format()));
 }
 
-void dr::postprocess_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dr::scene& scene)
+void dmr::postprocess_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
     auto backbuffer = ctx.acquire_backbuffer();
 

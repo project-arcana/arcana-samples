@@ -10,8 +10,8 @@ struct camera_constants
     float4x4 vp;
     float4x4 vp_inv;
 
-    float4x4 clean_proj;
-    float4x4 prev_clean_proj;
+    float4x4 clean_vp;
+    float4x4 prev_clean_vp;
 
     float3 cam_pos;
     float runtime;
