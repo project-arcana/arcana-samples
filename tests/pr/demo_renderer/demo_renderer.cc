@@ -7,47 +7,14 @@
 
 #include <arcana-incubator/device-abstraction/stringhash.hh>
 
-namespace
-{
-enum e_input : uint64_t
-{
-    ge_input_forward,
-    ge_input_left,
-    ge_input_back,
-    ge_input_right,
-    ge_input_up,
-    ge_input_down,
-    ge_input_speedup,
-    ge_input_slowdown,
-    ge_input_camlook_active,
-    ge_input_camlook_x,
-    ge_input_camlook_y
-};
-
-}
-
 dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
 {
     mWindow.initialize("Demo Renderer", 1280, 720);
 
     // input setup
-    {
-        mInput.initialize(100);
+    mInput.initialize(100);
+    mCamera.setup_default_inputs(mInput);
 
-        mInput.bindKey(ge_input_forward, SDL_SCANCODE_W);
-        mInput.bindKey(ge_input_left, SDL_SCANCODE_A);
-        mInput.bindKey(ge_input_back, SDL_SCANCODE_S);
-        mInput.bindKey(ge_input_right, SDL_SCANCODE_D);
-        mInput.bindKey(ge_input_up, SDL_SCANCODE_E);
-        mInput.bindKey(ge_input_down, SDL_SCANCODE_Q);
-        mInput.bindKey(ge_input_speedup, SDL_SCANCODE_LSHIFT);
-        mInput.bindKey(ge_input_slowdown, SDL_SCANCODE_LCTRL);
-
-        mInput.bindMouseButton(ge_input_camlook_active, SDL_BUTTON_RIGHT);
-
-        mInput.bindMouseAxis(ge_input_camlook_x, 0, -.75f);
-        mInput.bindMouseAxis(ge_input_camlook_y, 1, -.75f);
-    }
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
@@ -132,40 +99,7 @@ void dr::DemoRenderer::execute(float dt)
 
     // camera update
     {
-        auto speed_mul = 10.f;
-
-        if (mInput.get(ge_input_speedup).isActive())
-            speed_mul *= 2.f;
-
-        if (mInput.get(ge_input_slowdown).isActive())
-            speed_mul *= .5f;
-
-        auto const delta_move = tg::vec3{mInput.get(ge_input_right).getAnalog() - mInput.get(ge_input_left).getAnalog(),
-                                         mInput.get(ge_input_up).getAnalog() - mInput.get(ge_input_down).getAnalog(),
-                                         mInput.get(e_input::ge_input_forward).getAnalog() - mInput.get(ge_input_back).getAnalog()
-
-                                }
-                                * dt * speed_mul;
-
-        mCamera.target.move_relative(delta_move);
-
-        if (mInput.get(ge_input_camlook_active).isActive())
-        {
-            if (!mMouseCaptured)
-            {
-                SDL_SetRelativeMouseMode(SDL_TRUE);
-                mMouseCaptured = true;
-            }
-
-            mCamera.target.mouselook(mInput.get(ge_input_camlook_x).getDelta() * dt, mInput.get(ge_input_camlook_y).getDelta() * dt);
-        }
-        else if (mMouseCaptured)
-        {
-            SDL_SetRelativeMouseMode(SDL_FALSE);
-            mMouseCaptured = false;
-        }
-
-        mCamera.interpolate_to_target(dt);
+        mCamera.update_default_inputs(mInput, dt);
         mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward);
     }
     mScene.upload_current_frame();
