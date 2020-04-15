@@ -1,7 +1,15 @@
 
-float3 reconstruct_clipspace(float2 tex, float depth, float4x4 inverse_vp)
+// converts a position in clip space to it's UV on screen
+float2 clipspace_to_uv(float4 pos_clipspace)
 {
-	float4 position = float4(tex.x * (2) - 1, tex.y * (-2) + 1, depth, 1.0f);
+	float2 cs = pos_clipspace.xy / pos_clipspace.w;
+	return float2(0.5f * cs.x, -0.5f * cs.y) + 0.5f;
+}
+
+// converts a UV and depth back to a clipspace position
+float3 reconstruct_clipspace(float2 uv, float depth, float4x4 inverse_vp)
+{
+	float4 position = float4(uv.x * (2) - 1, uv.y * (-2) + 1, depth, 1.0f);
 	position = mul(inverse_vp, position);
 	return position.xyz / position.w;
 }

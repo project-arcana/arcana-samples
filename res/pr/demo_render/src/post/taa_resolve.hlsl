@@ -23,7 +23,8 @@ float2 queryInverseResolution()
 
 float4 main(vs_out v_in) : SV_TARGET
 {
-    const float blendFactor = 1.6f / 2.f;
+	// 1.6 / (length_of_jitter_sequence + 1)
+    const float blendFactor = 1.6f / 9.f;
 
 	//=========================================================
 	// Find the location where the history pixel is

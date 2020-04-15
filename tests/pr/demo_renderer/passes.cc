@@ -29,7 +29,7 @@ void dmr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_ta
     pr::argument arg;
     arg.add(scene.current_frame().sb_modeldata);
 
-    auto fb = frame.build_framebuffer().clear_target(targets.t_forward_velocity).clear_depth(targets.t_depth, 0.f).make();
+    auto fb = frame.build_framebuffer().clear_target(targets.t_forward_velocity, 1.f, 1.f).clear_depth(targets.t_depth, 0.f).make();
     auto pass = fb.make_pass(pso_depthpre).bind(arg, scene.current_frame().cb_camdata);
 
     for (auto i = 0u; i < scene.instances.size(); ++i)
