@@ -1,4 +1,4 @@
-#include "common/fullscreen_vs_inout.hlsl"
+#include "common/fullscreen_vs_inout.hlsli"
 
 #define TONEMAP_GAMMA 2.224
 

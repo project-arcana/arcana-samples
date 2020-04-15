@@ -99,7 +99,7 @@ void dmr::DemoRenderer::execute(float dt)
     // camera update
     {
         mCamera.update_default_inputs(mInput, dt);
-        mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward);
+        mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward, mScene.halton_index);
     }
     mScene.upload_current_frame();
 

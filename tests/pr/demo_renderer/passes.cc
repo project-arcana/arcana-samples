@@ -96,9 +96,35 @@ void dmr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_tar
     }
 }
 
-void dmr::taa_pass::init(pr::Context& ctx) {}
+void dmr::taa_pass::init(pr::Context& ctx)
+{
+    auto [vs, b1] = inc::pre::load_shader(ctx, "post/fullscreen_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
+    auto [ps, b2] = inc::pre::load_shader(ctx, "post/taa_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
 
-void dmr::taa_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene) {}
+    auto gp = pr::graphics_pass(vs, ps).arg(4, 0, 1, true);
+    pso_taa = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf));
+}
+
+void dmr::taa_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
+{
+    auto const& history_target = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
+    auto const& history_src = scene.is_history_a ? targets.t_history_b : targets.t_history_a;
+    frame.transition(targets.t_forward_hdr, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(targets.t_depth, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(targets.t_forward_velocity, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(history_src, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+
+    auto fb = frame.make_framebuffer(history_target);
+
+    pr::argument arg;
+    arg.add(targets.t_forward_hdr);
+    arg.add(history_src);
+    arg.add(targets.t_depth);
+    arg.add(targets.t_forward_velocity);
+    arg.add_sampler(phi::sampler_filter::min_mag_mip_linear);
+
+    fb.make_pass(pso_taa).bind(arg, scene.current_frame().cb_camdata).draw(3);
+}
 
 void dmr::postprocess_pass::init(pr::Context& ctx)
 {
@@ -111,15 +137,16 @@ void dmr::postprocess_pass::init(pr::Context& ctx)
 
 void dmr::postprocess_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
+    auto const& active_history = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
     auto backbuffer = ctx.acquire_backbuffer();
 
-    frame.transition(targets.t_forward_hdr, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(active_history, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
     {
         auto fb = frame.make_framebuffer(backbuffer);
 
         pr::argument arg;
-        arg.add(targets.t_forward_hdr);
+        arg.add(active_history);
         arg.add_sampler(phi::sampler_filter::min_mag_mip_linear);
 
         fb.make_pass(pso_tonemap).bind(arg).draw(3);

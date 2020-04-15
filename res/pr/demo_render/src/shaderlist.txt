@@ -6,6 +6,7 @@ mesh/static_mesh_pbr_ps.hlsl main_ps ps ../bin/mesh/pbr_ps
 post/fullscreen_vs.hlsl main_vs vs ../bin/post/fullscreen_vs
 post/tonemap.hlsl main_ps ps ../bin/post/tonemap_ps
 post/clear_ps.hlsl main_ps ps ../bin/post/clear_ps
+post/taa_resolve.hlsl main ps ../bin/post/taa_ps
 
 preprocess/mipgen.hlsl main_cs cs ../bin/preprocess/mipgen
 preprocess/mipgen_gamma.hlsl main_cs cs ../bin/preprocess/mipgen_gamma

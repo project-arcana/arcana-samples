@@ -1,9 +1,4 @@
-
-struct vs_out
-{
-    float4 SV_P         : SV_POSITION;
-    float2 Texcoord     : TEXCOORD;
-};
+#include "common/fullscreen_vs_inout.hlsli"
 
 float4 main_ps(vs_out In) : SV_TARGET
 {

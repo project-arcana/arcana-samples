@@ -1,5 +1,5 @@
-#include "common/mesh_vs_inout.hlsl"
-#include "common/cam_constants.hlsl"
+#include "common/mesh_vs_inout.hlsli"
+#include "common/cam_constants.hlsli"
 
 static const float PI = 3.141592;
 static const float Epsilon = 0.00001;
