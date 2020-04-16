@@ -68,6 +68,7 @@ void dmr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 cam
 
     prev_clean_vp = clean_vp;
     prev_clean_vp_inv = clean_vp_inv;
+
     clean_vp = clean_proj * view;
     clean_vp_inv = tg::inverse(clean_vp);
 

@@ -12,6 +12,7 @@ struct camera_constants
 
     float4x4 clean_vp;
     float4x4 clean_vp_inv;
+    
     float4x4 prev_clean_vp;
     float4x4 prev_clean_vp_inv;
 

@@ -30,17 +30,21 @@ float4 main(vs_out v_in) : SV_TARGET
 	// Find the location where the history pixel is
 	//=========================================================
 	float2 velocity = g_velocity_buffer.Sample(g_screen_sampler, v_in.Texcoord);
-	float2 previousCoordinate = v_in.Texcoord;
+	float2 previousUV = v_in.Texcoord;
 	if (velocity.x >= 1)
 	{
-		float3 currentPosition = reconstruct_clipspace(v_in.Texcoord, g_depth_buffer.Sample(g_screen_sampler, v_in.Texcoord), g_frame_data.clean_vp_inv);
-		float4 previousPosition = mul(g_frame_data.prev_clean_vp_inv, float4(currentPosition, 1));
+		// depth is jittered, use jittered VP for reconstruction
+		const float pixel_depth = g_depth_buffer.Sample(g_screen_sampler, v_in.Texcoord);
+		const float3 current_worldpos = reconstruct_worldspace(v_in.Texcoord, pixel_depth, g_frame_data.vp_inv);
+		// calculate previous HDC position with previous clean VP
+		const float4 prev_hdc = mul(g_frame_data.prev_clean_vp, float4(current_worldpos, 1));
 
-		previousCoordinate = (previousPosition.xy / previousPosition.w) * float2(0.5f, -0.5f) + 0.5f;
+		previousUV = convert_hdc_to_uv(prev_hdc);
 	}
 	else
 	{
-		previousCoordinate += velocity;
+		// velocity = current_uv - previous_uv
+		previousUV -= velocity;
 	}
 
 	//=========================================================
@@ -73,7 +77,7 @@ float4 main(vs_out v_in) : SV_TARGET
 	//=========================================================
 	// History clipping
 	//=========================================================
-	float4 history = rgba_to_ycocg(g_history_buffer.Sample(g_screen_sampler, previousCoordinate));
+	float4 history = rgba_to_ycocg(g_history_buffer.Sample(g_screen_sampler, previousUV));
 	
 	const float3 origin = history.rgb - 0.5f*(minimum.rgb + maximum.rgb);
 	const float3 direction = average.rgb - history.rgb;
@@ -87,5 +91,5 @@ float4 main(vs_out v_in) : SV_TARGET
 	float impulse = abs(color.x - history.x) / max(color.x, max(history.x, minimum.x));
 	float factor = lerp(blendFactor * 0.8f, blendFactor * 2.0f, impulse*impulse);
 
-	return ycocg_to_rgba(lerp(history, color, blendFactor));
+	return ycocg_to_rgba(lerp(history, color, saturate(factor)));
 }

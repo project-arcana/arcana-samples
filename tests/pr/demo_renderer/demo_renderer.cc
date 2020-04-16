@@ -17,7 +17,7 @@ dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type bac
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::on_extended;
+    config.validation = phi::validation_level::on;
 
     mContext.initialize({mWindow.getSdlWindow()}, backend_type, config);
 

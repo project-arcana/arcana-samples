@@ -21,7 +21,7 @@ void dmr::depthpre_pass::init(pr::Context& ctx)
     config.depth = phi::depth_function::greater;
 
     auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 0, true).constants().vertex<inc::assets::simple_vertex>().config(config);
-    pso_depthpre = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rg16f).depth(pr::format::depth32f));
+    pso_depthpre = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rg16f).depth(pr::format::depth24un_stencil8u));
 }
 
 void dmr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
@@ -29,7 +29,7 @@ void dmr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_ta
     pr::argument arg;
     arg.add(scene.current_frame().sb_modeldata);
 
-    auto fb = frame.build_framebuffer().clear_target(targets.t_forward_velocity, 1.f, 1.f).clear_depth(targets.t_depth, 0.f).make();
+    auto fb = frame.build_framebuffer().clear_target(targets.t_forward_velocity, 1.f, 1.f, 1.f, 1.f).clear_depth(targets.t_depth, 0.f).make();
     auto pass = fb.make_pass(pso_depthpre).bind(arg, scene.current_frame().cb_camdata);
 
     for (auto i = 0u; i < scene.instances.size(); ++i)
@@ -58,7 +58,7 @@ void dmr::forward_pass::init(pr::Context& ctx)
                   .config(config)                        //
                   .vertex<inc::assets::simple_vertex>(); //
 
-    pso_pbr = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf).depth(pr::format::depth32f));
+    pso_pbr = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf).depth(pr::format::depth24un_stencil8u));
 
     auto lut_sampler = phi::sampler_config(phi::sampler_filter::min_mag_mip_linear, 1);
     lut_sampler.address_u = phi::sampler_address_mode::clamp;
@@ -119,9 +119,9 @@ void dmr::taa_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_tar
     pr::argument arg;
     arg.add(targets.t_forward_hdr);
     arg.add(history_src);
-    arg.add(targets.t_depth);
+    arg.add(pr::resource_view_2d(targets.t_depth).format(pr::format::r24un_g8t));
     arg.add(targets.t_forward_velocity);
-    arg.add_sampler(phi::sampler_filter::min_mag_mip_linear);
+    arg.add_sampler(phi::sampler_filter::min_mag_mip_linear, 1, phi::sampler_address_mode::clamp);
 
     fb.make_pass(pso_taa).bind(arg, scene.current_frame().cb_camdata).draw(3);
 }

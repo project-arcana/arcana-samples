@@ -1,5 +1,6 @@
 #include "common/mesh_vs_inout.hlsli"
 #include "common/cam_constants.hlsli"
+#include "common/util.hlsli"
 
 struct vs_out_simple
 {
@@ -44,7 +45,7 @@ vs_out_simple main_vs(vs_in v_in)
 
 float2 main_ps(vs_out_simple p_in) : SV_TARGET
 {
-    float2 a = (p_in.CleanClip.xy / p_in.CleanClip.w) * 0.5f + 0.5f;
-    float2 b = (p_in.CleanPrevClip.xy / p_in.CleanPrevClip.w) * 0.5f + 0.5f;
-    return a - b;
+    float2 uv_current = convert_hdc_to_uv(p_in.CleanClip);
+    float2 uv_prev = convert_hdc_to_uv(p_in.CleanPrevClip);
+    return uv_current - uv_prev;
 }
