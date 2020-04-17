@@ -151,7 +151,7 @@ float4 main_ps(vs_out p_in) : SV_TARGET
 
     float3 directLighting = 0.0;
 
-    float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
+    float3 Li =  normalize(float3(-2, 2, 3) * 5.f - p_in.WorldPos);
     directLighting += calculateDirectLight(Li, Lo, cosLo, 1.0, N, F0, roughness, metalness, albedo);
     float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
 

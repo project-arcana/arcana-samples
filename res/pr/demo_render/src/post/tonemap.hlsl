@@ -45,6 +45,68 @@ float3 tonemap_filmic(in float3 color)
     return pow(color, TONEMAP_GAMMA);
 }
 
+// MGS V tonemapper
+float3 tonemap_mgsv(in float3 color)
+{
+    float A = 0.6;
+    float B = 0.45333;
+    float3 mapped = min(1, A + B - ( (B * B) / (color - A + B) ));
+    float3 condition = float3(color.r > A, color.g > A, color.b > A);
+
+    return mapped * condition + color * (1 - condition);
+}
+
+//=================================================================================================
+//
+//  Baking Lab
+//  by MJP and David Neubelt
+//  http://mynameismjp.wordpress.com/
+//
+//  All code licensed under the MIT license
+//
+//=================================================================================================
+
+// The code in this file was originally written by Stephen Hill (@self_shadow), who deserves all
+// credit for coming up with this fit and implementing it. Buy him a beer next time you see him. :)
+
+// sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
+static const float3x3 ACESInputMat =
+{
+    {0.59719, 0.35458, 0.04823},
+    {0.07600, 0.90834, 0.01566},
+    {0.02840, 0.13383, 0.83777}
+};
+
+// ODT_SAT => XYZ => D60_2_D65 => sRGB
+static const float3x3 ACESOutputMat =
+{
+    { 1.60475, -0.53108, -0.07367},
+    {-0.10208,  1.10813, -0.00605},
+    {-0.00327, -0.07276,  1.07602}
+};
+
+float3 RRTAndODTFit(float3 v)
+{
+    float3 a = v * (v + 0.0245786f) - 0.000090537f;
+    float3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
+    return a / b;
+}
+
+float3 ACESFitted(float3 color)
+{
+    color = mul(ACESInputMat, color);
+
+    // Apply RRT and ODT
+    color = RRTAndODTFit(color);
+
+    color = mul(ACESOutputMat, color);
+
+    // Clamp to [0, 1]
+    color = saturate(color);
+
+    return color;
+}
+
 //
 // dithering
 
@@ -63,26 +125,32 @@ float wang_float(uint hash)
     return hash / float(0x7FFFFFFF) / 2.0;
 }
 
-float4 dither(in float4 color, float2 screen_pixel, int divisor) {
+float3 dither(in float3 color, float2 screen_pixel, int divisor) {
     uint seed = uint(screen_pixel.x) + uint(screen_pixel.y) * 8096;
     float r = wang_float(wang_hash(seed * 3 + 0));
     float g = wang_float(wang_hash(seed * 3 + 1));
     float b = wang_float(wang_hash(seed * 3 + 2));
     float3 random = float3(r, g, b);
 
-    return color + float4((random - .5) / divisor, 1.f);
+    return color + ((random - .5) / divisor);
 }
 
 
 float4 main_ps(vs_out In) : SV_TARGET
 {
-    float4 hdr = g_texture.Sample(g_sampler, In.Texcoord);
+    float3 hdr = g_texture.Sample(g_sampler, In.Texcoord).rgb;
 
-    // tonemap + gamma
-    float4 color = float4(tonemap_uc2(hdr.xyz), 1.0);
+    //if (In.Texcoord.x < 0.5f)
+    //    return float4(hdr, 1.f);
+
+    // tonemap
+    float3 color = ACESFitted(hdr);
+
+    // gamma
+    color = pow(color, 1.0f / 2.2f);
 
     // dither
     color = dither(color, In.SV_P.xy, 100);
 
-    return color;
+    return float4(color, 1.f);
 }
