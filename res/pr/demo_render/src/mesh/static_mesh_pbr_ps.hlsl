@@ -144,15 +144,15 @@ float4 main_ps(vs_out p_in) : SV_TARGET
     const float roughness = g_roughness.Sample(g_sampler, p_in.Texcoord).r;
 
     // Angle between surface normal and outgoing light direction.
-	float cosLo = max(0.0, dot(N, Lo));
+	float cosLo = saturate(dot(N, Lo));
 
 	// Fresnel reflectance at normal incidence (for metals use albedo color).
 	float3 F0 = lerp(Fdielectric, albedo, metalness);
 
     float3 directLighting = 0.0;
 
-    float3 Li =  normalize(float3(-2, 2, 3) * 5.f - p_in.WorldPos);
-    directLighting += calculateDirectLight(Li, Lo, cosLo, 1.0, N, F0, roughness, metalness, albedo);
+    float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
+    directLighting += calculateDirectLight(Li, Lo, cosLo, 3.0, N, F0, roughness, metalness, albedo);
     float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
 
     return float4(directLighting + indirect, 1.0);
