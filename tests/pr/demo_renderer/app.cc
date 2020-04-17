@@ -23,7 +23,7 @@ void run_demo_renderer(pr::backend_type type)
                                                 "res/arcana-sample-resources/phi/texture/colt/metallic.png", //
                                                 "res/arcana-sample-resources/phi/texture/colt/roughness.png");
 
-    auto const num_instances = 5u;
+    auto const num_instances = 10u;
 
     for (auto i = 0u; i < num_instances; ++i)
     {

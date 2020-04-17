@@ -10,8 +10,8 @@ float2 convert_hdc_to_uv(float4 hdc)
 // reassembles a HDC position from UV and depth
 float4 convert_uv_to_hdc(float2 uv, float depth)
 {
-	// assuming Y+ NDC and reverse Z
-	return float4(uv.x * (2) - 1, uv.y * (-2) + 1, 1.0f - depth, 1.0f);
+	// assuming Y+ NDC
+	return float4(uv.x * (2) - 1, uv.y * (-2) + 1, depth, 1.0f);
 }
 
 // converts a UV and depth back to a worldspace position
@@ -20,6 +20,12 @@ float3 reconstruct_worldspace(float2 uv, float depth, float4x4 inverse_vp)
 	const float4 hdc = convert_uv_to_hdc(uv, depth);
 	const float4 position = mul(inverse_vp, hdc);
 	return position.xyz / position.w;
+}
+
+// converts depth as sampled from a depthbuffer to world space units
+float linearize_reverse_z(float depth, float nearplane)
+{
+	return nearplane / depth;
 }
 
 // convert a RGBA color to YCoCg

@@ -37,7 +37,7 @@ float4 main(vs_out v_in) : SV_TARGET
 		const float pixel_depth = g_depth_buffer.Sample(g_screen_sampler, v_in.Texcoord);
 		const float3 current_worldpos = reconstruct_worldspace(v_in.Texcoord, pixel_depth, g_frame_data.vp_inv);
 		// calculate previous HDC position with previous clean VP
-		const float4 prev_hdc = mul(g_frame_data.prev_clean_vp, float4(current_worldpos, 1));
+		const float4 prev_hdc = mul(g_frame_data.prev_clean_vp, float4(current_worldpos, 1.f));
 
 		previousUV = convert_hdc_to_uv(prev_hdc);
 	}
