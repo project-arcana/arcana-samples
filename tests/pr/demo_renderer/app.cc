@@ -23,6 +23,12 @@ void run_demo_renderer(pr::backend_type type)
                                                 "res/arcana-sample-resources/phi/texture/colt/metallic.png", //
                                                 "res/arcana-sample-resources/phi/texture/colt/roughness.png");
 
+    auto const mesh_car = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/old_car.obj");
+    auto const mat_car = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/oldcar/albedo.png",   //
+                                               "res/arcana-sample-resources/phi/texture/oldcar/normal.png",   //
+                                               "res/arcana-sample-resources/phi/texture/oldcar/metallic.png", //
+                                               "res/arcana-sample-resources/phi/texture/oldcar/roughness.png");
+
     auto const num_instances = 10u;
 
     for (auto i = 0u; i < num_instances; ++i)
@@ -32,6 +38,8 @@ void run_demo_renderer(pr::backend_type type)
     }
 
     renderer.addInstance(mesh_colt, mat_colt, tg::translation(tg::pos3(0, 0, -15)));
+    renderer.addInstance(mesh_car, mat_car, tg::translation(tg::pos3(10, -1, -15)));
+
     renderer.mainLoop([&](pr::Context& ctx, float dt) { renderer.execute(dt); });
 }
 

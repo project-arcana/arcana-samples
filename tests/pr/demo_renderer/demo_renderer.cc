@@ -118,6 +118,12 @@ void dmr::DemoRenderer::execute(float dt)
             LOG(info) << mCamera.physical.forward << mCamera.physical.position;
         }
 
+        if (mInput.get(ge_input_setpos).wasPressed())
+        {
+            mCamera.target.forward = {-0.336901f, 0.201805f, 0.919659f};
+            mCamera.target.position = {4.39546f, 2.92272f, -9.95072f};
+        }
+
         mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward, mScene.halton_index);
     }
     mScene.upload_current_frame();
