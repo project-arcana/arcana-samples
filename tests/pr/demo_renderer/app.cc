@@ -25,7 +25,7 @@ void run_demo_renderer(pr::backend_type type)
 
     auto const mesh_car = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/old_car.obj");
     auto const mat_car = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/oldcar/albedo.png",   //
-                                               "res/arcana-sample-resources/phi/texture/oldcar/normal.png",   //
+                                               "res/arcana-sample-resources/phi/texture/oldcar/normal.png",   //h
                                                "res/arcana-sample-resources/phi/texture/oldcar/metallic.png", //
                                                "res/arcana-sample-resources/phi/texture/oldcar/roughness.png");
 
