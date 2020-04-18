@@ -5,7 +5,7 @@
 struct vs_out_simple
 {
     float4 SV_P : SV_POSITION;
-    float4 CleanClip : VO_CC;
+    // float4 CleanClip : VO_CC;
     float4 CleanPrevClip : VO_CPC;
 };
 
@@ -38,14 +38,14 @@ vs_out_simple main_vs(vs_in v_in)
     Out.SV_P = pos_clip;
 
     // current and previous clean (unjittered) clip positions
-    Out.CleanClip = mul(g_frame_data.clean_vp, pos_world);
+    // Out.CleanClip = mul(g_frame_data.clean_vp, pos_world);
     Out.CleanPrevClip = mul(g_frame_data.prev_clean_vp, pos_prev_world);
     return Out;
 }
 
 float2 main_ps(vs_out_simple p_in) : SV_TARGET
 {
-    float2 uv_current = convert_hdc_to_uv(p_in.CleanClip);
+    float2 uv_current = convert_hdc_to_uv(p_in.SV_P);
     float2 uv_prev = convert_hdc_to_uv(p_in.CleanPrevClip);
     return uv_current - uv_prev;
 }

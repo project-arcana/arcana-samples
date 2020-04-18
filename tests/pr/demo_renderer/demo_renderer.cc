@@ -7,6 +7,16 @@
 
 #include <arcana-incubator/device-abstraction/stringhash.hh>
 
+namespace
+{
+enum e_input : uint64_t
+{
+    ge_input_logpos = 50,
+    ge_input_setpos
+};
+
+}
+
 dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
 {
     mWindow.initialize("Demo Renderer", 1280, 720);
@@ -14,6 +24,9 @@ dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type bac
     // input setup
     mInput.initialize(100);
     mCamera.setup_default_inputs(mInput);
+
+    mInput.bindKey(ge_input_logpos, SDL_SCANCODE_H);
+    mInput.bindKey(ge_input_setpos, SDL_SCANCODE_J);
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
@@ -99,6 +112,12 @@ void dmr::DemoRenderer::execute(float dt)
     // camera update
     {
         mCamera.update_default_inputs(mInput, dt);
+
+        if (mInput.get(ge_input_logpos).wasPressed())
+        {
+            LOG(info) << mCamera.physical.forward << mCamera.physical.position;
+        }
+
         mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward, mScene.halton_index);
     }
     mScene.upload_current_frame();
@@ -162,4 +181,16 @@ void dmr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
     mTargets.recreate_rts(mContext, new_size);
     mTargets.recreate_buffers(mContext, new_size);
     mScene.resolution = new_size;
+
+    // clear history targets explicitly
+    {
+        auto frame = mContext.make_frame();
+
+        phi::cmd::clear_textures ccmd;
+        ccmd.clear_ops.push_back({pr::resource_view_2d(mTargets.t_history_a, 0, 1).rv, phi::rt_clear_value(0.f, 0.f, 0.f, 1.f)});
+        ccmd.clear_ops.push_back({pr::resource_view_2d(mTargets.t_history_b, 0, 1).rv, phi::rt_clear_value(0.f, 0.f, 0.f, 1.f)});
+
+        frame.write_raw_cmd(ccmd);
+        mContext.submit(frame);
+    }
 }
