@@ -63,11 +63,11 @@ float3 calculateDirectLight(float3 Li, float3 Lo, float cosLo, float3 Lradiance,
     float3 Lh = normalize(Li + Lo);
 
     // Calculate angles between surface normal and various light vectors.
-    float cosLi = max(0.0, dot(N, Li));
-    float cosLh = max(0.0, dot(N, Lh));
+    float cosLi = saturate(dot(N, Li));
+    float cosLh = saturate(dot(N, Lh));
 
     // Calculate Fresnel term for direct lighting. 
-    float3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+    float3 F = fresnelSchlick(F0, saturate(dot(Lh, Lo)));
     // Calculate normal distribution for specular BRDF.
     float D = ndfGGX(cosLh, roughness);
     // Calculate geometric attenuation for specular BRDF.
@@ -149,11 +149,10 @@ float4 main_ps(vs_out p_in) : SV_TARGET
 	// Fresnel reflectance at normal incidence (for metals use albedo color).
 	float3 F0 = lerp(Fdielectric, albedo, metalness);
 
-    float3 directLighting = 0.0;
-
     float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
-    directLighting += calculateDirectLight(Li, Lo, cosLo, 3.0, N, F0, roughness, metalness, albedo);
+
+    float3 direct = calculateDirectLight(Li, Lo, cosLo, 3.0, N, F0, roughness, metalness, albedo);
     float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
 
-    return float4(directLighting + indirect, 1.0);
+    return float4(direct + indirect, 1.0);
 } 
