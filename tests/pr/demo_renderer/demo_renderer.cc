@@ -189,14 +189,8 @@ void dmr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
     mScene.resolution = new_size;
 
     // clear history targets explicitly
-    {
-        auto frame = mContext.make_frame();
-
-        phi::cmd::clear_textures ccmd;
-        ccmd.clear_ops.push_back({pr::resource_view_2d(mTargets.t_history_a, 0, 1).rv, phi::rt_clear_value(0.f, 0.f, 0.f, 1.f)});
-        ccmd.clear_ops.push_back({pr::resource_view_2d(mTargets.t_history_b, 0, 1).rv, phi::rt_clear_value(0.f, 0.f, 0.f, 1.f)});
-
-        frame.write_raw_cmd(ccmd);
-        mContext.submit(frame);
-    }
+    auto frame = mContext.make_frame();
+    mPasses.postprocess.clear_target(frame, mTargets.t_history_a);
+    mPasses.postprocess.clear_target(frame, mTargets.t_history_b);
+    mContext.submit(frame);
 }

@@ -48,9 +48,12 @@ struct postprocess_pass : public pass
     void init(pr::Context& ctx) override;
     void execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, scene& scene) override;
 
+    void clear_target(pr::raii::Frame& frame, pr::render_target const& target);
+
     pr::auto_graphics_pipeline_state pso_downsample;
     pr::auto_graphics_pipeline_state pso_bloom;
     pr::auto_graphics_pipeline_state pso_tonemap;
     pr::auto_graphics_pipeline_state pso_output;
+    pr::auto_graphics_pipeline_state pso_clear;
 };
 }
