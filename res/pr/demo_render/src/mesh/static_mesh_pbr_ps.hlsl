@@ -139,19 +139,23 @@ float4 main_ps(vs_out p_in) : SV_TARGET
 
     const float3 Lo = normalize(g_frame_data.cam_pos - p_in.WorldPos);
     
+    // material parameters
     const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
     const float metalness = g_metallic.Sample(g_sampler, p_in.Texcoord).r;
     const float roughness = g_roughness.Sample(g_sampler, p_in.Texcoord).r;
 
-    // Angle between surface normal and outgoing light direction.
+    // angle between surface normal and outgoing light direction.
 	float cosLo = saturate(dot(N, Lo));
 
-	// Fresnel reflectance at normal incidence (for metals use albedo color).
+	// fresnel reflectance at normal incidence (for metals use albedo color).
 	float3 F0 = lerp(Fdielectric, albedo, metalness);
 
+    // hardcoded pointlight
     float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
+    float3 Lradiance = float3(3.0, 3.0, 3.0);
 
-    float3 direct = calculateDirectLight(Li, Lo, cosLo, 3.0, N, F0, roughness, metalness, albedo);
+    // single pointlight + indirect light
+    float3 direct = calculateDirectLight(Li, Lo, cosLo, Lradiance, N, F0, roughness, metalness, albedo);
     float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
 
     return float4(direct + indirect, 1.0);
