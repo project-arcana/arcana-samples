@@ -17,7 +17,7 @@ void run_demo_renderer(pr::backend_type type)
                                                 "res/arcana-sample-resources/phi/texture/ball/metallic.png", //
                                                 "res/arcana-sample-resources/phi/texture/ball/roughness.png");
 
-    auto const mesh_colt = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/colt1911_noplane.obj");
+    auto const mesh_colt = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/colt1911.obj");
     auto const mat_colt = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/colt/albedo.png",   //
                                                 "res/arcana-sample-resources/phi/texture/colt/normal.png",   //
                                                 "res/arcana-sample-resources/phi/texture/colt/metallic.png", //
