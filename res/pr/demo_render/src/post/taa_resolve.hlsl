@@ -51,19 +51,19 @@ float4 main(vs_out v_in) : SV_TARGET
 	// Sample the current neighbourhood
 	//=========================================================
     const float2 invResolution = queryInverseResolution();
-    const float texelWidth = invResolution.x;
-    const float texelHeight = invResolution.y;
+    const float dx = invResolution.x;
+    const float dy = invResolution.y;
 	const float4 nbh[9] = 
 	{
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x - texelWidth, v_in.Texcoord.y - texelHeight))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x - texelWidth, v_in.Texcoord.y              ))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x - texelWidth, v_in.Texcoord.y + texelHeight))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x,              v_in.Texcoord.y - texelHeight))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x,              v_in.Texcoord.y              ))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x,              v_in.Texcoord.y + texelHeight))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x + texelWidth, v_in.Texcoord.y - texelHeight))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x + texelWidth, v_in.Texcoord.y              ))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, float2(v_in.Texcoord.x + texelWidth, v_in.Texcoord.y + texelHeight))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx, -dy))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx,   0))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx,  dy))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0, -dy))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0,   0))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0,  dy))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx, -dy))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx,   0))),
+		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx,  dy))),
 	};
 	const float4 color = nbh[4];
 

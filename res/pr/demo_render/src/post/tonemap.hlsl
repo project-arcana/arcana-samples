@@ -32,13 +32,44 @@ float3 dither(in float3 color, float2 screen_pixel, int divisor) {
     return color + ((random - .5) / divisor);
 }
 
+float2 queryInverseResolution(float nominator)
+{
+    float width, height;
+    g_texture.GetDimensions(width, height);
+    return float2(
+        nominator / width,
+        nominator / height
+    );
+}
+
+float3 sample_with_sharpen(float2 uv)
+{
+    const float val0 = 2.f;
+    const float val1 = -0.125f;
+
+    const float2 invResolution = queryInverseResolution(1.6f);
+    const float dx = invResolution.x;
+    const float dy = invResolution.y;
+
+    const float3 color[9] = 
+	{
+		g_texture.Sample(g_sampler, uv + float2(-dx, -dy)).rgb * val1,
+		g_texture.Sample(g_sampler, uv + float2(-dx,   0)).rgb * val1,
+		g_texture.Sample(g_sampler, uv + float2(-dx,  dy)).rgb * val1,
+		g_texture.Sample(g_sampler, uv + float2(  0, -dy)).rgb * val1,
+		g_texture.Sample(g_sampler, uv + float2(  0,   0)).rgb * val0,
+		g_texture.Sample(g_sampler, uv + float2(  0,  dy)).rgb * val1,
+		g_texture.Sample(g_sampler, uv + float2( dx, -dy)).rgb * val1,
+		g_texture.Sample(g_sampler, uv + float2( dx,   0)).rgb * val1,
+		g_texture.Sample(g_sampler, uv + float2( dx,  dy)).rgb * val1,
+	};
+	return color[0] + color[1] + color[2] + color[3] + color[4] + color[5] + color[6] + color[7] + color[8];
+}
 
 float4 main_ps(vs_out In) : SV_TARGET
 {
-    float3 hdr = g_texture.Sample(g_sampler, In.Texcoord).rgb;
-
-    //if (In.Texcoord.x < 0.5f)
-    //    return float4(hdr, 1.f);
+    // sharpen
+    float3 hdr = sample_with_sharpen(In.Texcoord);
 
     // tonemap
     float3 color = tonemap_aces_fitted(hdr);

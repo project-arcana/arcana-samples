@@ -149,7 +149,7 @@ void dmr::postprocess_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, gl
 
         pr::argument arg;
         arg.add(active_history);
-        arg.add_sampler(phi::sampler_filter::min_mag_mip_linear);
+        arg.add_sampler(phi::sampler_filter::min_mag_mip_linear, 1, phi::sampler_address_mode::clamp);
 
         fb.make_pass(pso_tonemap).bind(arg).draw(3);
     }
