@@ -47,8 +47,8 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
     handle::pipeline_state pso_clear;
 
     {
-        auto const vertex_binary = get_shader_binary("blit_vertex", sample_config.shader_ending);
-        auto const pixel_binary = get_shader_binary("clear_pixel", sample_config.shader_ending);
+        auto const vertex_binary = get_shader_binary("fullscreen_vs", sample_config.shader_ending);
+        auto const pixel_binary = get_shader_binary("clear_ps", sample_config.shader_ending);
 
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
@@ -153,13 +153,23 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
                 }
 
 
-                cmdlists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
-
                 ImGui_ImplSDL2_NewFrame(window.getSdlWindow());
                 ImGui::NewFrame();
                 ImGui::ShowDemoWindow(nullptr);
                 ImGui::Render();
-                cmdlists.push_back(imgui_implementation.render(ImGui::GetDrawData(), ng_backbuffer, true));
+
+                auto* const drawdata = ImGui::GetDrawData();
+                auto const commandsize = imgui_implementation.get_command_size(drawdata);
+                imgui_implementation.write_commands(ImGui::GetDrawData(), ng_backbuffer, cmd_writer.buffer_head(), commandsize);
+                cmd_writer.advance_cursor(commandsize);
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(ng_backbuffer, resource_state::present);
+                    cmd_writer.add_command(tcmd);
+                }
+
+                cmdlists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
             }
 
             // submit

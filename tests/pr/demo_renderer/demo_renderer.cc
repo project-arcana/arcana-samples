@@ -126,7 +126,6 @@ void dmr::DemoRenderer::execute(float dt)
     ImGui::Text("frametime: %.2f ms", double(dt * 1000.f));
     ImGui::End();
 
-
     mScene.on_next_frame();
 
     // camera update
