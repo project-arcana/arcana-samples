@@ -40,8 +40,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
         {
             auto const ps_bin = get_shader_binary("imgui_ps", sample_config.shader_ending);
             auto const vs_bin = get_shader_binary("imgui_vs", sample_config.shader_ending);
-            imgui_implementation.initialize(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(),
-                                            sample_config.align_mip_rows);
+            imgui_implementation.initialize(&backend, ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size());
         }
     }
 

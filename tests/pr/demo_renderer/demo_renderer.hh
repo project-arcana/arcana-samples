@@ -7,6 +7,7 @@
 #include <arcana-incubator/device-abstraction/freefly_camera.hh>
 #include <arcana-incubator/device-abstraction/input.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
+#include <arcana-incubator/imgui/imgui_impl_pr.hh>
 #include <arcana-incubator/pr-util/resource_loading.hh>
 #include <arcana-incubator/pr-util/texture_processing.hh>
 
@@ -64,6 +65,7 @@ private:
     inc::da::smooth_fps_cam mCamera;
 
     inc::pre::texture_processing mTexProcessingPSOs;
+    inc::ImGuiPhantasmImpl mImguiImpl;
 
     cc::vector<inc::pre::pr_mesh> mUniqueMeshes;
     cc::vector<pr::auto_texture> mUniqueTextures;

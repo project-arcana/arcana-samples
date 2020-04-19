@@ -6,6 +6,7 @@
 #include <phantasm-renderer/Frame.hh>
 
 #include <arcana-incubator/device-abstraction/stringhash.hh>
+#include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 namespace
 {
@@ -33,6 +34,15 @@ dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type bac
     config.validation = phi::validation_level::on;
 
     mContext.initialize({mWindow.getSdlWindow()}, backend_type, config);
+
+    {
+        auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
+        auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+
+        ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
+        ImGui_ImplSDL2_Init(mWindow.getSdlWindow());
+        mImguiImpl.initialize(&mContext.get_backend(), ps_b.get(), ps_b.size(), vs_b.get(), vs_b.size());
+    }
 
     mTexProcessingPSOs.init(mContext, "res/pr/demo_render/bin/preprocess/");
 
@@ -65,7 +75,12 @@ dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type bac
     mContext.flush();
 }
 
-dmr::DemoRenderer::~DemoRenderer() { mContext.flush(); }
+dmr::DemoRenderer::~DemoRenderer()
+{
+    mContext.flush();
+    mImguiImpl.destroy();
+    ImGui_ImplSDL2_Shutdown();
+}
 
 dmr::mesh dmr::DemoRenderer::loadMesh(const char* path, bool binary)
 {
@@ -107,6 +122,11 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
 
 void dmr::DemoRenderer::execute(float dt)
 {
+    ImGui::Begin("pr dmr");
+    ImGui::Text("frametime: %.2f ms", double(dt * 1000.f));
+    ImGui::End();
+
+
     mScene.on_next_frame();
 
     // camera update
@@ -147,7 +167,17 @@ void dmr::DemoRenderer::execute(float dt)
     {
         auto frame = mContext.make_frame();
         mPasses.taa.execute(mContext, frame, mTargets, mScene);
-        mPasses.postprocess.execute(mContext, frame, mTargets, mScene);
+
+        auto backbuffer = mContext.acquire_backbuffer();
+        mPasses.postprocess.execute_output(mContext, frame, mTargets, mScene, backbuffer);
+
+        ImGui::Render();
+        auto* const imgui_drawdata = ImGui::GetDrawData();
+        auto const imgui_framesize = mImguiImpl.get_command_size(imgui_drawdata);
+        mImguiImpl.write_commands(imgui_drawdata, backbuffer.res.handle, frame.write_raw_bytes(imgui_framesize), imgui_framesize);
+
+        frame.transition(backbuffer, phi::resource_state::present);
+
         cf_post = mContext.compile(frame);
     }
 
@@ -179,6 +209,10 @@ bool dmr::DemoRenderer::handleEvents()
 
     if (mContext.clear_backbuffer_resize())
         onBackbufferResize(mContext.get_backbuffer_size());
+
+    ImGui_ImplSDL2_NewFrame(mWindow.getSdlWindow());
+    ImGui::NewFrame();
+
     return true;
 }
 

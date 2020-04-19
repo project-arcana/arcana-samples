@@ -10,7 +10,7 @@ namespace dmr
 struct pass
 {
     virtual void init(pr::Context& ctx) = 0;
-    virtual void execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, scene& scene) = 0;
+    virtual void execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, scene& scene) {}
     virtual ~pass() = default;
 };
 
@@ -46,8 +46,8 @@ struct taa_pass : public pass
 struct postprocess_pass : public pass
 {
     void init(pr::Context& ctx) override;
-    void execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, scene& scene) override;
 
+    void execute_output(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, scene& scene, pr::render_target const& backbuffer);
     void clear_target(pr::raii::Frame& frame, pr::render_target const& target);
 
     pr::auto_graphics_pipeline_state pso_downsample;

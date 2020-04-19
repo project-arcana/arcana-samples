@@ -137,10 +137,9 @@ void dmr::postprocess_pass::init(pr::Context& ctx)
     pso_clear = ctx.make_pipeline_state(pr::graphics_pass(vs), pr::framebuffer(pr::format::b10g11r11uf));
 }
 
-void dmr::postprocess_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
+void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame, dmr::global_targets& targets, dmr::scene& scene, const pr::render_target& backbuffer)
 {
     auto const& active_history = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
-    auto backbuffer = ctx.acquire_backbuffer();
 
     frame.transition(active_history, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
@@ -153,8 +152,6 @@ void dmr::postprocess_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, gl
 
         fb.make_pass(pso_tonemap).bind(arg).draw(3);
     }
-
-    frame.transition(backbuffer, phi::resource_state::present);
 }
 
 void dmr::postprocess_pass::clear_target(pr::raii::Frame& frame, const pr::render_target& target)
