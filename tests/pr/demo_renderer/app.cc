@@ -12,18 +12,16 @@ void run_demo_renderer(pr::backend_type type)
     dmr::DemoRenderer renderer(window, type);
 
     auto const mesh_ball = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/ball.mesh", true);
+    auto const mesh_colt = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/colt1911.mesh", true);
+    auto const mesh_car = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/old_car.mesh", true);
     auto const mat_ball = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/ball/albedo.png",   //
                                                 "res/arcana-sample-resources/phi/texture/ball/normal.png",   //
                                                 "res/arcana-sample-resources/phi/texture/ball/metallic.png", //
                                                 "res/arcana-sample-resources/phi/texture/ball/roughness.png");
-
-    auto const mesh_colt = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/colt1911.obj");
     auto const mat_colt = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/colt/albedo.png",   //
                                                 "res/arcana-sample-resources/phi/texture/colt/normal.png",   //
                                                 "res/arcana-sample-resources/phi/texture/colt/metallic.png", //
                                                 "res/arcana-sample-resources/phi/texture/colt/roughness.png");
-
-    auto const mesh_car = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/old_car.obj");
     auto const mat_car = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/oldcar/albedo.png",   //
                                                "res/arcana-sample-resources/phi/texture/oldcar/normal.png",   //
                                                "res/arcana-sample-resources/phi/texture/oldcar/metallic.png", //

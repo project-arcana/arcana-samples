@@ -142,7 +142,7 @@ float4 main_ps(vs_out p_in) : SV_TARGET
     // material parameters
     const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
     const float metalness = g_metallic.Sample(g_sampler, p_in.Texcoord).r;
-    const float roughness = g_roughness.Sample(g_sampler, p_in.Texcoord).r;
+    const float roughness = clamp(g_roughness.Sample(g_sampler, p_in.Texcoord).r, 0.025, 1); // prevent singularities (NaNs) at 0 roughness - lower bound left for adjustment
 
     // angle between surface normal and outgoing light direction.
 	float cosLo = saturate(dot(N, Lo));

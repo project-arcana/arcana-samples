@@ -69,7 +69,7 @@ void dmr::forward_pass::init(pr::Context& ctx)
                  .add(tex_ibl_spec)
                  .add(tex_ibl_irr)
                  .add(tex_ibl_lut)
-                 .add_sampler(phi::sampler_filter::anisotropic)
+                 .add_sampler(phi::sampler_filter::anisotropic, 16)
                  .add_sampler(lut_sampler)
                  .make_graphics();
 }
@@ -105,7 +105,7 @@ void dmr::taa_pass::init(pr::Context& ctx)
     pso_taa = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf));
 }
 
-void dmr::taa_pass::execute(pr::Context& ctx, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
+void dmr::taa_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
     auto const& history_target = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
     auto const& history_src = scene.is_history_a ? targets.t_history_b : targets.t_history_a;
