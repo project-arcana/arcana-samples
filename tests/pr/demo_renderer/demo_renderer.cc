@@ -139,8 +139,10 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
 
 void dmr::DemoRenderer::execute(float dt)
 {
-    ImGui::Begin("pr dmr");
+    ImGui::Begin("pr dmr", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
+    ImGui::SetWindowSize(ImVec2{175, 150}, ImGuiCond_Always);
     ImGui::Text("frametime: %.2f ms", double(dt * 1000.f));
+    ImGui::Text("WASD - move\nE/Q - raise/lower\nhold RMB - mouselook\nshift - speedup\nctrl - slowdown");
     ImGui::End();
 
     mScene.on_next_frame();
