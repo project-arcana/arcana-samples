@@ -56,3 +56,9 @@ float intersect_aabb(float3 origin, float3 direction, float3 extents)
 	
 	return max(max(min(minimum.x, maximum.x), min(minimum.y, maximum.y)), min(minimum.z, maximum.z));
 }
+
+float max3(float x, float y, float z) { return max(x, max(y, z)); }
+
+// fast reversible tonemap for TAA or other resolve passes
+float3 fast_tonemap(float3 c) { return c * rcp(max3(c.r, c.g, c.b) + 1.0); }
+float3 fast_invert_tonemap(float3 c) { return c * rcp(1.0 - max3(c.r, c.g, c.b)); }

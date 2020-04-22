@@ -21,6 +21,19 @@ float2 queryInverseResolution()
     );
 }
 
+float4 convert_taa_input(float4 c)
+{
+	float3 mapped = fast_tonemap(c.rgb);
+	return rgba_to_ycocg(float4(mapped.x, mapped.y, mapped.z, c.a));
+}
+
+float4 convert_taa_output(float4 c)
+{
+	float4 rgba = ycocg_to_rgba(c);
+	float3 unmapped = fast_invert_tonemap(rgba.rgb);
+	return float4(unmapped.x, unmapped.y, unmapped.z, rgba.a);
+}
+
 float4 main(vs_out v_in) : SV_TARGET
 {
 	// 1.6 / (length_of_jitter_sequence + 1)
@@ -55,15 +68,15 @@ float4 main(vs_out v_in) : SV_TARGET
     const float dy = invResolution.y;
 	const float4 nbh[9] = 
 	{
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx, -dy))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx,   0))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx,  dy))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0, -dy))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0,   0))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0,  dy))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx, -dy))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx,   0))),
-		rgba_to_ycocg(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx,  dy))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx, -dy))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx,   0))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(-dx,  dy))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0, -dy))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0,   0))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2(  0,  dy))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx, -dy))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx,   0))),
+		convert_taa_input(g_scene_buffer.Sample(g_screen_sampler, v_in.Texcoord.xy + float2( dx,  dy))),
 	};
 	const float4 color = nbh[4];
 
@@ -77,7 +90,7 @@ float4 main(vs_out v_in) : SV_TARGET
 	//=========================================================
 	// History clipping
 	//=========================================================
-	float4 history = rgba_to_ycocg(g_history_buffer.Sample(g_screen_sampler, previousUV));
+	float4 history = convert_taa_input(g_history_buffer.Sample(g_screen_sampler, previousUV));
 	
 	const float3 origin = history.rgb - 0.5f*(minimum.rgb + maximum.rgb);
 	const float3 direction = average.rgb - history.rgb;
@@ -91,5 +104,5 @@ float4 main(vs_out v_in) : SV_TARGET
 	float impulse = abs(color.x - history.x) / max(color.x, max(history.x, minimum.x));
 	float factor = lerp(blendFactor * 0.8f, blendFactor * 2.0f, impulse*impulse);
 
-	return ycocg_to_rgba(lerp(history, color, saturate(factor)));
+	return convert_taa_output(lerp(history, color, saturate(factor)));
 }
