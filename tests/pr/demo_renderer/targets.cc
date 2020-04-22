@@ -6,7 +6,7 @@ void dmr::global_targets::recreate_rts(pr::Context& ctx, tg::isize2 new_size)
 {
     constexpr auto hdr_format = pr::format::b10g11r11uf;
 
-    t_depth = ctx.make_target(new_size, pr::format::depth24un_stencil8u, 1, 1, phi::rt_clear_value(0.f, 0));
+    t_depth = ctx.make_target(new_size, pr::format::depth32f, 1, 1, phi::rt_clear_value(0.f, 0));
     t_forward_hdr = ctx.make_target(new_size, hdr_format);
     t_forward_velocity = ctx.make_target(new_size, pr::format::rg16f, 1, 1, phi::rt_clear_value(1, 1, 1, 1));
 
