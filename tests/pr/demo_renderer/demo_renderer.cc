@@ -18,9 +18,11 @@ enum e_input : uint64_t
 
 }
 
-dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
+void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend_type backend_type)
 {
-    mWindow.initialize("Demo Renderer", 1280, 720);
+    CC_ASSERT(mWindow == nullptr && "double initialize");
+
+    mWindow = &window;
 
     // input setup
     mInput.initialize(100);
@@ -33,14 +35,14 @@ dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type bac
     config.adapter = phi::adapter_preference::highest_vram;
     config.validation = phi::validation_level::on;
 
-    mContext.initialize({mWindow.getSdlWindow()}, backend_type, config);
+    mContext.initialize({mWindow->getSdlWindow()}, backend_type, config);
 
     {
         auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
         auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
 
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-        ImGui_ImplSDL2_Init(mWindow.getSdlWindow());
+        ImGui_ImplSDL2_Init(mWindow->getSdlWindow());
         mImguiImpl.initialize(&mContext.get_backend(), ps_b.get(), ps_b.size(), vs_b.get(), vs_b.size());
     }
 
@@ -75,11 +77,26 @@ dmr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type bac
     mContext.flush();
 }
 
-dmr::DemoRenderer::~DemoRenderer()
+void dmr::DemoRenderer::destroy()
 {
-    mContext.flush();
-    mImguiImpl.destroy();
-    ImGui_ImplSDL2_Shutdown();
+    if (mWindow != nullptr)
+    {
+        mContext.flush();
+
+        mImguiImpl.destroy();
+        ImGui_ImplSDL2_Shutdown();
+
+        mPasses = {};
+        mScene = {};
+        mTargets = {};
+        mUniqueSVs.clear();
+        mUniqueTextures.clear();
+        mUniqueMeshes.clear();
+        mTexProcessingPSOs.free();
+
+        mContext.destroy();
+        mWindow = nullptr;
+    }
 }
 
 dmr::mesh dmr::DemoRenderer::loadMesh(const char* path, bool binary)
@@ -130,7 +147,7 @@ void dmr::DemoRenderer::execute(float dt)
 
     // camera update
     {
-        mCamera.update_default_inputs(mInput, dt);
+        mCamera.update_default_inputs(mWindow->getSdlWindow(), mInput, dt);
 
         if (mInput.get(ge_input_logpos).wasPressed())
         {
@@ -194,22 +211,22 @@ bool dmr::DemoRenderer::handleEvents()
         mInput.updatePrePoll();
 
         SDL_Event e;
-        while (mWindow.pollSingleEvent(e))
+        while (mWindow->pollSingleEvent(e))
             mInput.processEvent(e);
 
         mInput.updatePostPoll();
     }
 
-    if (mWindow.isMinimized())
+    if (mWindow->isMinimized())
         return false;
 
-    if (mWindow.clearPendingResize())
-        mContext.on_window_resize(mWindow.getSize());
+    if (mWindow->clearPendingResize())
+        mContext.on_window_resize(mWindow->getSize());
 
     if (mContext.clear_backbuffer_resize())
         onBackbufferResize(mContext.get_backbuffer_size());
 
-    ImGui_ImplSDL2_NewFrame(mWindow.getSdlWindow());
+    ImGui_ImplSDL2_NewFrame(mWindow->getSdlWindow());
     ImGui::NewFrame();
 
     return true;

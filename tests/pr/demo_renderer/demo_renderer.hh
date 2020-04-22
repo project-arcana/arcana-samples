@@ -18,8 +18,14 @@ namespace dmr
 class DemoRenderer
 {
 public:
-    DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type);
-    ~DemoRenderer();
+    void initialize(inc::da::SDLWindow& window, pr::backend_type backend_type);
+    void destroy();
+
+    DemoRenderer() = default;
+    DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) { initialize(window, backend_type); }
+
+    DemoRenderer(DemoRenderer const&) = delete;
+    ~DemoRenderer() { destroy(); }
 
     /// loads a mesh from disk
     [[nodiscard]] dmr::mesh loadMesh(char const* path, bool binary = false);
@@ -36,7 +42,7 @@ public:
     void mainLoop(F&& func)
     {
         mTimer.restart();
-        while (!mWindow.isRequestingClose())
+        while (!mWindow->isRequestingClose())
         {
             if (!handleEvents())
                 continue;
@@ -57,7 +63,7 @@ private:
     void onBackbufferResize(tg::isize2 new_size);
 
 private:
-    inc::da::SDLWindow& mWindow;
+    inc::da::SDLWindow* mWindow = nullptr;
     pr::Context mContext;
 
     inc::da::Timer mTimer;
