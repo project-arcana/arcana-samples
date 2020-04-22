@@ -33,7 +33,8 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend_type 
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::on;
+    config.validation = phi::validation_level::on_extended;
+    config.present = phi::present_mode::allow_tearing;
 
     mContext.initialize({mWindow->getSdlWindow()}, backend_type, config);
 
