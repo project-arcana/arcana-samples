@@ -194,7 +194,7 @@ APP("api_test")
             frame.copy(upbuff, b_vertices);
             frame.copy(upbuff, b_indices, mesh.get_vertex_size_bytes());
 
-            ctx.submit(frame);
+            ctx.submit(cc::move(frame));
         }
 
         ctx.flush();
@@ -279,7 +279,7 @@ APP("api_test")
 
             frame.transition(backbuffer, phi::resource_state::present);
 
-            ctx.submit(frame);
+            ctx.submit(cc::move(frame));
         }
 
         ctx.present();

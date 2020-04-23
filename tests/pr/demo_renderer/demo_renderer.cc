@@ -64,7 +64,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend_type 
         frame.transition(mPasses.forward.tex_ibl_irr, phi::resource_state::shader_resource, phi::shader_stage::pixel);
         frame.transition(mPasses.forward.tex_ibl_lut, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
-        mContext.submit(frame);
+        mContext.submit(cc::move(frame));
     }
 
     mPasses.depthpre.init(mContext);
@@ -123,7 +123,7 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
     frame.transition(metal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
     frame.transition(rough, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
-    mContext.submit(frame);
+    mContext.submit(cc::move(frame));
 
     auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument().add(albedo).add(normal).add(metal).add(rough).make_graphics());
     dmr::material res;
@@ -174,13 +174,13 @@ void dmr::DemoRenderer::execute(float dt)
     {
         auto frame = mContext.make_frame();
         mPasses.depthpre.execute(mContext, frame, mTargets, mScene);
-        cf_depthpre = mContext.compile(frame);
+        cf_depthpre = mContext.compile(cc::move(frame));
     }
 
     {
         auto frame = mContext.make_frame();
         mPasses.forward.execute(mContext, frame, mTargets, mScene);
-        cf_forward = mContext.compile(frame);
+        cf_forward = mContext.compile(cc::move(frame));
     }
 
     {
@@ -197,7 +197,7 @@ void dmr::DemoRenderer::execute(float dt)
 
         frame.transition(backbuffer, phi::resource_state::present);
 
-        cf_post = mContext.compile(frame);
+        cf_post = mContext.compile(cc::move(frame));
     }
 
     mScene.flush_current_frame_upload(mContext);
@@ -245,5 +245,5 @@ void dmr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
     auto frame = mContext.make_frame();
     mPasses.postprocess.clear_target(frame, mTargets.t_history_a);
     mPasses.postprocess.clear_target(frame, mTargets.t_history_b);
-    mContext.submit(frame);
+    mContext.submit(cc::move(frame));
 }
