@@ -52,3 +52,6 @@
 [submodule "extern/sdl2-dev"]
 	path = extern/sdl2-dev
 	url = git@github.com:project-arcana/sdl2-dev.git
+[submodule "extern/resource-system"]
+	path = extern/resource-system
+	url = git@github.com:project-arcana/resource-system.git
