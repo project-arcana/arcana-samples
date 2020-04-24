@@ -1,18 +1,26 @@
+# forward and depthpre
 mesh/static_mesh_depth.hlsl main_vs vs ../bin/mesh/depth_vs
+mesh/static_mesh_depth.hlsl main_ps ps ../bin/mesh/depth_ps
 mesh/static_mesh_vs.hlsl main_vs vs ../bin/mesh/pbr_vs
 mesh/static_mesh_pbr_ps.hlsl main_ps ps ../bin/mesh/pbr_ps
 
+# post fx
 post/fullscreen_vs.hlsl main_vs vs ../bin/post/fullscreen_vs
 post/tonemap.hlsl main_ps ps ../bin/post/tonemap_ps
 post/clear_ps.hlsl main_ps ps ../bin/post/clear_ps
+post/taa_resolve.hlsl main ps ../bin/post/taa_ps
 
+# mipmap gen
 preprocess/mipgen.hlsl main_cs cs ../bin/preprocess/mipgen
 preprocess/mipgen_gamma.hlsl main_cs cs ../bin/preprocess/mipgen_gamma
 preprocess/mipgen_array.hlsl main_cs cs ../bin/preprocess/mipgen_array
+
+# ibl processing
 preprocess/equirect_to_cube.hlsl main_cs cs ../bin/preprocess/equirect_to_cube
 preprocess/specular_map_filter.hlsl main_cs cs ../bin/preprocess/specular_map_filter
 preprocess/irradiance_map_filter.hlsl main_cs cs ../bin/preprocess/irradiance_map_filter
 preprocess/brdf_lut_gen.hlsl main_cs cs ../bin/preprocess/brdf_lut_gen
 
+# misc
 misc/imgui.hlsl main_vs vs ../bin/misc/imgui_vs
 misc/imgui.hlsl main_ps ps ../bin/misc/imgui_ps

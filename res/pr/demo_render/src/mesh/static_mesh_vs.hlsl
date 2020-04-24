@@ -1,5 +1,5 @@
-#include "common/mesh_vs_inout.hlsl"
-#include "common/cam_constants.hlsl"
+#include "common/mesh_vs_inout.hlsli"
+#include "common/cam_constants.hlsli"
 
 struct model_constants
 {

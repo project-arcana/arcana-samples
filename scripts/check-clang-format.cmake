@@ -14,6 +14,22 @@ endif()
 set(FORMATTER "clang-format-9" CACHE STRING "binary used to format files")
 option(ONLY_CHECK "if true, only checks if anything changed, otherwise executes clang format as well" ON)
 
+execute_process(
+    COMMAND ${FORMATTER} --version
+    OUTPUT_VARIABLE clang_format_version
+    RESULT_VARIABLE status
+)
+
+if (NOT status EQUAL 0)
+    message(FATAL_ERROR 
+        "fatal: formatter binary not found as ${FORMATTER} in PATH\n"
+        "specify a different binary using -DFORMATTER=\"<yourname>\""
+    )
+else()
+    message(STATUS "using binary ${FORMATTER}")
+    message(STATUS "${clang_format_version}")
+endif()
+
 set(FINE TRUE)
 set(COUNT 0)
 
@@ -39,9 +55,11 @@ foreach(filename ${files})
             # fine
         else()
             message("${filename} is not formatted")
-            set(FINE FALSE)
 
-            if (NOT ONLY_CHECK)
+            if (ONLY_CHECK)
+                # read-only mode, output warning at the end and exit(1)
+                set(FINE FALSE)
+            else()
                 message(" .. formatting ${filename}")
 
                 execute_process(

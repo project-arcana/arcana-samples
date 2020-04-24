@@ -6,54 +6,46 @@
 #include <phantasm-renderer/Frame.hh>
 
 #include <arcana-incubator/device-abstraction/stringhash.hh>
+#include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 namespace
 {
 enum e_input : uint64_t
 {
-    ge_input_forward,
-    ge_input_left,
-    ge_input_back,
-    ge_input_right,
-    ge_input_up,
-    ge_input_down,
-    ge_input_speedup,
-    ge_input_slowdown,
-    ge_input_camlook_active,
-    ge_input_camlook_x,
-    ge_input_camlook_y
+    ge_input_logpos = 50,
+    ge_input_setpos
 };
 
 }
 
-dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) : mWindow(window)
+void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend_type backend_type)
 {
-    mWindow.initialize("Demo Renderer", 1280, 720);
+    CC_ASSERT(mWindow == nullptr && "double initialize");
+
+    mWindow = &window;
 
     // input setup
-    {
-        mInput.initialize(100);
+    mInput.initialize(100);
+    mCamera.setup_default_inputs(mInput);
 
-        mInput.bindKey(ge_input_forward, SDL_SCANCODE_W);
-        mInput.bindKey(ge_input_left, SDL_SCANCODE_A);
-        mInput.bindKey(ge_input_back, SDL_SCANCODE_S);
-        mInput.bindKey(ge_input_right, SDL_SCANCODE_D);
-        mInput.bindKey(ge_input_up, SDL_SCANCODE_E);
-        mInput.bindKey(ge_input_down, SDL_SCANCODE_Q);
-        mInput.bindKey(ge_input_speedup, SDL_SCANCODE_LSHIFT);
-        mInput.bindKey(ge_input_slowdown, SDL_SCANCODE_LCTRL);
-
-        mInput.bindMouseButton(ge_input_camlook_active, SDL_BUTTON_RIGHT);
-
-        mInput.bindMouseAxis(ge_input_camlook_x, 0, -.75f);
-        mInput.bindMouseAxis(ge_input_camlook_y, 1, -.75f);
-    }
+    mInput.bindKey(ge_input_logpos, SDL_SCANCODE_H);
+    mInput.bindKey(ge_input_setpos, SDL_SCANCODE_J);
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::off;
+    config.validation = phi::validation_level::on_extended;
+    config.present = phi::present_mode::allow_tearing;
 
-    mContext.initialize({mWindow.getSdlWindow()}, backend_type, config);
+    mContext.initialize({mWindow->getSdlWindow()}, backend_type, config);
+
+    {
+        auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
+        auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+
+        ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
+        ImGui_ImplSDL2_Init(mWindow->getSdlWindow());
+        mImguiImpl.initialize(&mContext.get_backend(), ps_b.get(), ps_b.size(), vs_b.get(), vs_b.size());
+    }
 
     mTexProcessingPSOs.init(mContext, "res/pr/demo_render/bin/preprocess/");
 
@@ -72,7 +64,7 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type back
         frame.transition(mPasses.forward.tex_ibl_irr, phi::resource_state::shader_resource, phi::shader_stage::pixel);
         frame.transition(mPasses.forward.tex_ibl_lut, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
-        mContext.submit(frame);
+        mContext.submit(cc::move(frame));
     }
 
     mPasses.depthpre.init(mContext);
@@ -86,18 +78,38 @@ dr::DemoRenderer::DemoRenderer(inc::da::SDLWindow& window, pr::backend_type back
     mContext.flush();
 }
 
-dr::DemoRenderer::~DemoRenderer() { mContext.flush(); }
+void dmr::DemoRenderer::destroy()
+{
+    if (mWindow != nullptr)
+    {
+        mContext.flush();
 
-dr::mesh dr::DemoRenderer::loadMesh(const char* path, bool binary)
+        mImguiImpl.destroy();
+        ImGui_ImplSDL2_Shutdown();
+
+        mPasses = {};
+        mScene = {};
+        mTargets = {};
+        mUniqueSVs.clear();
+        mUniqueTextures.clear();
+        mUniqueMeshes.clear();
+        mTexProcessingPSOs.free();
+
+        mContext.destroy();
+        mWindow = nullptr;
+    }
+}
+
+dmr::mesh dmr::DemoRenderer::loadMesh(const char* path, bool binary)
 {
     auto const& new_mesh = mUniqueMeshes.push_back(inc::pre::load_mesh(mContext, path, binary));
-    dr::mesh res;
+    dmr::mesh res;
     res.vertex = new_mesh.vertex;
     res.index = new_mesh.index;
     return res;
 }
 
-dr::material dr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_normal, const char* p_metal, const char* p_rough)
+dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_normal, const char* p_metal, const char* p_rough)
 {
     auto frame = mContext.make_frame();
 
@@ -111,10 +123,10 @@ dr::material dr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_
     frame.transition(metal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
     frame.transition(rough, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
-    mContext.submit(frame);
+    mContext.submit(cc::move(frame));
 
     auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument().add(albedo).add(normal).add(metal).add(rough).make_graphics());
-    dr::material res;
+    dmr::material res;
     res.outer_sv = new_sv;
 
     // move to unique array to keep alive
@@ -126,47 +138,32 @@ dr::material dr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_
     return res;
 }
 
-void dr::DemoRenderer::execute(float dt)
+void dmr::DemoRenderer::execute(float dt)
 {
+    ImGui::Begin("pr dmr", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
+    ImGui::SetWindowSize(ImVec2{175, 150}, ImGuiCond_Always);
+    ImGui::Text("frametime: %.2f ms", double(dt * 1000.f));
+    ImGui::Text("WASD - move\nE/Q - raise/lower\nhold RMB - mouselook\nshift - speedup\nctrl - slowdown");
+    ImGui::End();
+
     mScene.on_next_frame();
 
     // camera update
     {
-        auto speed_mul = 10.f;
+        mCamera.update_default_inputs(mWindow->getSdlWindow(), mInput, dt);
 
-        if (mInput.get(ge_input_speedup).isActive())
-            speed_mul *= 2.f;
-
-        if (mInput.get(ge_input_slowdown).isActive())
-            speed_mul *= .5f;
-
-        auto const delta_move = tg::vec3{mInput.get(ge_input_right).getAnalog() - mInput.get(ge_input_left).getAnalog(),
-                                         mInput.get(ge_input_up).getAnalog() - mInput.get(ge_input_down).getAnalog(),
-                                         mInput.get(e_input::ge_input_forward).getAnalog() - mInput.get(ge_input_back).getAnalog()
-
-                                }
-                                * dt * speed_mul;
-
-        mCamera.target.move_relative(delta_move);
-
-        if (mInput.get(ge_input_camlook_active).isActive())
+        if (mInput.get(ge_input_logpos).wasPressed())
         {
-            if (!mMouseCaptured)
-            {
-                SDL_SetRelativeMouseMode(SDL_TRUE);
-                mMouseCaptured = true;
-            }
-
-            mCamera.target.mouselook(mInput.get(ge_input_camlook_x).getDelta() * dt, mInput.get(ge_input_camlook_y).getDelta() * dt);
-        }
-        else if (mMouseCaptured)
-        {
-            SDL_SetRelativeMouseMode(SDL_FALSE);
-            mMouseCaptured = false;
+            LOG(info) << mCamera.physical.forward << mCamera.physical.position;
         }
 
-        mCamera.interpolate_to_target(dt);
-        mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward);
+        if (mInput.get(ge_input_setpos).wasPressed())
+        {
+            mCamera.target.forward = {-0.243376f, 0.431579f, 0.868624f};
+            mCamera.target.position = {-0.551521f, 1.68109f, 2.92037f};
+        }
+
+        mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward, mScene.halton_index);
     }
     mScene.upload_current_frame();
 
@@ -177,56 +174,74 @@ void dr::DemoRenderer::execute(float dt)
     {
         auto frame = mContext.make_frame();
         mPasses.depthpre.execute(mContext, frame, mTargets, mScene);
-        cf_depthpre = mContext.compile(frame);
+        cf_depthpre = mContext.compile(cc::move(frame));
     }
 
     {
         auto frame = mContext.make_frame();
         mPasses.forward.execute(mContext, frame, mTargets, mScene);
-        cf_forward = mContext.compile(frame);
+        cf_forward = mContext.compile(cc::move(frame));
     }
 
     {
         auto frame = mContext.make_frame();
         mPasses.taa.execute(mContext, frame, mTargets, mScene);
-        mPasses.postprocess.execute(mContext, frame, mTargets, mScene);
-        cf_post = mContext.compile(frame);
+
+        auto backbuffer = mContext.acquire_backbuffer();
+        mPasses.postprocess.execute_output(mContext, frame, mTargets, mScene, backbuffer);
+
+        ImGui::Render();
+        auto* const imgui_drawdata = ImGui::GetDrawData();
+        auto const imgui_framesize = mImguiImpl.get_command_size(imgui_drawdata);
+        mImguiImpl.write_commands(imgui_drawdata, backbuffer.res.handle, frame.write_raw_bytes(imgui_framesize), imgui_framesize);
+
+        frame.present_after_submit(backbuffer);
+        cf_post = mContext.compile(cc::move(frame));
     }
 
     mScene.flush_current_frame_upload(mContext);
     mContext.submit(cc::move(cf_depthpre));
     mContext.submit(cc::move(cf_forward));
     mContext.submit(cc::move(cf_post));
-    mContext.present();
 }
 
-bool dr::DemoRenderer::handleEvents()
+bool dmr::DemoRenderer::handleEvents()
 {
     // input and polling
     {
         mInput.updatePrePoll();
 
         SDL_Event e;
-        while (mWindow.pollSingleEvent(e))
+        while (mWindow->pollSingleEvent(e))
             mInput.processEvent(e);
 
         mInput.updatePostPoll();
     }
 
-    if (mWindow.isMinimized())
+    if (mWindow->isMinimized())
         return false;
 
-    if (mWindow.clearPendingResize())
-        mContext.on_window_resize(mWindow.getSize());
+    if (mWindow->clearPendingResize())
+        mContext.on_window_resize(mWindow->getSize());
 
     if (mContext.clear_backbuffer_resize())
         onBackbufferResize(mContext.get_backbuffer_size());
+
+    ImGui_ImplSDL2_NewFrame(mWindow->getSdlWindow());
+    ImGui::NewFrame();
+
     return true;
 }
 
-void dr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
+void dmr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
 {
     mTargets.recreate_rts(mContext, new_size);
     mTargets.recreate_buffers(mContext, new_size);
     mScene.resolution = new_size;
+
+    // clear history targets explicitly
+    auto frame = mContext.make_frame();
+    mPasses.postprocess.clear_target(frame, mTargets.t_history_a);
+    mPasses.postprocess.clear_target(frame, mTargets.t_history_b);
+    mContext.submit(cc::move(frame));
 }

@@ -7,25 +7,32 @@
 #include <arcana-incubator/device-abstraction/freefly_camera.hh>
 #include <arcana-incubator/device-abstraction/input.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
+#include <arcana-incubator/imgui/imgui_impl_pr.hh>
 #include <arcana-incubator/pr-util/resource_loading.hh>
 #include <arcana-incubator/pr-util/texture_processing.hh>
 
 #include "passes.hh"
 
-namespace dr
+namespace dmr
 {
 class DemoRenderer
 {
 public:
-    DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type);
-    ~DemoRenderer();
+    void initialize(inc::da::SDLWindow& window, pr::backend_type backend_type);
+    void destroy();
+
+    DemoRenderer() = default;
+    DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) { initialize(window, backend_type); }
+
+    DemoRenderer(DemoRenderer const&) = delete;
+    ~DemoRenderer() { destroy(); }
 
     /// loads a mesh from disk
-    [[nodiscard]] dr::mesh loadMesh(char const* path, bool binary = false);
+    [[nodiscard]] dmr::mesh loadMesh(char const* path, bool binary = false);
 
-    [[nodiscard]] dr::material loadMaterial(char const* p_albedo, char const* p_normal, char const* p_metal, char const* p_rough);
+    [[nodiscard]] dmr::material loadMaterial(char const* p_albedo, char const* p_normal, char const* p_metal, char const* p_rough);
 
-    void addInstance(dr::mesh const& mesh, dr::material const& mat, tg::mat4 transform)
+    void addInstance(dmr::mesh const& mesh, dmr::material const& mat, tg::mat4 transform)
     {
         mScene.instances.push_back({mesh, mat});
         mScene.instance_transforms.push_back({transform});
@@ -35,7 +42,7 @@ public:
     void mainLoop(F&& func)
     {
         mTimer.restart();
-        while (!mWindow.isRequestingClose())
+        while (!mWindow->isRequestingClose())
         {
             if (!handleEvents())
                 continue;
@@ -56,15 +63,15 @@ private:
     void onBackbufferResize(tg::isize2 new_size);
 
 private:
-    inc::da::SDLWindow& mWindow;
+    inc::da::SDLWindow* mWindow = nullptr;
     pr::Context mContext;
 
     inc::da::Timer mTimer;
     inc::da::input_manager mInput;
     inc::da::smooth_fps_cam mCamera;
-    bool mMouseCaptured = false;
 
     inc::pre::texture_processing mTexProcessingPSOs;
+    inc::ImGuiPhantasmImpl mImguiImpl;
 
     cc::vector<inc::pre::pr_mesh> mUniqueMeshes;
     cc::vector<pr::auto_texture> mUniqueTextures;

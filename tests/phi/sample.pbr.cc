@@ -65,8 +65,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             auto const ps_bin = get_shader_binary("imgui_ps", sample_config.shader_ending);
             auto const vs_bin = get_shader_binary("imgui_vs", sample_config.shader_ending);
             CC_RUNTIME_ASSERT(ps_bin.is_valid() && vs_bin.is_valid() && "Failed to load imgui shaders");
-            imgui_implementation.initialize(&backend, backend.getNumBackbuffers(), ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size(),
-                                            sample_config.align_mip_rows);
+            imgui_implementation.initialize(&backend, ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size());
         }
     }
 
@@ -441,7 +440,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     phi_test::num_instances, phi_test::num_render_threads);
             }
 
-            cc::capped_vector<handle::command_list, 3> backbuffer_cmd_lists;
+            handle::command_list post_and_output_cmdlist;
             {
                 command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
 
@@ -495,8 +494,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                 cmd_writer.add_command(cmd::end_render_pass{});
 
-                backbuffer_cmd_lists.push_back(backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size()));
-
                 // ImGui and transition to present
                 {
                     INC_RMT_TRACE_NAMED("ImGuiRecord");
@@ -520,8 +517,19 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
 
                     ImGui::Render();
-                    backbuffer_cmd_lists.push_back(imgui_implementation.render(ImGui::GetDrawData(), current_backbuffer, true));
+                    auto* const drawdata = ImGui::GetDrawData();
+                    auto const commandsize = imgui_implementation.get_command_size(drawdata);
+                    imgui_implementation.write_commands(ImGui::GetDrawData(), current_backbuffer, cmd_writer.buffer_head(), commandsize);
+                    cmd_writer.advance_cursor(commandsize);
                 }
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(current_backbuffer, resource_state::present);
+                    cmd_writer.add_command(tcmd);
+                }
+
+                post_and_output_cmdlist = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
             }
 
             // Data upload
@@ -543,7 +551,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             // CPU-sync and submit
             td::wait_for(render_sync);
             backend.submit(render_cmd_lists);
-            backend.submit(backbuffer_cmd_lists);
+            backend.submit(cc::span{post_and_output_cmdlist});
 
             // present
             {

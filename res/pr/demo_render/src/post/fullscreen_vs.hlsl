@@ -1,4 +1,4 @@
-#include "common/fullscreen_vs_inout.hlsl"
+#include "common/fullscreen_vs_inout.hlsli"
 
 vs_out main_vs(vs_in In)
 {
