@@ -109,10 +109,10 @@ void dmr::taa_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets
 {
     auto const& history_target = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
     auto const& history_src = scene.is_history_a ? targets.t_history_b : targets.t_history_a;
-    frame.transition(targets.t_forward_hdr, phi::resource_state::shader_resource, pr::shader::pixel);
-    frame.transition(targets.t_depth, phi::resource_state::shader_resource, pr::shader::pixel);
-    frame.transition(targets.t_forward_velocity, phi::resource_state::shader_resource, pr::shader::pixel);
-    frame.transition(history_src, phi::resource_state::shader_resource, pr::shader::pixel);
+    frame.transition(targets.t_forward_hdr, pr::state::shader_resource, pr::shader::pixel);
+    frame.transition(targets.t_depth, pr::state::shader_resource, pr::shader::pixel);
+    frame.transition(targets.t_forward_velocity, pr::state::shader_resource, pr::shader::pixel);
+    frame.transition(history_src, pr::state::shader_resource, pr::shader::pixel);
 
     auto fb = frame.make_framebuffer(history_target);
 
@@ -141,7 +141,7 @@ void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame,
 {
     auto const& active_history = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
 
-    frame.transition(active_history, phi::resource_state::shader_resource, pr::shader::pixel);
+    frame.transition(active_history, pr::state::shader_resource, pr::shader::pixel);
 
     {
         auto fb = frame.make_framebuffer(backbuffer);
