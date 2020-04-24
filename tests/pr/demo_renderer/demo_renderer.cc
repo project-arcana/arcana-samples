@@ -195,8 +195,7 @@ void dmr::DemoRenderer::execute(float dt)
         auto const imgui_framesize = mImguiImpl.get_command_size(imgui_drawdata);
         mImguiImpl.write_commands(imgui_drawdata, backbuffer.res.handle, frame.write_raw_bytes(imgui_framesize), imgui_framesize);
 
-        frame.transition(backbuffer, phi::resource_state::present);
-
+        frame.present_after_submit(backbuffer);
         cf_post = mContext.compile(cc::move(frame));
     }
 
@@ -204,7 +203,6 @@ void dmr::DemoRenderer::execute(float dt)
     mContext.submit(cc::move(cf_depthpre));
     mContext.submit(cc::move(cf_forward));
     mContext.submit(cc::move(cf_post));
-    mContext.present();
 }
 
 bool dmr::DemoRenderer::handleEvents()
