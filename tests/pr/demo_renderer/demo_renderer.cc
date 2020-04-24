@@ -24,10 +24,7 @@ bool verify_workdir()
     return file.good();
 }
 
-bool verify_shaders_compiled()
-{
-    return inc::pre::is_shader_present("misc/imgui_vs", "res/pr/demo_render/bin/");
-}
+bool verify_shaders_compiled() { return inc::pre::is_shader_present("misc/imgui_vs", "res/pr/demo_render/bin/"); }
 }
 
 void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backend_type)
