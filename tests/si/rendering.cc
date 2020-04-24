@@ -58,20 +58,15 @@ APP("ui rendering")
         window.pollEvents();
 
         auto backbuffer = ctx.acquire_backbuffer();
+        auto frame = ctx.make_frame();
 
         {
-            auto frame = ctx.make_frame();
-
-            {
-                auto fb = frame.make_framebuffer(backbuffer);
-                auto pass = fb.make_pass(pr::graphics_pass({}, vs_clear, ps_clear));
-                pass.draw(3);
-            }
-
-            frame.transition(backbuffer, phi::resource_state::present);
-            ctx.submit(frame);
+            auto fb = frame.make_framebuffer(backbuffer);
+            auto pass = fb.make_pass(pr::graphics_pass({}, vs_clear, ps_clear));
+            pass.draw(3);
         }
 
-        ctx.present();
+        frame.present_after_submit(backbuffer);
+        ctx.submit(cc::move(frame));
     }
 }
