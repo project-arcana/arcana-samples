@@ -18,11 +18,11 @@ namespace dmr
 class DemoRenderer
 {
 public:
-    void initialize(inc::da::SDLWindow& window, pr::backend_type backend_type);
+    void initialize(inc::da::SDLWindow& window, pr::backend backend_type);
     void destroy();
 
     DemoRenderer() = default;
-    DemoRenderer(inc::da::SDLWindow& window, pr::backend_type backend_type) { initialize(window, backend_type); }
+    DemoRenderer(inc::da::SDLWindow& window, pr::backend backend_type) { initialize(window, backend_type); }
 
     DemoRenderer(DemoRenderer const&) = delete;
     ~DemoRenderer() { destroy(); }

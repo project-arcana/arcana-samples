@@ -45,10 +45,10 @@ APP("ui rendering")
     window.initialize("structured interface");
 
     pr::Context ctx;
-    ctx.initialize({window.getSdlWindow()}, pr::backend_type::vulkan);
+    ctx.initialize({window.getSdlWindow()}, pr::backend::vulkan);
 
-    auto vs_clear = ctx.make_shader(shader_code_clear, "main_vs", phi::shader_stage::vertex);
-    auto ps_clear = ctx.make_shader(shader_code_clear, "main_ps", phi::shader_stage::pixel);
+    auto vs_clear = ctx.make_shader(shader_code_clear, "main_vs", pr::shader::vertex);
+    auto ps_clear = ctx.make_shader(shader_code_clear, "main_ps", pr::shader::pixel);
 
     while (!window.isRequestingClose())
     {

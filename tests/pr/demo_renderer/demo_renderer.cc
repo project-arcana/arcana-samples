@@ -1,5 +1,7 @@
 #include "demo_renderer.hh"
 
+#include <fstream>
+
 #include <phantasm-hardware-interface/config.hh>
 
 #include <phantasm-renderer/CompiledFrame.hh>
@@ -16,11 +18,22 @@ enum e_input : uint64_t
     ge_input_setpos
 };
 
+bool verify_workdir()
+{
+    std::ifstream file("res/res_canary");
+    return file.good();
 }
 
-void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend_type backend_type)
+bool verify_shaders_compiled() { return inc::pre::is_shader_present("misc/imgui_vs", "res/pr/demo_render/bin/"); }
+}
+
+void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backend_type)
 {
     CC_ASSERT(mWindow == nullptr && "double initialize");
+
+    // onboarding asserts
+    CC_ASSERT(verify_workdir() && "cannot read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
+    CC_ASSERT(verify_shaders_compiled() && "cant find shaders, run res/pr/demo_render/compile_shaders.bat/.sh");
 
     mWindow = &window;
 
