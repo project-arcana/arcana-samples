@@ -179,6 +179,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
         {
             shader_binaries.push_back(get_shader_binary("raytrace_lib", sample_config.shader_ending));
+            CC_RUNTIME_ASSERT(shader_binaries.back().is_valid() && "failed to load raytracing_lib shader");
             auto& main_lib = libraries.emplace_back();
             main_lib.binary = {shader_binaries.back().get(), shader_binaries.back().size()};
             main_lib.symbols = {L"raygeneration", L"miss", L"closesthit"};

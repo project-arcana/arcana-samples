@@ -1,5 +1,5 @@
-#include "common/mesh_vs_inout.hlsl"
-#include "common/cam_constants.hlsl"
+#include "common/mesh_vs_inout.hlsli"
+#include "common/cam_constants.hlsli"
 
 static const float PI = 3.141592;
 static const float Epsilon = 0.00001;
@@ -63,11 +63,11 @@ float3 calculateDirectLight(float3 Li, float3 Lo, float cosLo, float3 Lradiance,
     float3 Lh = normalize(Li + Lo);
 
     // Calculate angles between surface normal and various light vectors.
-    float cosLi = max(0.0, dot(N, Li));
-    float cosLh = max(0.0, dot(N, Lh));
+    float cosLi = saturate(dot(N, Li));
+    float cosLh = saturate(dot(N, Lh));
 
     // Calculate Fresnel term for direct lighting. 
-    float3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+    float3 F = fresnelSchlick(F0, saturate(dot(Lh, Lo)));
     // Calculate normal distribution for specular BRDF.
     float D = ndfGGX(cosLh, roughness);
     // Calculate geometric attenuation for specular BRDF.
@@ -132,37 +132,31 @@ float3 calculateIndirectLight(float3 N, float3 F0, float3 Lo, float cosLo, float
     return diffuseIBL + specularIBL;
 }
 
-struct ps_out
-{
-    float4 Color : SV_Target0;
-    float2 Velocity : SV_Target1;
-};
-
-ps_out main_ps(vs_out p_in) : SV_TARGET
+float4 main_ps(vs_out p_in) : SV_TARGET
 {
     float3 N = normalize(2.0 * g_normal.Sample(g_sampler, p_in.Texcoord).rgb - 1.0);
     N = normalize(mul(p_in.TBN, N));
 
     const float3 Lo = normalize(g_frame_data.cam_pos - p_in.WorldPos);
     
+    // material parameters
     const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
     const float metalness = g_metallic.Sample(g_sampler, p_in.Texcoord).r;
-    const float roughness = g_roughness.Sample(g_sampler, p_in.Texcoord).r;
+    const float roughness = clamp(g_roughness.Sample(g_sampler, p_in.Texcoord).r, 0.025, 1); // prevent singularities (NaNs) at 0 roughness - lower bound left for adjustment
 
-    // Angle between surface normal and outgoing light direction.
-	float cosLo = max(0.0, dot(N, Lo));
+    // angle between surface normal and outgoing light direction.
+	float cosLo = saturate(dot(N, Lo));
 
-	// Fresnel reflectance at normal incidence (for metals use albedo color).
+	// fresnel reflectance at normal incidence (for metals use albedo color).
 	float3 F0 = lerp(Fdielectric, albedo, metalness);
 
-    float3 directLighting = 0.0;
-
+    // hardcoded pointlight
     float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
-    directLighting += calculateDirectLight(Li, Lo, cosLo, 1.0, N, F0, roughness, metalness, albedo);
+    float3 Lradiance = float3(3.0, 3.0, 3.0);
+
+    // single pointlight + indirect light
+    float3 direct = calculateDirectLight(Li, Lo, cosLo, Lradiance, N, F0, roughness, metalness, albedo);
     float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
 
-    ps_out res;
-    res.Color = float4(directLighting + indirect, 1.0);
-    res.Velocity = float2(0.25, 0.75);
-    return res;
+    return float4(direct + indirect, 1.0);
 } 
