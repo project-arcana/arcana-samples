@@ -6,7 +6,7 @@
 
 namespace
 {
-void run_demo_renderer(pr::backend_type type)
+void run_demo_renderer(pr::backend type)
 {
     inc::da::initialize();
     inc::da::SDLWindow window("Demo Renderer", 1280, 720);
@@ -48,5 +48,5 @@ void run_demo_renderer(pr::backend_type type)
 
 }
 
-APP("demo_renderer_vk") { run_demo_renderer(pr::backend_type::vulkan); }
-APP("demo_renderer_d3d12") { run_demo_renderer(pr::backend_type::d3d12); }
+APP("demo_renderer_vk") { run_demo_renderer(pr::backend::vulkan); }
+APP("demo_renderer_d3d12") { run_demo_renderer(pr::backend::d3d12); }
