@@ -26,6 +26,13 @@ TEST("cc::string_stream")
     CHECK(ss.empty());
     CHECK(ss2.to_string() == "foo");
 
+    cc::string_stream ss3(ss2);
+    CHECK(ss3.to_string() == "foo");
+
+    cc::string_stream ss4(cc::move(ss2));
+    CHECK(ss4.to_string() == "foo");
+    CHECK(ss2.empty());
+
     ss << "foo"
        << "bar";
     CHECK(ss.to_string() == "foobar");
