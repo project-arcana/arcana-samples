@@ -1,6 +1,8 @@
 # Arcana Samples
 
-This repository contains samples and tests for all arcana libraries.
+![builds](https://github.com/project-arcana/arcana-samples/workflows/builds/badge.svg?branch=develop)
+
+This repository contains *samples* and *tests* for all arcana libraries.
 
 
 ## Structure

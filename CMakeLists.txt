@@ -54,6 +54,9 @@ add_subdirectory(extern/task-dispatcher)
 # logging
 add_subdirectory(extern/rich-log)
 
+# resources
+add_subdirectory(extern/resource-system)
+
 
 ## Main
 
@@ -211,6 +214,7 @@ foreach(TARGET_NAME
     arcana-incubator
     dxc-wrapper
     dxc-wrap
+    resource-system
     clean-ranges
     phantasm-hardware-interface
 )

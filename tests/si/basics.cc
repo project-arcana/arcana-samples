@@ -1,9 +1,12 @@
 #include <nexus/test.hh>
 
+#include <fstream>
+
 #include <rich-log/log.hh>
 
 #include <structured-interface/detail/debug.hh>
 #include <structured-interface/gui.hh>
+#include <structured-interface/process/html.hh>
 #include <structured-interface/si.hh>
 
 TEST("si basics", disabled)
@@ -23,7 +26,11 @@ TEST("si basics", disabled)
     auto r = ui.record([&] {
         // without a window there is an implicit container around everything
         si::button("press");
+
+        si::text("test");
     });
+
+    std::ofstream("/tmp/ui.html") << si::process_html(ui, r).c_str();
 
     si::debug::print(r);
 
