@@ -13,8 +13,8 @@
 
 void dmr::depthpre_pass::init(pr::Context& ctx)
 {
-    auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/depth_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
-    auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/depth_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+    auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/depth_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
+    auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/depth_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
     phi::pipeline_config config;
     config.cull = phi::cull_mode::back;
@@ -42,8 +42,8 @@ void dmr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_ta
 
 void dmr::forward_pass::init(pr::Context& ctx)
 {
-    auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/pbr_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
-    auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/pbr_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+    auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/pbr_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
+    auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/pbr_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
     phi::pipeline_config config;
     config.cull = phi::cull_mode::back;
@@ -98,8 +98,8 @@ void dmr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_tar
 
 void dmr::taa_pass::init(pr::Context& ctx)
 {
-    auto [vs, b1] = inc::pre::load_shader(ctx, "post/fullscreen_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
-    auto [ps, b2] = inc::pre::load_shader(ctx, "post/taa_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+    auto [vs, b1] = inc::pre::load_shader(ctx, "post/fullscreen_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
+    auto [ps, b2] = inc::pre::load_shader(ctx, "post/taa_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
     auto gp = pr::graphics_pass(vs, ps).arg(4, 0, 1, true);
     pso_taa = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf));
@@ -109,10 +109,10 @@ void dmr::taa_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets
 {
     auto const& history_target = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
     auto const& history_src = scene.is_history_a ? targets.t_history_b : targets.t_history_a;
-    frame.transition(targets.t_forward_hdr, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(targets.t_depth, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(targets.t_forward_velocity, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(history_src, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(targets.t_forward_hdr, phi::resource_state::shader_resource, pr::shader::pixel);
+    frame.transition(targets.t_depth, phi::resource_state::shader_resource, pr::shader::pixel);
+    frame.transition(targets.t_forward_velocity, phi::resource_state::shader_resource, pr::shader::pixel);
+    frame.transition(history_src, phi::resource_state::shader_resource, pr::shader::pixel);
 
     auto fb = frame.make_framebuffer(history_target);
 
@@ -128,8 +128,8 @@ void dmr::taa_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets
 
 void dmr::postprocess_pass::init(pr::Context& ctx)
 {
-    auto [vs, b1] = inc::pre::load_shader(ctx, "post/fullscreen_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
-    auto [ps, b2] = inc::pre::load_shader(ctx, "post/tonemap_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+    auto [vs, b1] = inc::pre::load_shader(ctx, "post/fullscreen_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
+    auto [ps, b2] = inc::pre::load_shader(ctx, "post/tonemap_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
     auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 1);
     pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(ctx.get_backbuffer_format()));
@@ -141,7 +141,7 @@ void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame,
 {
     auto const& active_history = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
 
-    frame.transition(active_history, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(active_history, phi::resource_state::shader_resource, pr::shader::pixel);
 
     {
         auto fb = frame.make_framebuffer(backbuffer);

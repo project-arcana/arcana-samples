@@ -140,7 +140,7 @@ APP("api_test")
     inc::da::SDLWindow window;
     window.initialize("api test");
 
-    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()}, pr::backend_type::vulkan);
+    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()}, pr::backend::vulkan);
 
     // pr::graphics_pipeline_state pso_render;
     pr::auto_graphics_pipeline_state pso_blit;

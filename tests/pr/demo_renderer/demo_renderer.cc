@@ -18,7 +18,7 @@ enum e_input : uint64_t
 
 }
 
-void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend_type backend_type)
+void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backend_type)
 {
     CC_ASSERT(mWindow == nullptr && "double initialize");
 
