@@ -9,9 +9,6 @@
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 
-// why do we need these?
-#include <phantasm-renderer/fwd.hh> // backend_type
-
 namespace
 {
 constexpr auto shader_code_clear = R"(
