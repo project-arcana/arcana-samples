@@ -248,7 +248,7 @@ APP("api_test")
                 phi::pipeline_config config;
                 config.depth = phi::depth_function::less;
                 config.cull = phi::cull_mode::back;
-                auto gp = pr::graphics_pass<inc::assets::simple_vertex>(config, render_vs, pixel_vs).arg(1, 0, 0, true).constants();
+                auto gp = pr::graphics_pass<inc::assets::simple_vertex>(config, render_vs, pixel_vs).arg(1, 0, 0, true).enable_constants();
 
                 // bind a persisted argument, plus a CBV
                 auto pass = fb.make_pass(gp).bind(sv_render, b_camconsts);

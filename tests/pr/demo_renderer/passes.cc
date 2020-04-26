@@ -20,7 +20,7 @@ void dmr::depthpre_pass::init(pr::Context& ctx)
     config.cull = phi::cull_mode::back;
     config.depth = phi::depth_function::greater;
 
-    auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 0, true).constants().vertex<inc::assets::simple_vertex>().config(config);
+    auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 0, true).enable_constants().vertex<inc::assets::simple_vertex>().config(config);
     pso_depthpre = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rg16f).depth(pr::format::depth32f));
 }
 
@@ -29,7 +29,7 @@ void dmr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_ta
     pr::argument arg;
     arg.add(scene.current_frame().sb_modeldata);
 
-    auto fb = frame.build_framebuffer().clear_target(targets.t_forward_velocity, 1.f, 1.f, 1.f, 1.f).clear_depth(targets.t_depth, 0.f).make();
+    auto fb = frame.build_framebuffer().cleared_target(targets.t_forward_velocity, 1.f, 1.f, 1.f, 1.f).cleared_depth(targets.t_depth, 0.f).make();
     auto pass = fb.make_pass(pso_depthpre).bind(arg, scene.current_frame().cb_camdata);
 
     for (auto i = 0u; i < scene.instances.size(); ++i)
@@ -54,7 +54,7 @@ void dmr::forward_pass::init(pr::Context& ctx)
                   .arg(1, 0, 0, true)                    // Mesh data
                   .arg(3, 0, 2)                          // IBL data, samplers
                   .arg(4, 0, 0)                          // Material data
-                  .constants()                           //
+                  .enable_constants()                    //
                   .config(config)                        //
                   .vertex<inc::assets::simple_vertex>(); //
 
@@ -77,8 +77,8 @@ void dmr::forward_pass::init(pr::Context& ctx)
 void dmr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
     auto fb = frame.build_framebuffer()
-                  .clear_target(targets.t_forward_hdr) //
-                  .load_target(targets.t_depth)
+                  .cleared_target(targets.t_forward_hdr) //
+                  .loaded_target(targets.t_depth)
                   .make();
 
     pr::argument model_arg;

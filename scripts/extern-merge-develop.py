@@ -6,7 +6,7 @@ import subprocess
 assert os.path.exists("extern"), "execute in arcana-samples root"
 
 print("fetching ...")
-subprocess.check_call(["git", "fetch"])
+subprocess.check_call(["git", "fetch", "-v", "--jobs=8", "--recurse-submodules"])
 
 for f in os.listdir("extern"):
 
