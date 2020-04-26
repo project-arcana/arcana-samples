@@ -41,6 +41,7 @@ constexpr auto shader_code_clear = R"(
 
 APP("ui rendering")
 {
+    // TODO: single line versions
     inc::da::SDLWindow window;
     window.initialize("structured interface");
 
