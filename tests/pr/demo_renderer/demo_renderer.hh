@@ -57,6 +57,8 @@ public:
 
     void execute(float dt);
 
+    inc::da::smooth_fps_cam& camera() { return mCamera; }
+
 private:
     bool handleEvents();
 
