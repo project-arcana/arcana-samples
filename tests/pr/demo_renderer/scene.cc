@@ -60,7 +60,7 @@ void dmr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 cam
     proj[2][1] = jitter_y;
     proj_inv = tg::inverse(proj);
 
-    view = tg::look_at_opengl(campos, camforward, tg::vec3(0, 1, 0));
+    view = tg::look_at_directx(campos, camforward, tg::vec3(0, 1, 0));
     view_inv = tg::inverse(view);
 
     vp = proj * view;
