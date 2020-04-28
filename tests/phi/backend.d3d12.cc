@@ -1,4 +1,5 @@
 #ifdef PHI_BACKEND_D3D12
+#include <nexus/app.hh>
 #include <nexus/test.hh>
 
 #include <iostream>
@@ -32,6 +33,14 @@ TEST("phi::d3d12 sample_raytrace", disabled, exclusive)
 {
     phi::d3d12::BackendD3D12 backend;
     phi_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
+}
+
+APP("d3d12_async_nbody")
+{
+    td::launch([&] {
+        phi::d3d12::BackendD3D12 backend;
+        phi_test::run_nbody_async_compute_sample(backend, get_d3d12_sample_conf());
+    });
 }
 
 TEST("phi::d3d12 sample_imgui", disabled, exclusive)
