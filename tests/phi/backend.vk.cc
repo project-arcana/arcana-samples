@@ -1,4 +1,5 @@
 #ifdef PHI_BACKEND_VULKAN
+#include <nexus/app.hh>
 #include <nexus/test.hh>
 
 #include "sample.hh"
@@ -22,6 +23,14 @@ TEST("phi::vk sample_pbr", disabled, exclusive)
     td::launch([&] {
         phi::vk::BackendVulkan backend;
         phi_test::run_pbr_sample(backend, get_vk_sample_conf());
+    });
+}
+
+APP("vk_async_nbody")
+{
+    td::launch([&] {
+        phi::vk::BackendVulkan backend;
+        phi_test::run_nbody_async_compute_sample(backend, get_vk_sample_conf());
     });
 }
 

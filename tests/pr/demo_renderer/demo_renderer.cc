@@ -31,7 +31,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     CC_ASSERT(mWindow == nullptr && "double initialize");
 
     // onboarding asserts
-    CC_ASSERT(verify_workdir() && "cannot read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
+    CC_ASSERT(verify_workdir() && "cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
     CC_ASSERT(verify_shaders_compiled() && "cant find shaders, run res/pr/demo_render/compile_shaders.bat/.sh");
 
     mWindow = &window;
@@ -44,7 +44,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::off;
+    config.validation = phi::validation_level::on_extended;
     config.present = phi::present_mode::allow_tearing;
 
     mContext.initialize({mWindow->getSdlWindow()}, backend_type, config);

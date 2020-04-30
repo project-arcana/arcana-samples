@@ -20,8 +20,8 @@
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 
+#include "sample_util.hh"
 #include "scene.hh"
-#include "texture_util.hh"
 
 void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {

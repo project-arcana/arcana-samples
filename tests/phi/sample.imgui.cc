@@ -20,7 +20,7 @@
 #include <arcana-incubator/imgui/imgui_impl_pr.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
-#include "texture_util.hh"
+#include "sample_util.hh"
 
 void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
