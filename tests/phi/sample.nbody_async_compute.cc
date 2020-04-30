@@ -138,7 +138,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         inc::growing_writer setup_cmdlist(2048);
         handle::resource upbuffer;
 
-        res.b_camdata_stacked = backend.createMappedBuffer(sizeof(nbody_camdata) * num_frames, sizeof(nbody_camdata));
+        res.b_camdata_stacked = backend.createUploadBuffer(sizeof(nbody_camdata) * num_frames, sizeof(nbody_camdata));
         res.map_camdata_stacked = backend.getMappedMemory(res.b_camdata_stacked);
 
         // render PSO
@@ -183,7 +183,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             auto particle_data = cc::vector<nbody_particle_vertex>::defaulted(gc_num_particles);
             res.b_vertices = backend.createBuffer(particle_data.size_bytes(), sizeof(nbody_particle_vertex));
 
-            upbuffer = backend.createMappedBuffer(particle_data.size_bytes(), sizeof(nbody_particle_vertex));
+            upbuffer = backend.createUploadBuffer(particle_data.size_bytes(), sizeof(nbody_particle_vertex));
             std::byte* const upbuff_map = backend.getMappedMemory(upbuffer);
 
             std::memcpy(upbuff_map, particle_data.data(), particle_data.size_bytes());
@@ -231,8 +231,8 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                 }
 
                 // upload, copy, transitions
-                thread.b_particle_a_upload = backend.createMappedBuffer(data.size_bytes(), sizeof(nbody_particle));
-                thread.b_particle_b_upload = backend.createMappedBuffer(data.size_bytes(), sizeof(nbody_particle));
+                thread.b_particle_a_upload = backend.createUploadBuffer(data.size_bytes(), sizeof(nbody_particle));
+                thread.b_particle_b_upload = backend.createUploadBuffer(data.size_bytes(), sizeof(nbody_particle));
 
                 std::byte* const map_a = backend.getMappedMemory(thread.b_particle_a_upload);
                 std::byte* const map_b = backend.getMappedMemory(thread.b_particle_b_upload);
