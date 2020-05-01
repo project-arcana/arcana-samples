@@ -18,7 +18,7 @@ phi_test::sample_config get_vk_sample_conf()
 }
 }
 
-TEST("phi::vk sample_pbr", disabled, exclusive)
+APP("phi::vk sample_pbr")
 {
     td::launch([&] {
         phi::vk::BackendVulkan backend;
@@ -34,13 +34,13 @@ APP("vk_async_nbody")
     });
 }
 
-TEST("phi::vk sample_raytrace", disabled, exclusive)
+APP("phi::vk sample_raytrace")
 {
     phi::vk::BackendVulkan backend;
     phi_test::run_raytracing_sample(backend, get_vk_sample_conf());
 }
 
-TEST("phi::vk sample_imgui", disabled, exclusive)
+APP("phi::vk sample_imgui")
 {
     phi::vk::BackendVulkan backend;
     phi_test::run_imgui_sample(backend, get_vk_sample_conf());

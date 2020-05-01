@@ -231,10 +231,10 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         for (auto& pfb : l_res.per_frame_resources)
         {
-            pfb.cb_camdata = backend.createMappedBuffer(sizeof(phi_test::global_data));
+            pfb.cb_camdata = backend.createUploadBuffer(sizeof(phi_test::global_data));
             pfb.cb_camdata_map = backend.getMappedMemory(pfb.cb_camdata);
 
-            pfb.sb_modeldata = backend.createMappedBuffer(sizeof(phi_test::model_matrix_data));
+            pfb.sb_modeldata = backend.createUploadBuffer(sizeof(phi_test::model_matrix_data));
             pfb.sb_modeldata_map = backend.getMappedMemory(pfb.sb_modeldata);
 
             srv.resource = pfb.sb_modeldata;
