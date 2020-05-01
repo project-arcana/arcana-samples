@@ -1,4 +1,5 @@
 #ifdef PHI_BACKEND_D3D12
+#include <nexus/app.hh>
 #include <nexus/test.hh>
 
 #include <iostream>
@@ -20,7 +21,7 @@ phi_test::sample_config get_d3d12_sample_conf()
 }
 }
 
-TEST("phi::d3d12 sample_pbr", disabled, exclusive)
+APP("phi::d3d12 sample_pbr")
 {
     td::launch([&] {
         phi::d3d12::BackendD3D12 backend;
@@ -28,19 +29,27 @@ TEST("phi::d3d12 sample_pbr", disabled, exclusive)
     });
 }
 
-TEST("phi::d3d12 sample_raytrace", disabled, exclusive)
+APP("phi::d3d12 sample_raytrace")
 {
     phi::d3d12::BackendD3D12 backend;
     phi_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
 }
 
-TEST("phi::d3d12 sample_imgui", disabled, exclusive)
+APP("d3d12_async_nbody")
+{
+    td::launch([&] {
+        phi::d3d12::BackendD3D12 backend;
+        phi_test::run_nbody_async_compute_sample(backend, get_d3d12_sample_conf());
+    });
+}
+
+APP("phi::d3d12 sample_imgui")
 {
     phi::d3d12::BackendD3D12 backend;
     phi_test::run_imgui_sample(backend, get_d3d12_sample_conf());
 }
 
-TEST("phi::d3d12 adapter choice", disabled, exclusive)
+APP("phi::d3d12 adapter choice")
 {
     using namespace phi;
     using namespace phi::d3d12;

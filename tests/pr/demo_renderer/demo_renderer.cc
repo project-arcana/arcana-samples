@@ -14,8 +14,7 @@ namespace
 {
 enum e_input : uint64_t
 {
-    ge_input_logpos = 50,
-    ge_input_setpos
+    ge_input_reset_cam = 50,
 };
 
 bool verify_workdir()
@@ -32,7 +31,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     CC_ASSERT(mWindow == nullptr && "double initialize");
 
     // onboarding asserts
-    CC_ASSERT(verify_workdir() && "cannot read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
+    CC_ASSERT(verify_workdir() && "cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
     CC_ASSERT(verify_shaders_compiled() && "cant find shaders, run res/pr/demo_render/compile_shaders.bat/.sh");
 
     mWindow = &window;
@@ -41,8 +40,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     mInput.initialize(100);
     mCamera.setup_default_inputs(mInput);
 
-    mInput.bindKey(ge_input_logpos, SDL_SCANCODE_H);
-    mInput.bindKey(ge_input_setpos, SDL_SCANCODE_J);
+    mInput.bindKey(ge_input_reset_cam, SDL_SCANCODE_H);
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
@@ -154,8 +152,11 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
 void dmr::DemoRenderer::execute(float dt)
 {
     ImGui::Begin("pr dmr", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar);
-    ImGui::SetWindowSize(ImVec2{175, 150}, ImGuiCond_Always);
+    ImGui::SetWindowSize(ImVec2{210, 220}, ImGuiCond_Always);
     ImGui::Text("frametime: %.2f ms", double(dt * 1000.f));
+    ImGui::Text("cam pos: %.2f %.2f %.2f", double(mCamera.physical.position.x), double(mCamera.physical.position.y), double(mCamera.physical.position.z));
+    ImGui::Text("cam fwd: %.2f %.2f %.2f", double(mCamera.physical.forward.x), double(mCamera.physical.forward.y), double(mCamera.physical.forward.z));
+    ImGui::Separator();
     ImGui::Text("WASD - move\nE/Q - raise/lower\nhold RMB - mouselook\nshift - speedup\nctrl - slowdown");
     ImGui::End();
 
@@ -163,19 +164,13 @@ void dmr::DemoRenderer::execute(float dt)
 
     // camera update
     {
+        if (mInput.get(ge_input_reset_cam).wasPressed())
+        {
+            mCamera.target = {};
+        }
+
+
         mCamera.update_default_inputs(mWindow->getSdlWindow(), mInput, dt);
-
-        if (mInput.get(ge_input_logpos).wasPressed())
-        {
-            LOG(info) << mCamera.physical.forward << mCamera.physical.position;
-        }
-
-        if (mInput.get(ge_input_setpos).wasPressed())
-        {
-            mCamera.target.forward = {-0.243376f, 0.431579f, 0.868624f};
-            mCamera.target.position = {-0.551521f, 1.68109f, 2.92037f};
-        }
-
         mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward, mScene.halton_index);
     }
     mScene.upload_current_frame();

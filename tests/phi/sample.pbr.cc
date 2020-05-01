@@ -33,8 +33,8 @@
 #include <arcana-incubator/phi-util/mesh_util.hh>
 #include <arcana-incubator/phi-util/texture_creation.hh>
 
+#include "sample_util.hh"
 #include "scene.hh"
-#include "texture_util.hh"
 
 namespace
 {
@@ -58,16 +58,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
     // Imgui init
     inc::ImGuiPhantasmImpl imgui_implementation;
-    {
-        ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-        ImGui_ImplSDL2_Init(window.getSdlWindow());
-        {
-            auto const ps_bin = get_shader_binary("imgui_ps", sample_config.shader_ending);
-            auto const vs_bin = get_shader_binary("imgui_vs", sample_config.shader_ending);
-            CC_RUNTIME_ASSERT(ps_bin.is_valid() && vs_bin.is_valid() && "Failed to load imgui shaders");
-            imgui_implementation.initialize(&backend, ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size());
-        }
-    }
+    initialize_imgui(imgui_implementation, window, backend);
 
     struct resources_t
     {
@@ -240,10 +231,10 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         for (auto& pfb : l_res.per_frame_resources)
         {
-            pfb.cb_camdata = backend.createMappedBuffer(sizeof(phi_test::global_data));
+            pfb.cb_camdata = backend.createUploadBuffer(sizeof(phi_test::global_data));
             pfb.cb_camdata_map = backend.getMappedMemory(pfb.cb_camdata);
 
-            pfb.sb_modeldata = backend.createMappedBuffer(sizeof(phi_test::model_matrix_data));
+            pfb.sb_modeldata = backend.createUploadBuffer(sizeof(phi_test::model_matrix_data));
             pfb.sb_modeldata_map = backend.getMappedMemory(pfb.sb_modeldata);
 
             srv.resource = pfb.sb_modeldata;
@@ -323,7 +314,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     // Main loop
     inc::da::Timer timer;
     float run_time = 0.f;
-    float log_time = 0.f;
 
     tg::vec3 position_modulos = tg::vec3(9, 6, 9);
     float camera_distance = 1.f;
@@ -362,13 +352,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             auto const frametime = timer.elapsedMilliseconds();
             timer.restart();
             run_time += frametime / 1000.f;
-            log_time += frametime;
-
-            if (log_time >= 1750.f)
-            {
-                log_time = 0.f;
-                LOG(info)("frametime: {}ms", frametime);
-            }
 
             l_res.current_frame_index = cc::wrapped_increment(l_res.current_frame_index, backend_config.num_backbuffers);
 
@@ -503,6 +486,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     {
                         ImGui::Begin("PBR Demo");
 
+                        ImGui::Text("Frametime: %.2f ms", frametime);
                         ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
                         ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
 
@@ -519,7 +503,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     ImGui::Render();
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = imgui_implementation.get_command_size(drawdata);
-                    imgui_implementation.write_commands(ImGui::GetDrawData(), current_backbuffer, cmd_writer.buffer_head(), commandsize);
+                    imgui_implementation.write_commands(drawdata, current_backbuffer, cmd_writer.buffer_head(), commandsize);
                     cmd_writer.advance_cursor(commandsize);
                 }
 
@@ -574,9 +558,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     for (auto const& pfr : l_res.per_frame_resources)
         backend.freeVariadic(pfr.cb_camdata, pfr.sb_modeldata, pfr.shaderview_render_vertex);
 
-    imgui_implementation.destroy();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
+    shutdown_imgui(imgui_implementation);
 
     backend.destroy();
     window.destroy();

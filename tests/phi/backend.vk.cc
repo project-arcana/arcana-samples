@@ -1,4 +1,5 @@
 #ifdef PHI_BACKEND_VULKAN
+#include <nexus/app.hh>
 #include <nexus/test.hh>
 
 #include "sample.hh"
@@ -17,7 +18,7 @@ phi_test::sample_config get_vk_sample_conf()
 }
 }
 
-TEST("phi::vk sample_pbr", disabled, exclusive)
+APP("phi::vk sample_pbr")
 {
     td::launch([&] {
         phi::vk::BackendVulkan backend;
@@ -25,13 +26,21 @@ TEST("phi::vk sample_pbr", disabled, exclusive)
     });
 }
 
-TEST("phi::vk sample_raytrace", disabled, exclusive)
+APP("vk_async_nbody")
+{
+    td::launch([&] {
+        phi::vk::BackendVulkan backend;
+        phi_test::run_nbody_async_compute_sample(backend, get_vk_sample_conf());
+    });
+}
+
+APP("phi::vk sample_raytrace")
 {
     phi::vk::BackendVulkan backend;
     phi_test::run_raytracing_sample(backend, get_vk_sample_conf());
 }
 
-TEST("phi::vk sample_imgui", disabled, exclusive)
+APP("phi::vk sample_imgui")
 {
     phi::vk::BackendVulkan backend;
     phi_test::run_imgui_sample(backend, get_vk_sample_conf());

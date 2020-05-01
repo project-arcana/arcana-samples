@@ -150,8 +150,8 @@ float4 main_ps(vs_out p_in) : SV_TARGET
 	// fresnel reflectance at normal incidence (for metals use albedo color).
 	float3 F0 = lerp(Fdielectric, albedo, metalness);
 
-    // hardcoded pointlight
-    float3 Li =  normalize(float3(-2, 2, 3) - p_in.WorldPos);
+    // hardcoded dirlight
+    float3 Li =  normalize(float3(1.f, 2.f, -1.f)); // normalize(float3(-2, 2, 3) - p_in.WorldPos);
     float3 Lradiance = float3(3.0, 3.0, 3.0);
 
     // single pointlight + indirect light

@@ -1,13 +1,18 @@
+# PBR sample shaders
 mesh_pbr.hlsl main_vs vs ../bin/mesh_pbr_vs
 mesh_pbr.hlsl main_ps ps ../bin/mesh_pbr_ps
 
 postprocess.hlsl main_vs vs ../bin/fullscreen_vs
 postprocess.hlsl main_ps ps ../bin/postprocess_ps
+
+# imgui sample shaders
 clear_fs.hlsl main_ps ps ../bin/clear_ps
 
+# imgui shaders
 imgui.hlsl main_vs vs ../bin/imgui_vs
 imgui.hlsl main_ps ps ../bin/imgui_ps
 
+# texture processing shaders
 mipgen.hlsl main_cs cs ../bin/mipgen
 mipgen_gamma.hlsl main_cs cs ../bin/mipgen_gamma
 mipgen_array.hlsl main_cs cs ../bin/mipgen_array
@@ -15,3 +20,9 @@ equirect_to_cube.hlsl main_cs cs ../bin/equirect_to_cube
 specular_map_filter.hlsl main_cs cs ../bin/specular_map_filter
 irradiance_map_filter.hlsl main_cs cs ../bin/irradiance_map_filter
 brdf_lut_gen.hlsl main_cs cs ../bin/brdf_lut_gen
+
+# n-body gravity sample shaders
+nbody/nbody_gravity.hlsl CSMain cs ../bin/nbody/nbody_gravity
+nbody/particle_draw.hlsl VSParticleDraw vs ../bin/nbody/particle_vs
+nbody/particle_draw.hlsl GSParticleDraw gs ../bin/nbody/particle_gs
+nbody/particle_draw.hlsl PSParticleDraw ps ../bin/nbody/particle_ps

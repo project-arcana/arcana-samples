@@ -20,8 +20,8 @@
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 
+#include "sample_util.hh"
 #include "scene.hh"
-#include "texture_util.hh"
 
 void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
@@ -95,7 +95,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     writer.add_command(tcmd);
                 }
 
-                upload_buffer = backend.createMappedBuffer(vert_size + ind_size);
+                upload_buffer = backend.createUploadBuffer(vert_size + ind_size);
                 std::byte* const upload_mapped = backend.getMappedMemory(upload_buffer);
 
                 std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
@@ -242,19 +242,19 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             table_sizes = backend.calculateShaderTableSize(cc::span{str_raygen}, cc::span{str_miss}, cc::span{str_main_hit});
 
             {
-                resources.shader_table_raygen = backend.createMappedBuffer(table_sizes.ray_gen_stride_bytes * 1);
+                resources.shader_table_raygen = backend.createUploadBuffer(table_sizes.ray_gen_stride_bytes * 1);
                 std::byte* const st_map = backend.getMappedMemory(resources.shader_table_raygen);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.ray_gen_stride_bytes, cc::span{str_raygen});
             }
 
             {
-                resources.shader_table_miss = backend.createMappedBuffer(table_sizes.miss_stride_bytes * 1);
+                resources.shader_table_miss = backend.createUploadBuffer(table_sizes.miss_stride_bytes * 1);
                 std::byte* const st_map = backend.getMappedMemory(resources.shader_table_miss);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.miss_stride_bytes, cc::span{str_miss});
             }
 
             {
-                resources.shader_table_hitgroups = backend.createMappedBuffer(table_sizes.hit_group_stride_bytes * 1);
+                resources.shader_table_hitgroups = backend.createUploadBuffer(table_sizes.hit_group_stride_bytes * 1);
                 std::byte* const st_map = backend.getMappedMemory(resources.shader_table_hitgroups);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_stride_bytes, cc::span{str_main_hit});
             }
