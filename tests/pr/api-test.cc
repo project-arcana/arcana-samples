@@ -231,7 +231,6 @@ APP("api_test")
     while (!window.isRequestingClose())
     {
         window.pollEvents();
-
         if (window.isMinimized())
             continue;
 
