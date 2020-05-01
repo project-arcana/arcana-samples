@@ -385,9 +385,11 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                     bcmd.viewport = viewport_size;
                     cmdlist_render.add_command(bcmd);
 
+                    auto const current_sv = atob ? res.threads[i].sv_read_a : res.threads[i].sv_read_b;
+
                     cmd::draw dcmd;
                     dcmd.init(res.pso_render, gc_num_particles, res.b_vertices);
-                    dcmd.add_shader_arg(res.b_camdata_stacked, sizeof(nbody_camdata) * frame_index, atob ? res.threads[i].sv_read_a : res.threads[i].sv_read_b);
+                    dcmd.add_shader_arg(res.b_camdata_stacked, sizeof(nbody_camdata) * frame_index, current_sv);
                     cmdlist_render.add_command(dcmd);
 
                     cmd::end_render_pass ecmd;

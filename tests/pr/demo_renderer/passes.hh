@@ -54,6 +54,5 @@ struct postprocess_pass : public pass
     pr::auto_graphics_pipeline_state pso_bloom;
     pr::auto_graphics_pipeline_state pso_tonemap;
     pr::auto_graphics_pipeline_state pso_output;
-    pr::auto_graphics_pipeline_state pso_clear;
 };
 }
