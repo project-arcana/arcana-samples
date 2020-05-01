@@ -133,8 +133,6 @@ void dmr::postprocess_pass::init(pr::Context& ctx)
 
     auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 1);
     pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(ctx.get_backbuffer_format()));
-
-    pso_clear = ctx.make_pipeline_state(pr::graphics_pass(vs), pr::framebuffer(pr::format::b10g11r11uf));
 }
 
 void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame, dmr::global_targets& targets, dmr::scene& scene, const pr::render_target& backbuffer)
@@ -156,6 +154,6 @@ void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame,
 
 void dmr::postprocess_pass::clear_target(pr::raii::Frame& frame, const pr::render_target& target)
 {
+    // simply create (and destroy) a framebuffer, the begin_render_pass will clear the target
     auto fb = frame.make_framebuffer(target);
-    fb.make_pass(pso_clear).draw(3);
 }
