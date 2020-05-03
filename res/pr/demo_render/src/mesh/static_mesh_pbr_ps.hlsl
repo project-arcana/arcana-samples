@@ -15,8 +15,7 @@ SamplerState g_lut_sampler                          : register(s1, space1);
 
 Texture2D g_albedo                                  : register(t0, space2);
 Texture2D g_normal                                  : register(t1, space2);
-Texture2D g_metallic                                : register(t2, space2);
-Texture2D g_roughness                               : register(t3, space2);
+Texture2D g_arm                                     : register(t2, space2);
 
 ConstantBuffer<camera_constants> g_frame_data       : register(b0, space0);
 
@@ -57,7 +56,7 @@ float3 fresnelSchlick(float3 F0, float cosTheta)
 	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-float3 calculateDirectLight(float3 Li, float3 Lo, float cosLo, float3 Lradiance, float3 N, float3 F0, float roughness, float metalness, float3 albedo)
+float3 calculateDirectLight(float3 Li, float3 Lo, float cosLo, float3 Lradiance, float3 N, float3 F0, float mat_ao, float roughness, float metalness, float3 albedo)
 {
     // Half-vector between Li and Lo.
     float3 Lh = normalize(Li + Lo);
@@ -98,7 +97,7 @@ uint querySpecularTextureLevels()
 	return levels;
 }
 
-float3 calculateIndirectLight(float3 N, float3 F0, float3 Lo, float cosLo, float metalness, float roughness, float3 albedo)
+float3 calculateIndirectLight(float3 N, float3 F0, float3 Lo, float cosLo, float mat_ao, float metalness, float roughness, float3 albedo)
 {
     // Sample diffuse irradiance at normal direction.
     float3 irradiance = g_ibl_irradiance.Sample(g_sampler, N).rgb;
@@ -116,7 +115,7 @@ float3 calculateIndirectLight(float3 N, float3 F0, float3 Lo, float cosLo, float
     float3 kd = lerp(1.0 - F, 0.0, metalness);
 
     // Irradiance map contains exitant radiance assuming Lambertian BRDF, no need to scale by 1/PI here either.
-    float3 diffuseIBL = kd * albedo * irradiance;
+    float3 diffuseIBL = kd * albedo * irradiance * mat_ao;
 
     // Sample pre-filtered specular reflection environment at correct mipmap level.
     uint specularTextureLevels = querySpecularTextureLevels();
@@ -141,8 +140,10 @@ float4 main_ps(vs_out p_in) : SV_TARGET
     
     // material parameters
     const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
-    const float metalness = g_metallic.Sample(g_sampler, p_in.Texcoord).r;
-    const float roughness = clamp(g_roughness.Sample(g_sampler, p_in.Texcoord).r, 0.025, 1); // prevent singularities (NaNs) at 0 roughness - lower bound left for adjustment
+    const float3 arm = g_arm.Sample(g_sampler, p_in.Texcoord).rgb;
+    const float material_ao = arm.r;
+    const float roughness = clamp(arm.g, 0.025, 1); // prevent singularities (NaNs) at 0 roughness - lower bound left for adjustment
+    const float metalness = arm.b;
 
     // angle between surface normal and outgoing light direction.
 	float cosLo = saturate(dot(N, Lo));
@@ -155,8 +156,8 @@ float4 main_ps(vs_out p_in) : SV_TARGET
     float3 Lradiance = float3(3.0, 3.0, 3.0);
 
     // single pointlight + indirect light
-    float3 direct = calculateDirectLight(Li, Lo, cosLo, Lradiance, N, F0, roughness, metalness, albedo);
-    float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, metalness, roughness, albedo);
+    float3 direct = calculateDirectLight(Li, Lo, cosLo, Lradiance, N, F0, material_ao, roughness, metalness, albedo);
+    float3 indirect = calculateIndirectLight(N, F0, Lo, cosLo, material_ao, metalness, roughness, albedo);
 
     return float4(direct + indirect, 1.0);
 } 

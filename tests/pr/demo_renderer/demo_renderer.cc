@@ -120,31 +120,28 @@ dmr::mesh dmr::DemoRenderer::loadMesh(const char* path, bool binary)
     return res;
 }
 
-dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_normal, const char* p_metal, const char* p_rough)
+dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* p_normal, const char* p_arm)
 {
     auto frame = mContext.make_frame();
 
     auto albedo = mTexProcessingPSOs.load_texture(frame, p_albedo, pr::format::rgba8un, true, true);
     auto normal = mTexProcessingPSOs.load_texture(frame, p_normal, pr::format::rgba8un, true, false);
-    auto metal = mTexProcessingPSOs.load_texture(frame, p_metal, pr::format::r8un, true, false);
-    auto rough = mTexProcessingPSOs.load_texture(frame, p_rough, pr::format::r8un, true, false);
+    auto ao_rough_metal = mTexProcessingPSOs.load_texture(frame, p_arm, pr::format::rgba8un, true, false);
 
     frame.transition(albedo, phi::resource_state::shader_resource, phi::shader_stage::pixel);
     frame.transition(normal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(metal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(rough, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(ao_rough_metal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
     mContext.submit(cc::move(frame));
 
-    auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument().add(albedo).add(normal).add(metal).add(rough).make_graphics());
+    auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument().add(albedo).add(normal).add(ao_rough_metal).make_graphics());
     dmr::material res;
     res.outer_sv = new_sv;
 
     // move to unique array to keep alive
     mUniqueTextures.push_back(cc::move(albedo));
     mUniqueTextures.push_back(cc::move(normal));
-    mUniqueTextures.push_back(cc::move(metal));
-    mUniqueTextures.push_back(cc::move(rough));
+    mUniqueTextures.push_back(cc::move(ao_rough_metal));
 
     return res;
 }

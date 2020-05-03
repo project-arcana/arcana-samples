@@ -35,8 +35,7 @@ StructuredBuffer<float4x4> g_model_matrices         : register(t0, space0);
 
 Texture2D g_albedo                                  : register(t0, space1);
 Texture2D g_normal                                  : register(t1, space1);
-Texture2D g_metallic                                : register(t2, space1);
-Texture2D g_roughness                               : register(t3, space1);
+Texture2D g_arm                                     : register(t2, space1);
 
 SamplerState g_sampler                              : register(s0, space1);
 
@@ -191,8 +190,10 @@ float4 main_ps(vs_out p_in) : SV_TARGET
     const float3 Lo = normalize(g_frame_data.cam_pos - p_in.WorldPos);
     
     const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
-    const float metalness = g_metallic.Sample(g_sampler, p_in.Texcoord).r;
-    const float roughness = g_roughness.Sample(g_sampler, p_in.Texcoord).r;
+    const float3 ao_rough_metal = g_arm.Sample(g_sampler, p_in.Texcoord).rgb;
+    const float mat_ao = ao_rough_metal.r;
+    const float roughness = ao_rough_metal.g;
+    const float metalness = ao_rough_metal.b;
 
     // Angle between surface normal and outgoing light direction.
 	float cosLo = max(0.0, dot(N, Lo));

@@ -30,7 +30,7 @@ public:
     /// loads a mesh from disk
     [[nodiscard]] dmr::mesh loadMesh(char const* path, bool binary = false);
 
-    [[nodiscard]] dmr::material loadMaterial(char const* p_albedo, char const* p_normal, char const* p_metal, char const* p_rough);
+    [[nodiscard]] dmr::material loadMaterial(char const* p_albedo, char const* p_normal, char const* p_arm);
 
     void addInstance(dmr::mesh const& mesh, dmr::material const& mat, tg::mat4 transform)
     {

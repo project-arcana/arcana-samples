@@ -17,18 +17,16 @@ void run_demo_renderer(pr::backend type)
     auto const mesh_ball = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/ball.mesh", true);
     auto const mesh_colt = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/colt1911.mesh", true);
     auto const mesh_car = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/old_car.mesh", true);
-    auto const mat_ball = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/ball/albedo.png",   //
-                                                "res/arcana-sample-resources/phi/texture/ball/normal.png",   //
-                                                "res/arcana-sample-resources/phi/texture/ball/metallic.png", //
-                                                "res/arcana-sample-resources/phi/texture/ball/roughness.png");
-    auto const mat_colt = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/colt/albedo.png",   //
-                                                "res/arcana-sample-resources/phi/texture/colt/normal.png",   //
-                                                "res/arcana-sample-resources/phi/texture/colt/metallic.png", //
-                                                "res/arcana-sample-resources/phi/texture/colt/roughness.png");
-    auto const mat_car = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/oldcar/albedo.png",   //
-                                               "res/arcana-sample-resources/phi/texture/oldcar/normal.png",   //
-                                               "res/arcana-sample-resources/phi/texture/oldcar/metallic.png", //
-                                               "res/arcana-sample-resources/phi/texture/oldcar/roughness.png");
+
+    auto const mat_ball = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/ball/albedo.png", //
+                                                "res/arcana-sample-resources/phi/texture/ball/normal.png", //
+                                                "res/arcana-sample-resources/phi/texture/ball/arm.png");
+    auto const mat_colt = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/colt/albedo.png", //
+                                                "res/arcana-sample-resources/phi/texture/colt/normal.png", //
+                                                "res/arcana-sample-resources/phi/texture/colt/arm.png");
+    auto const mat_car = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/oldcar/albedo.png", //
+                                               "res/arcana-sample-resources/phi/texture/oldcar/normal.png", //
+                                               "res/arcana-sample-resources/phi/texture/oldcar/arm.png");
 
     // scene
     auto const add_ball = [&](float x, float y, float z) {
@@ -45,7 +43,6 @@ void run_demo_renderer(pr::backend type)
 
     renderer.addInstance(mesh_colt, mat_colt, tg::translation<float>(0, -1, 2) * tg::rotation_y(-90_deg) * tg::scaling(.75f, .75f, .75f));
     renderer.addInstance(mesh_car, mat_car, tg::translation<float>(-7, -1, 14) * tg::rotation_y(35_deg) * tg::rotation_x(5_deg) * tg::scaling(.75f, .75f, .75f));
-
 
     // camera
     renderer.camera().target.position = {-10.3f, 4.74f, -2.05f};
