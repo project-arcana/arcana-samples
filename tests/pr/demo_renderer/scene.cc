@@ -18,9 +18,6 @@ void dmr::scene::init(pr::Context& ctx, unsigned max_num_instances)
     {
         per_frame.cb_camdata = ctx.make_upload_buffer(sizeof(scene_gpudata));
         per_frame.sb_modeldata = ctx.make_upload_buffer(sizeof(instance_gpudata) * max_num_instances, sizeof(instance_gpudata));
-
-        per_frame.cb_camdata_map = ctx.get_buffer_map(per_frame.cb_camdata);
-        per_frame.sb_modeldata_map = ctx.get_buffer_map(per_frame.sb_modeldata);
     }
 
     current_frame_index = 0;
@@ -33,19 +30,12 @@ void dmr::scene::on_next_frame()
     is_history_a = !is_history_a;
 }
 
-void dmr::scene::upload_current_frame()
+void dmr::scene::upload_current_frame(pr::Context& ctx)
 {
     auto& frame = current_frame();
 
-    std::memcpy(frame.cb_camdata_map, &camdata, sizeof(scene_gpudata));
-    std::memcpy(frame.sb_modeldata_map, instance_transforms.data(), sizeof(instance_gpudata) * instance_transforms.size());
-}
-
-void dmr::scene::flush_current_frame_upload(pr::Context& ctx)
-{
-    auto& frame = current_frame();
-    ctx.flush_buffer_writes(frame.cb_camdata);
-    ctx.flush_buffer_writes(frame.sb_modeldata);
+    ctx.write_buffer_t(frame.cb_camdata, camdata);
+    ctx.write_buffer(frame.sb_modeldata, instance_transforms.data(), instance_transforms.size_bytes());
 }
 
 void dmr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward, unsigned halton_index)

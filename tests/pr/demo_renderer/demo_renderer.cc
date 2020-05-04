@@ -170,7 +170,7 @@ void dmr::DemoRenderer::execute(float dt)
         mCamera.update_default_inputs(mWindow->getSdlWindow(), mInput, dt);
         mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward, mScene.halton_index);
     }
-    mScene.upload_current_frame();
+    mScene.upload_current_frame(mContext);
 
     pr::CompiledFrame cf_depthpre;
     pr::CompiledFrame cf_forward;
@@ -204,7 +204,6 @@ void dmr::DemoRenderer::execute(float dt)
         cf_post = mContext.compile(cc::move(frame));
     }
 
-    mScene.flush_current_frame_upload(mContext);
     mContext.submit(cc::move(cf_depthpre));
     mContext.submit(cc::move(cf_forward));
     mContext.submit(cc::move(cf_post));
