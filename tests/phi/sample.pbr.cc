@@ -364,8 +364,9 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             if (backend.clearPendingResize())
                 f_on_resize();
 
-            cc::array<handle::command_list, phi_test::num_render_threads> render_cmd_lists;
-            cc::fill(render_cmd_lists, handle::null_command_list);
+            // 1 per frame, plus postprocessing and UI
+            cc::array<handle::command_list, phi_test::num_render_threads + 1> all_command_lists;
+            cc::fill(all_command_lists, handle::null_command_list);
 
             td::sync render_sync, modeldata_upload_sync;
             // parallel rendering
@@ -418,7 +419,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                         {
                             INC_RMT_TRACE_NAMED("CommandRecordTaskBackend");
-                            render_cmd_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                            all_command_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         }
                     },
                     phi_test::num_instances, phi_test::num_render_threads);
@@ -433,7 +434,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     phi_test::num_instances, phi_test::num_render_threads);
             }
 
-            handle::command_list post_and_output_cmdlist;
             {
                 command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
 
@@ -443,7 +443,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 {
                     // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
                     td::wait_for(render_sync, modeldata_upload_sync);
-                    backend.discard(render_cmd_lists);
+                    backend.discard(all_command_lists);
                     continue;
                 }
 
@@ -534,8 +534,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     cmd_writer.add_command(rcmd);
                 }
 
-
-                post_and_output_cmdlist = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                // fill in last commandlist
+                all_command_lists[phi_test::num_render_threads] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
             }
 
             // Data upload
@@ -558,8 +558,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
             // CPU-sync and submit
             td::wait_for(render_sync);
-            backend.submit(render_cmd_lists);
-            backend.submit(cc::span{post_and_output_cmdlist});
+            backend.submit(all_command_lists);
 
             // present
             {

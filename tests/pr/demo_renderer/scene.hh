@@ -49,8 +49,6 @@ struct scene_gpudata
     tg::mat4 clean_vp_inv;
     tg::mat4 prev_clean_vp;
     tg::mat4 prev_clean_vp_inv;
-    tg::pos3 cam_pos;
-    float runtime;
 
     void fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward, unsigned halton_index);
 };

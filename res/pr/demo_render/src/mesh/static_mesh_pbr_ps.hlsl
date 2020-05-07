@@ -136,7 +136,8 @@ float4 main_ps(vs_out p_in) : SV_TARGET
     float3 N = normalize(2.0 * g_normal.Sample(g_sampler, p_in.Texcoord).rgb - 1.0);
     N = normalize(mul(p_in.TBN, N));
 
-    const float3 Lo = normalize(g_frame_data.cam_pos - p_in.WorldPos);
+    const float3 CamPosWorldspace = g_frame_data.view_inv._m03_m13_m23; // extract camera position from inverse view
+    const float3 Lo = normalize(CamPosWorldspace - p_in.WorldPos);
     
     // material parameters
     const float3 albedo = g_albedo.Sample(g_sampler, p_in.Texcoord).rgb;
