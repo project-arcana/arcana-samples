@@ -181,9 +181,9 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         // vertex buffer
         {
             auto particle_data = cc::vector<nbody_particle_vertex>::defaulted(gc_num_particles);
-            res.b_vertices = backend.createBuffer(particle_data.size_bytes(), sizeof(nbody_particle_vertex));
+            res.b_vertices = backend.createBuffer(unsigned(particle_data.size_bytes()), sizeof(nbody_particle_vertex));
 
-            upbuffer = backend.createUploadBuffer(particle_data.size_bytes(), sizeof(nbody_particle_vertex));
+            upbuffer = backend.createUploadBuffer(unsigned(particle_data.size_bytes()), sizeof(nbody_particle_vertex));
             std::byte* const upbuff_map = backend.mapBuffer(upbuffer);
 
             std::memcpy(upbuff_map, particle_data.data(), particle_data.size_bytes());
@@ -216,8 +216,8 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             res.threads.emplace(gc_num_threads);
             for (auto& thread : res.threads)
             {
-                thread.b_particle_a = backend.createBuffer(data.size_bytes(), sizeof(nbody_particle), resource_heap::gpu, true);
-                thread.b_particle_b = backend.createBuffer(data.size_bytes(), sizeof(nbody_particle), resource_heap::gpu, true);
+                thread.b_particle_a = backend.createBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle), resource_heap::gpu, true);
+                thread.b_particle_b = backend.createBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle), resource_heap::gpu, true);
 
                 // SVs
                 {
@@ -231,8 +231,8 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                 }
 
                 // upload, copy, transitions
-                thread.b_particle_a_upload = backend.createUploadBuffer(data.size_bytes(), sizeof(nbody_particle));
-                thread.b_particle_b_upload = backend.createUploadBuffer(data.size_bytes(), sizeof(nbody_particle));
+                thread.b_particle_a_upload = backend.createUploadBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle));
+                thread.b_particle_b_upload = backend.createUploadBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle));
 
                 std::byte* const map_a = backend.mapBuffer(thread.b_particle_a_upload);
                 std::byte* const map_b = backend.mapBuffer(thread.b_particle_b_upload);
