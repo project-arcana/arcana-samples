@@ -22,8 +22,8 @@ TEST("basic logging")
         LOG(debug) << 2;
         LOG(warning) << 2;
         LOG(info, severity("FATAL")) << 2;
-        LOG(info)("bla: %d %d", 7, true);
-        LOG(info)("test: %d", 7) << 7 + 2;
+        LOG(info)("bla: {} {}", 7, true);
+        LOG(info)("test: {}", 7) << 7 + 2;
         LOG(no_sep) << 1 << 2 << 3;
         LOG(sep("::")) << 1 << 2 << 3;
         //                LOG_EXPR(1 + x);
