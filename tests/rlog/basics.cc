@@ -7,35 +7,35 @@ TEST("basic logging")
 {
     rlog::enable_win32_colors();
     rlog::set_current_thread_name("td#0");
+
+
     {
+        LOG("format {}", 5);
+
         int x = 3;
-        LOG() << 1 << "hello" << true;
+        LOG << 1 << "hello" << true;
+        LOG() << x << "goodbye" << false;
 
-        LOG(severity::trace()) << 1.f;
-        LOG(severity::debug()) << 2u;
-        LOG(severity::info()) << 3.0;
-        LOG(severity::warning()) << 4ull;
-        LOG(severity::error()) << '5';
+        LOG_INFO() << 1.f;
+        LOG_INFO("test {}", "test");
 
-        LOG(info) << 2;
-        LOG(error) << x;
-        LOG(debug) << 2;
-        LOG(warning) << 2;
-        LOG(info, severity("FATAL")) << 2;
-        LOG(info)("bla: {} {}", 7, true);
-        LOG(info)("test: {}", 7) << 7 + 2;
-        LOG(no_sep) << 1 << 2 << 3;
-        LOG(sep("::")) << 1 << 2 << 3;
+
+        LOG_DEBUG << 2u;
+        LOG_WARN << 3.0;
+        LOG_ERROR << '5';
+
+        LOG("bla: {} {}", 7, true);
+        LOG("test: {}", 7) << 7 + 2;
         //                LOG_EXPR(1 + x);
         //                LOG_EXPR(2 + x, error);
     }
 
-    {
-        constexpr auto const custom_domain = rlog::domain("MYDOMAIN");
+    //    {
+    //        constexpr auto const custom_domain = rlog::domain("MYDOMAIN");
 
-        auto const custom_log = [&](auto... additional) { return rlog::MessageBuilder(custom_domain, additional...); };
+    //        auto const custom_log = [&](auto... additional) { return rlog::MessageBuilder(custom_domain, additional...); };
 
-        custom_log()("test");
-        custom_log(rlog::err_out)("test with error");
-    }
+    //        custom_log()("test");
+    //        custom_log(rlog::err_out)("test with error");
+    //    }
 }

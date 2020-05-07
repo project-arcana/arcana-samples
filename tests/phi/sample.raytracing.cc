@@ -33,7 +33,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     if (!backend.isRaytracingEnabled())
     {
-        LOG(warning)("Current GPU has no raytracing capabilities");
+        LOG_WARN("Current GPU has no raytracing capabilities");
         return;
     }
 
@@ -297,7 +297,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             if (log_time >= 1750.f)
             {
                 log_time = 0.f;
-                LOG(info)("frametime: {}ms", frametime);
+                LOG("frametime: {}ms", frametime);
             }
 
             if (backend.clearPendingResize())

@@ -106,7 +106,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
             if (log_time >= 1750.f)
             {
                 log_time = 0.f;
-                LOG(info)("frametime: %fms", static_cast<double>(frametime));
+                LOG("frametime: {}ms", frametime);
             }
 
 

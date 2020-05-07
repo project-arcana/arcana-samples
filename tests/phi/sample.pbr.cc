@@ -306,7 +306,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     auto const f_on_resize = [&]() {
         backend.flushGPU();
         backbuf_size = backend.getBackbufferSize();
-        LOG(info)("backbuffer resized to {}x{}", backbuf_size.width, backbuf_size.height);
+        LOG("backbuffer resized to {}x{}", backbuf_size.width, backbuf_size.height);
         f_destroy_sized_resources();
         f_create_sized_resources();
     };
