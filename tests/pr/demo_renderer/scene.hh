@@ -89,6 +89,6 @@ struct scene
 
     void on_next_frame();
 
-    void upload_current_frame(pr::Context &ctx);
+    void upload_current_frame(pr::Context& ctx);
 };
 }
