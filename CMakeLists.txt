@@ -48,11 +48,11 @@ add_subdirectory(extern/ctracer)
 # reflection and introspection
 add_subdirectory(extern/reflector)
 
-# multithreading
-add_subdirectory(extern/task-dispatcher)
-
 # logging
 add_subdirectory(extern/rich-log)
+
+# multithreading
+add_subdirectory(extern/task-dispatcher)
 
 # resources
 add_subdirectory(extern/resource-system)
@@ -117,6 +117,9 @@ set(COMMON_LINKER_FLAGS "")
 if (MSVC)
     list(APPEND COMMON_COMPILER_FLAGS
         /MP
+        # printf warnings as errors
+        /we4477
+        /we4474
     )
 
     if (ARC_DISABLE_EXCEPTIONS)
