@@ -180,8 +180,8 @@ APP("api_test")
 
         // create an upload buffer and memcpy the mesh data to it
         auto const upbuff = ctx.make_upload_buffer(mesh.get_vertex_size_bytes() + mesh.get_index_size_bytes());
-        ctx.write_buffer(upbuff, mesh.vertices.data(), mesh.get_vertex_size_bytes());
-        ctx.write_buffer(upbuff, mesh.indices.data(), mesh.get_index_size_bytes(), mesh.get_vertex_size_bytes());
+        ctx.write_to_buffer(upbuff, mesh.vertices.data(), mesh.get_vertex_size_bytes());
+        ctx.write_to_buffer(upbuff, mesh.indices.data(), mesh.get_index_size_bytes(), mesh.get_vertex_size_bytes());
 
         // create device-memory vertex/index buffers
         b_vertices = ctx.make_buffer(mesh.get_vertex_size_bytes(), sizeof(inc::assets::simple_vertex));
@@ -209,7 +209,7 @@ APP("api_test")
         b_modelmats = ctx.make_upload_buffer(sizeof(tg::mat4) * modelmats.size(), sizeof(tg::mat4));
         b_camconsts = ctx.make_upload_buffer(sizeof(cam_constants));
 
-        ctx.write_buffer(b_modelmats, modelmats.data(), sizeof(tg::mat4) * modelmats.size());
+        ctx.write_to_buffer(b_modelmats, modelmats.data(), sizeof(tg::mat4) * modelmats.size());
     }
 
     sv_render = ctx.build_argument().add(b_modelmats).make_graphics();
@@ -223,7 +223,7 @@ APP("api_test")
 
         auto const vp = tg::perspective_directx(60_deg, size.width / float(size.height), 0.1f, 10000.f)
                         * tg::look_at_directx(tg::pos3(5, 5, 5), tg::pos3(0, 0, 0), tg::vec3(0, 1, 0));
-        ctx.write_buffer_t(b_camconsts, cam_constants{vp});
+        ctx.write_to_buffer_t(b_camconsts, cam_constants{vp});
     };
 
     create_targets(ctx.get_backbuffer_size());
