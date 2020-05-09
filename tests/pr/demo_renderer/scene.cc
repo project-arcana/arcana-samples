@@ -35,7 +35,7 @@ void dmr::scene::upload_current_frame(pr::Context& ctx)
     auto& frame = current_frame();
 
     ctx.write_to_buffer_t(frame.cb_camdata, camdata);
-    ctx.write_to_buffer(frame.sb_modeldata, instance_transforms.data(), instance_transforms.size_bytes());
+    ctx.write_to_buffer_t(frame.sb_modeldata, instance_transforms);
 }
 
 void dmr::scene_gpudata::fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward, unsigned halton_index)
