@@ -19,24 +19,31 @@ TEST("pr backend detail - page allocator")
 
     auto const alloc1 = allocator.allocate(4);
     CHECK(alloc1 == 0);
+    CHECK(allocator.get_allocation_size_in_elements(alloc1) == 4);
 
     auto const alloc2 = allocator.allocate(4);
     CHECK(alloc2 == 1);
+    CHECK(allocator.get_allocation_size_in_elements(alloc2) == 4);
 
     auto const alloc3 = allocator.allocate(7);
     CHECK(alloc3 == 2);
+    CHECK(allocator.get_allocation_size_in_elements(alloc3) == 8);
 
     auto const alloc4 = allocator.allocate(9);
     CHECK(alloc4 == 4);
+    CHECK(allocator.get_allocation_size_in_elements(alloc4) == 12);
 
     auto const alloc5 = allocator.allocate(1);
     CHECK(alloc5 == 7);
+    CHECK(allocator.get_allocation_size_in_elements(alloc5) == 4);
 
     allocator.free(alloc2);
     auto const alloc6 = allocator.allocate(5);
     CHECK(alloc6 == 8);
+    CHECK(allocator.get_allocation_size_in_elements(alloc6) == 8);
     auto const alloc7 = allocator.allocate(3);
     CHECK(alloc7 == 1);
+    CHECK(allocator.get_allocation_size_in_elements(alloc7) == 4);
 }
 
 TEST("pr backend detail - linked pool")

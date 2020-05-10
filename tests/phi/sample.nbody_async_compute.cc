@@ -139,7 +139,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         handle::resource upbuffer;
 
         res.b_camdata_stacked = backend.createUploadBuffer(sizeof(nbody_camdata) * num_frames, sizeof(nbody_camdata));
-        res.map_camdata_stacked = backend.getMappedMemory(res.b_camdata_stacked);
+        res.map_camdata_stacked = backend.mapBuffer(res.b_camdata_stacked);
 
         // render PSO
         {
@@ -181,10 +181,10 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         // vertex buffer
         {
             auto particle_data = cc::vector<nbody_particle_vertex>::defaulted(gc_num_particles);
-            res.b_vertices = backend.createBuffer(particle_data.size_bytes(), sizeof(nbody_particle_vertex));
+            res.b_vertices = backend.createBuffer(unsigned(particle_data.size_bytes()), sizeof(nbody_particle_vertex));
 
-            upbuffer = backend.createUploadBuffer(particle_data.size_bytes(), sizeof(nbody_particle_vertex));
-            std::byte* const upbuff_map = backend.getMappedMemory(upbuffer);
+            upbuffer = backend.createUploadBuffer(unsigned(particle_data.size_bytes()), sizeof(nbody_particle_vertex));
+            std::byte* const upbuff_map = backend.mapBuffer(upbuffer);
 
             std::memcpy(upbuff_map, particle_data.data(), particle_data.size_bytes());
 
@@ -216,8 +216,8 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             res.threads.emplace(gc_num_threads);
             for (auto& thread : res.threads)
             {
-                thread.b_particle_a = backend.createBuffer(data.size_bytes(), sizeof(nbody_particle), true);
-                thread.b_particle_b = backend.createBuffer(data.size_bytes(), sizeof(nbody_particle), true);
+                thread.b_particle_a = backend.createBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle), resource_heap::gpu, true);
+                thread.b_particle_b = backend.createBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle), resource_heap::gpu, true);
 
                 // SVs
                 {
@@ -231,11 +231,11 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                 }
 
                 // upload, copy, transitions
-                thread.b_particle_a_upload = backend.createUploadBuffer(data.size_bytes(), sizeof(nbody_particle));
-                thread.b_particle_b_upload = backend.createUploadBuffer(data.size_bytes(), sizeof(nbody_particle));
+                thread.b_particle_a_upload = backend.createUploadBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle));
+                thread.b_particle_b_upload = backend.createUploadBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle));
 
-                std::byte* const map_a = backend.getMappedMemory(thread.b_particle_a_upload);
-                std::byte* const map_b = backend.getMappedMemory(thread.b_particle_b_upload);
+                std::byte* const map_a = backend.mapBuffer(thread.b_particle_a_upload);
+                std::byte* const map_b = backend.mapBuffer(thread.b_particle_b_upload);
 
                 std::memcpy(map_a, data.data(), data.size_bytes());
                 std::memcpy(map_b, data.data(), data.size_bytes());
@@ -252,8 +252,8 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                 setup_cmdlist.add_command(ccmd);
 
                 tcmd.transitions.clear();
-                tcmd.add(thread.b_particle_a, resource_state::shader_resource, shader_stage::compute);
-                tcmd.add(thread.b_particle_b, resource_state::shader_resource, shader_stage::compute);
+                tcmd.add(thread.b_particle_a, resource_state::shader_resource_nonpixel, shader_stage::compute);
+                tcmd.add(thread.b_particle_b, resource_state::shader_resource_nonpixel, shader_stage::compute);
                 setup_cmdlist.add_command(tcmd);
             }
         }
@@ -356,7 +356,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                     cmdlist.add_command(dcmd);
 
                     tcmd.transitions.clear();
-                    tcmd.add(uav, resource_state::shader_resource, shader_stage::compute);
+                    tcmd.add(uav, resource_state::shader_resource_nonpixel, shader_stage::compute);
                     cmdlist.add_command(tcmd);
 
                     cls_compute[i] = backend.recordCommandList(cmdlist.buffer(), cmdlist.size(), queue_type::compute);

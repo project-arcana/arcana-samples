@@ -53,7 +53,7 @@ void dmr::forward_pass::init(pr::Context& ctx)
     auto gp = pr::graphics_pass(vs, ps)                  //
                   .arg(1, 0, 0, true)                    // Mesh data
                   .arg(3, 0, 2)                          // IBL data, samplers
-                  .arg(4, 0, 0)                          // Material data
+                  .arg(3, 0, 0)                          // Material data
                   .enable_constants()                    //
                   .config(config)                        //
                   .vertex<inc::assets::simple_vertex>(); //

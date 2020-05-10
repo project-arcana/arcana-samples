@@ -4,7 +4,9 @@
 
 #include <phantasm-renderer/pr.hh>
 
+#include <structured-interface/element_tree.hh>
 #include <structured-interface/gui.hh>
+#include <structured-interface/layout/aabb_layout.hh>
 #include <structured-interface/si.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
@@ -34,7 +36,7 @@ constexpr auto shader_code_clear = R"(
 
                               float4 main_ps(vs_out In) : SV_TARGET
                               {
-                                  return float4(1, 0, 1, 1);
+                                  return float4(0.6,0.6,0.6, 1);
                               }
                           )";
 }
@@ -51,9 +53,18 @@ APP("ui rendering")
     auto vs_clear = ctx.make_shader(shader_code_clear, "main_vs", pr::shader::vertex);
     auto ps_clear = ctx.make_shader(shader_code_clear, "main_ps", pr::shader::pixel);
 
+    si::gui ui;
+
     while (!window.isRequestingClose())
     {
         window.pollEvents();
+
+        auto r = ui.record([&] {
+            si::button("press me");
+            si::text("i'm a test text.");
+        });
+        auto tree = si::element_tree::from_record(r);
+        si::compute_aabb_layout(tree);
 
         auto backbuffer = ctx.acquire_backbuffer();
         auto frame = ctx.make_frame();

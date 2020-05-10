@@ -33,7 +33,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     if (!backend.isRaytracingEnabled())
     {
-        LOG(warning)("Current GPU has no raytracing capabilities");
+        LOG_WARN("Current GPU has no raytracing capabilities");
         return;
     }
 
@@ -96,7 +96,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 }
 
                 upload_buffer = backend.createUploadBuffer(vert_size + ind_size);
-                std::byte* const upload_mapped = backend.getMappedMemory(upload_buffer);
+                std::byte* const upload_mapped = backend.mapBuffer(upload_buffer);
 
                 std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
                 std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
@@ -114,7 +114,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
             auto const meshupload_list = backend.recordCommandList(writer.buffer(), writer.size());
 
-            backend.flushMappedMemory(upload_buffer);
+            backend.unmapBuffer(upload_buffer);
             backend.submit(cc::span{meshupload_list});
             backend.flushGPU();
             backend.free(upload_buffer);
@@ -243,19 +243,19 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
             {
                 resources.shader_table_raygen = backend.createUploadBuffer(table_sizes.ray_gen_stride_bytes * 1);
-                std::byte* const st_map = backend.getMappedMemory(resources.shader_table_raygen);
+                std::byte* const st_map = backend.mapBuffer(resources.shader_table_raygen);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.ray_gen_stride_bytes, cc::span{str_raygen});
             }
 
             {
                 resources.shader_table_miss = backend.createUploadBuffer(table_sizes.miss_stride_bytes * 1);
-                std::byte* const st_map = backend.getMappedMemory(resources.shader_table_miss);
+                std::byte* const st_map = backend.mapBuffer(resources.shader_table_miss);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.miss_stride_bytes, cc::span{str_miss});
             }
 
             {
                 resources.shader_table_hitgroups = backend.createUploadBuffer(table_sizes.hit_group_stride_bytes * 1);
-                std::byte* const st_map = backend.getMappedMemory(resources.shader_table_hitgroups);
+                std::byte* const st_map = backend.mapBuffer(resources.shader_table_hitgroups);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_stride_bytes, cc::span{str_main_hit});
             }
         }
@@ -297,7 +297,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             if (log_time >= 1750.f)
             {
                 log_time = 0.f;
-                LOG(info)("frametime: {}ms", frametime);
+                LOG("frametime: {}ms", frametime);
             }
 
             if (backend.clearPendingResize())
