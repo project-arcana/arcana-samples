@@ -117,9 +117,6 @@ set(COMMON_LINKER_FLAGS "")
 if (MSVC)
     list(APPEND COMMON_COMPILER_FLAGS
         /MP
-        # printf warnings as errors
-        /we4477
-        /we4474
     )
 
     if (ARC_DISABLE_EXCEPTIONS)
