@@ -7,7 +7,7 @@ TEST("basic logging")
 {
     rlog::enable_win32_colors();
     rlog::set_current_thread_name("td#0");
-
+    rlog::set_console_log_style(rlog::console_log_style::verbose);
 
     {
         LOG("format {}", 5);
