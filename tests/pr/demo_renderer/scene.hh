@@ -49,8 +49,6 @@ struct scene_gpudata
     tg::mat4 clean_vp_inv;
     tg::mat4 prev_clean_vp;
     tg::mat4 prev_clean_vp_inv;
-    tg::pos3 cam_pos;
-    float runtime;
 
     void fill_data(tg::isize2 res, tg::pos3 campos, tg::vec3 camforward, unsigned halton_index);
 };
@@ -75,9 +73,6 @@ struct scene
     {
         pr::auto_buffer cb_camdata;
         pr::auto_buffer sb_modeldata;
-
-        std::byte* cb_camdata_map = nullptr;
-        std::byte* sb_modeldata_map = nullptr;
     };
 
     cc::capped_array<per_frame_resource_t, 5> per_frame_resources;
@@ -92,7 +87,6 @@ struct scene
 
     void on_next_frame();
 
-    void upload_current_frame();
-    void flush_current_frame_upload(pr::Context& ctx);
+    void upload_current_frame(pr::Context& ctx);
 };
 }

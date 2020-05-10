@@ -48,11 +48,11 @@ add_subdirectory(extern/ctracer)
 # reflection and introspection
 add_subdirectory(extern/reflector)
 
-# multithreading
-add_subdirectory(extern/task-dispatcher)
-
 # logging
 add_subdirectory(extern/rich-log)
+
+# multithreading
+add_subdirectory(extern/task-dispatcher)
 
 # resources
 add_subdirectory(extern/resource-system)
