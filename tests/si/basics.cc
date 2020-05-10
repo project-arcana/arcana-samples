@@ -5,8 +5,8 @@
 #include <rich-log/log.hh>
 
 #include <structured-interface/detail/debug.hh>
-#include <structured-interface/gui.hh>
 #include <structured-interface/element_tree.hh>
+#include <structured-interface/gui.hh>
 #include <structured-interface/process/html.hh>
 #include <structured-interface/si.hh>
 
