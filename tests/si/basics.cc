@@ -5,6 +5,7 @@
 #include <rich-log/log.hh>
 
 #include <structured-interface/detail/debug.hh>
+#include <structured-interface/element_tree.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/process/html.hh>
 #include <structured-interface/si.hh>
@@ -30,9 +31,10 @@ TEST("si basics", disabled)
         si::text("test");
     });
 
-    std::ofstream("/tmp/ui.html") << si::process_html(ui, r).c_str();
+    // std::ofstream("/tmp/ui.html") << si::process_html(ui, r).c_str();
 
     si::debug::print(r);
+    si::debug::print(si::element_tree::from_record(r));
 
     CHECK(ui.has("press"));
 
