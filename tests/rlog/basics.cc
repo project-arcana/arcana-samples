@@ -8,26 +8,30 @@ TEST("basic logging")
     rlog::enable_win32_colors();
     rlog::set_current_thread_name("td#0");
 
-
+    for (auto style : {rlog::console_log_style::verbose, rlog::console_log_style::brief, rlog::console_log_style::briefer, rlog::console_log_style::message_only})
     {
-        LOG("format {}", 5);
+        rlog::set_console_log_style(style);
 
-        int x = 3;
-        LOG << 1 << "hello" << true;
-        LOG() << x << "goodbye" << false;
+        {
+            LOG("format {}", 5);
 
-        LOG_INFO() << 1.f;
-        LOG_INFO("test {}", "test");
+            int x = 3;
+            LOG << 1 << "hello" << true;
+            LOG() << x << "goodbye" << false;
+
+            LOG_INFO() << 1.f;
+            LOG_INFO("test {}", "test");
 
 
-        LOG_DEBUG << 2u;
-        LOG_WARN << 3.0;
-        LOG_ERROR << '5';
+            LOG_DEBUG << 2u;
+            LOG_WARN << 3.0;
+            LOG_ERROR << '5';
 
-        LOG("bla: {} {}", 7, true);
-        LOG("test: {}", 7) << 7 + 2;
-        //                LOG_EXPR(1 + x);
-        //                LOG_EXPR(2 + x, error);
+            LOG("bla: {} {}", 7, true);
+            LOG("test: {}", 7) << 7 + 2;
+            //                LOG_EXPR(1 + x);
+            //                LOG_EXPR(2 + x, error);
+        }
     }
 
     //    {
