@@ -2,7 +2,7 @@
 
 #include <phantasm-hardware-interface/util.hh>
 
-FUZZ_TEST("mipsize utils")(tg::rng& rng)
+TEST("mipsize utils")
 {
     // simple pow2 square
     auto const pow2_square = tg::isize2{1024, 1024};
@@ -30,8 +30,10 @@ FUZZ_TEST("mipsize utils")(tg::rng& rng)
     CHECK(phi::util::get_mip_size(crooked, 7) == tg::isize2{1, 1});
 
     CHECK(phi::util::get_num_mips(1, 1) == 1);
+}
 
-    // fuzz
+FUZZ_TEST("mipsize utils fuzz")(tg::rng& rng)
+{
     int const random = tg::uniform(rng, 4, 1'000'000);
 
     auto const num_mips = phi::util::get_num_mips(random, random);
