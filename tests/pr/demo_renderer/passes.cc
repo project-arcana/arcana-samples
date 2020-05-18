@@ -2,8 +2,6 @@
 
 #include <cstdio>
 
-#include <clean-core/pair.hh>
-
 #include <phantasm-hardware-interface/Backend.hh>
 
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
@@ -26,6 +24,8 @@ void dmr::depthpre_pass::init(pr::Context& ctx)
 
 void dmr::depthpre_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
+    auto dbg_label = frame.scoped_debug_label("depth pre pass");
+
     pr::argument arg;
     arg.add(scene.current_frame().sb_modeldata);
 
@@ -76,10 +76,13 @@ void dmr::forward_pass::init(pr::Context& ctx)
 
 void dmr::forward_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
+    auto dbg_label = frame.scoped_debug_label("forward pass");
+
     auto fb = frame.build_framebuffer()
                   .cleared_target(targets.t_forward_hdr) //
                   .loaded_target(targets.t_depth)
                   .make();
+
 
     pr::argument model_arg;
     model_arg.add(scene.current_frame().sb_modeldata);
@@ -107,6 +110,8 @@ void dmr::taa_pass::init(pr::Context& ctx)
 
 void dmr::taa_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets& targets, dmr::scene& scene)
 {
+    auto dbg_label = frame.scoped_debug_label("taa resolve");
+
     auto const& history_target = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
     auto const& history_src = scene.is_history_a ? targets.t_history_b : targets.t_history_a;
     frame.transition(targets.t_forward_hdr, pr::state::shader_resource, pr::shader::pixel);
@@ -137,6 +142,8 @@ void dmr::postprocess_pass::init(pr::Context& ctx)
 
 void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame, dmr::global_targets& targets, dmr::scene& scene, const pr::render_target& backbuffer)
 {
+    auto dbg_label = frame.scoped_debug_label("postprocessing");
+
     auto const& active_history = scene.is_history_a ? targets.t_history_a : targets.t_history_b;
 
     frame.transition(active_history, pr::state::shader_resource, pr::shader::pixel);
