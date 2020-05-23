@@ -14,9 +14,9 @@ void dmr::depthpre_pass::init(pr::Context& ctx)
     auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/depth_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
     auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/depth_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
-    phi::pipeline_config config;
-    config.cull = phi::cull_mode::back;
-    config.depth = phi::depth_function::greater;
+    pr::pipeline_config config;
+    config.cull = pr::cull_mode::back;
+    config.depth = pr::depth_function::greater;
 
     auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 0, true).enable_constants().vertex<inc::assets::simple_vertex>().config(config);
     pso_depthpre = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::rg16f).depth(pr::format::depth32f));
@@ -45,9 +45,9 @@ void dmr::forward_pass::init(pr::Context& ctx)
     auto [vs, b1] = inc::pre::load_shader(ctx, "mesh/pbr_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
     auto [ps, b2] = inc::pre::load_shader(ctx, "mesh/pbr_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
-    phi::pipeline_config config;
-    config.cull = phi::cull_mode::back;
-    config.depth = phi::depth_function::equal;
+    pr::pipeline_config config;
+    config.cull = pr::cull_mode::back;
+    config.depth = pr::depth_function::equal;
     config.depth_readonly = true;
 
     auto gp = pr::graphics_pass(vs, ps)                  //
@@ -60,16 +60,16 @@ void dmr::forward_pass::init(pr::Context& ctx)
 
     pso_pbr = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::b10g11r11uf).depth(pr::format::depth32f));
 
-    auto lut_sampler = phi::sampler_config(phi::sampler_filter::min_mag_mip_linear, 1);
-    lut_sampler.address_u = phi::sampler_address_mode::clamp;
-    lut_sampler.address_v = phi::sampler_address_mode::clamp;
+    auto lut_sampler = pr::sampler_config(pr::sampler_filter::min_mag_mip_linear, 1);
+    lut_sampler.address_u = pr::sampler_address_mode::clamp;
+    lut_sampler.address_v = pr::sampler_address_mode::clamp;
 
     // the textures have been created from outside
     sv_ibl = ctx.build_argument()
                  .add(tex_ibl_spec)
                  .add(tex_ibl_irr)
                  .add(tex_ibl_lut)
-                 .add_sampler(phi::sampler_filter::anisotropic, 16)
+                 .add_sampler(pr::sampler_filter::anisotropic, 16)
                  .add_sampler(lut_sampler)
                  .make_graphics();
 }
@@ -126,7 +126,7 @@ void dmr::taa_pass::execute(pr::Context&, pr::raii::Frame& frame, global_targets
     arg.add(history_src);
     arg.add(targets.t_depth);
     arg.add(targets.t_forward_velocity);
-    arg.add_sampler(phi::sampler_filter::min_mag_mip_linear, 1, phi::sampler_address_mode::clamp);
+    arg.add_sampler(pr::sampler_filter::min_mag_mip_linear, 1, pr::sampler_address_mode::clamp);
 
     fb.make_pass(pso_taa).bind(arg, scene.current_frame().cb_camdata).draw(3);
 }
@@ -153,7 +153,7 @@ void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame,
 
         pr::argument arg;
         arg.add(active_history);
-        arg.add_sampler(phi::sampler_filter::min_mag_mip_linear, 1, phi::sampler_address_mode::clamp);
+        arg.add_sampler(pr::sampler_filter::min_mag_mip_linear, 1, pr::sampler_address_mode::clamp);
 
         fb.make_pass(pso_tonemap).bind(arg).draw(3);
     }
