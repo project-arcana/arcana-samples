@@ -25,7 +25,7 @@ void outer_task_func(void*)
 {
     std::atomic_int dependency = 0;
 
-    auto& sched = Scheduler::current();
+    auto& sched = Scheduler::Current();
     sync s;
 
     auto tasks = new container::task[num_tasks_inner];
@@ -51,7 +51,7 @@ void main_task_func(void* arg_void)
     for (auto iter = 0; iter < max_iterations; ++iter)
     {
         sync s;
-        auto& sched = Scheduler::current();
+        auto& sched = Scheduler::Current();
 
         auto tasks = new container::task[num_tasks_outer];
         for (auto i = 0u; i < num_tasks_outer; ++i)
