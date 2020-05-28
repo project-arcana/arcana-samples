@@ -31,7 +31,7 @@ void mainTaskFunc(void*)
     }
 
     sync sync;
-    auto& sched = Scheduler::current();
+    auto& sched = Scheduler::Current();
     sched.submitTasks(workers, numWorkers, sync);
     sched.wait(sync);
 }

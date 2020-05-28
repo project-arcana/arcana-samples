@@ -198,7 +198,10 @@ void dmr::DemoRenderer::execute(float dt)
         ImGui::Render();
         auto* const imgui_drawdata = ImGui::GetDrawData();
         auto const imgui_framesize = mImguiImpl.get_command_size(imgui_drawdata);
+
+        frame.begin_debug_label("imgui");
         mImguiImpl.write_commands(imgui_drawdata, backbuffer.res.handle, frame.write_raw_bytes(imgui_framesize), imgui_framesize);
+        frame.end_debug_label();
 
         frame.present_after_submit(backbuffer);
         cf_post = mContext.compile(cc::move(frame));
