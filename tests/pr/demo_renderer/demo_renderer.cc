@@ -7,6 +7,8 @@
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Frame.hh>
 
+#include <dxc-wrapper/file_util.hh>
+
 #include <arcana-incubator/device-abstraction/stringhash.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
@@ -24,15 +26,43 @@ bool verify_workdir()
 }
 
 bool verify_shaders_compiled() { return inc::pre::is_shader_present("misc/imgui_vs", "res/pr/demo_render/bin/"); }
+
+// help or attempt to recover likely errors during first launch (wrong workdir or shaders not compiled)
+bool run_onboarding_test()
+{
+    if (!verify_workdir())
+    {
+        LOG_ERROR("cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
+        return false;
+    }
+    else if (!verify_shaders_compiled())
+    {
+        LOG_WARN("shaders not compiled, run res/pr/demo_render/compiler_shaders.bat/.sh");
+        LOG_WARN("attempting live compilation");
+        phi::sc::compiler comp;
+        comp.initialize();
+        auto const res = phi::sc::compile_shaderlist(comp, "res/pr/demo_render/src/shaderlist.txt");
+        comp.destroy();
+
+        if (res == -1 || !verify_shaders_compiled())
+        {
+            LOG_ERROR("failed to compile shaders live");
+            return false;
+        }
+        else
+        {
+            LOG_INFO("live compilation succeeded");
+        }
+    }
+
+    return true;
+}
 }
 
 void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backend_type)
 {
     CC_ASSERT(mWindow == nullptr && "double initialize");
-
-    // onboarding asserts
-    CC_ASSERT(verify_workdir() && "cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
-    CC_ASSERT(verify_shaders_compiled() && "cant find shaders, run res/pr/demo_render/compile_shaders.bat/.sh");
+    CC_ASSERT(run_onboarding_test() && "critical error, onboarding cannot recover");
 
     mWindow = &window;
 
