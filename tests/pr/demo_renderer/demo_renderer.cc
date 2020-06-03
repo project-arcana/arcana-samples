@@ -50,8 +50,8 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     mContext.initialize({mWindow->getSdlWindow()}, backend_type, config);
 
     {
-        auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
-        auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+        auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
+        auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
         ImGui_ImplSDL2_Init(mWindow->getSdlWindow());
@@ -71,9 +71,9 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
         mPasses.forward.tex_ibl_irr = mTexProcessingPSOs.create_diffuse_irradiance_map(frame, mPasses.forward.tex_ibl_spec);
         mPasses.forward.tex_ibl_lut = mTexProcessingPSOs.create_brdf_lut(frame, 256);
 
-        frame.transition(mPasses.forward.tex_ibl_spec, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-        frame.transition(mPasses.forward.tex_ibl_irr, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-        frame.transition(mPasses.forward.tex_ibl_lut, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+        frame.transition(mPasses.forward.tex_ibl_spec, pr::state::shader_resource, pr::shader::pixel);
+        frame.transition(mPasses.forward.tex_ibl_irr, pr::state::shader_resource, pr::shader::pixel);
+        frame.transition(mPasses.forward.tex_ibl_lut, pr::state::shader_resource, pr::shader::pixel);
 
         mContext.submit(cc::move(frame));
     }
@@ -128,9 +128,9 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
     auto normal = mTexProcessingPSOs.load_texture(frame, p_normal, pr::format::rgba8un, true, false);
     auto ao_rough_metal = mTexProcessingPSOs.load_texture(frame, p_arm, pr::format::rgba8un, true, false);
 
-    frame.transition(albedo, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(normal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(ao_rough_metal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(albedo, pr::state::shader_resource, pr::shader::pixel);
+    frame.transition(normal, pr::state::shader_resource, pr::shader::pixel);
+    frame.transition(ao_rough_metal, pr::state::shader_resource, pr::shader::pixel);
 
     mContext.submit(cc::move(frame));
 
