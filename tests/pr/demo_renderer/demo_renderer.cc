@@ -39,12 +39,13 @@ bool run_onboarding_test()
     {
         LOG_WARN("shaders not compiled, run res/pr/demo_render/compiler_shaders.bat/.sh");
         LOG_WARN("attempting live compilation");
-        phi::sc::compiler comp;
+        dxcw::compiler comp;
         comp.initialize();
-        auto const res = phi::sc::compile_shaderlist(comp, "res/pr/demo_render/src/shaderlist.txt");
+        dxcw::shaderlist_compilation_result res;
+        dxcw::compile_shaderlist(comp, "res/pr/demo_render/src/shaderlist.txt", &res);
         comp.destroy();
 
-        if (res == -1 || !verify_shaders_compiled())
+        if (res.num_shaders_detected == -1 || !verify_shaders_compiled())
         {
             LOG_ERROR("failed to compile shaders live");
             return false;
