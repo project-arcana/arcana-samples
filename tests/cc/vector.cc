@@ -369,4 +369,6 @@ TEST("cc::vector interior references")
     fs.push_back({});
     for (auto i = 0; i < 100; ++i)
         fs.push_back(fs[0]);
+
+    CHECK(true); // silence warning
 }

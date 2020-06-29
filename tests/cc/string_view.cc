@@ -3,6 +3,9 @@
 #include <clean-core/string_view.hh>
 #include <clean-core/vector.hh>
 
+static_assert(cc::is_contiguous_range<cc::string_view, char const>);
+static_assert(cc::is_contiguous_range<cc::string_view, void const>);
+
 TEST("cc::string_view")
 {
     cc::string_view s;

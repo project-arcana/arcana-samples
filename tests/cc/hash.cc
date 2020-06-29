@@ -20,4 +20,6 @@ TEST("cc::hash")
     static_assert(cc::can_hash<bool>);
     static_assert(cc::can_hash<trivial_foo>);
     static_assert(!cc::can_hash<foo>);
+
+    CHECK(true); // silence warning
 }

@@ -79,6 +79,9 @@ add_subdirectory(extern/phantasm-renderer)
 # UI
 add_subdirectory(extern/structured-interface)
 
+# serialization
+add_subdirectory(extern/babel-serializer)
+
 # TODO: other libs
 
 

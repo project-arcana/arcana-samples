@@ -69,6 +69,7 @@ void measure(std::string name, size_t samples, F&& f)
 TEST("cc::alloc benchmark")
 {
 #if !DO_BENCHMARK
+    CHECK(true);
     return;
 #endif
 
