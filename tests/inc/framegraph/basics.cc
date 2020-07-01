@@ -5,13 +5,14 @@
 #include <arcana-incubator/pr-util/framegraph/framegraph.hh>
 #include <arcana-incubator/pr-util/framegraph/resource_cache.hh>
 
+#include <arcana-incubator/pr-util/demo-renderer/assets.hh>
+#include <arcana-incubator/pr-util/demo-renderer/scene.hh>
+
 #include <arcana-incubator/pr-util/quick_app.hh>
 #include <arcana-incubator/pr-util/resource_loading.hh>
 #include <arcana-incubator/pr-util/texture_processing.hh>
 
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
-
-#include "scene.hh"
 
 namespace
 {
@@ -154,7 +155,7 @@ struct global_state
     }
 };
 
-void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, global_state* state, inc::scene* scene)
+void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, global_state* state, inc::pre::dmr::asset_pack* ap, inc::pre::dmr::scene* scene)
 {
     struct depthpre_data
     {
@@ -187,7 +188,9 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
                 auto const& inst = scene->instances[i];
 
                 pass.write_constants(i);
-                pass.draw(inst.mesh.vertex, inst.mesh.index);
+
+                auto const& mesh = ap->getMesh(inst.mesh);
+                pass.draw(mesh.vertex, mesh.index);
             }
         });
 
@@ -225,7 +228,9 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
             {
                 auto const& inst = scene->instances[i];
                 pass.write_constants(i);
-                pass.bind(inst.mat.outer_sv).draw(inst.mesh.vertex, inst.mesh.index);
+
+                auto const& mesh = ap->getMesh(inst.mesh);
+                pass.bind(ap->getMaterial(inst.mat)).draw(mesh.vertex, mesh.index);
             }
         });
 
@@ -337,8 +342,8 @@ TEST("framegraph basics")
     global_state state;
     state.load(app.context);
 
-    inc::asset_pack ap;
-    inc::scene scene;
+    inc::pre::dmr::asset_pack ap;
+    inc::pre::dmr::scene scene;
     scene.init(app.context, 512);
 
 
@@ -395,7 +400,7 @@ TEST("framegraph basics")
         scene.camdata.fill_data(scene.resolution, app.camera.physical.position, app.camera.physical.forward, scene.halton_index);
         scene.upload_current_frame(app.context);
 
-        populate_graph(fg_builder, &app, &state, &scene);
+        populate_graph(fg_builder, &app, &state, &ap, &scene);
         fg_builder.compile(fg_cache);
 
         auto frame = app.context.make_frame();
@@ -404,4 +409,5 @@ TEST("framegraph basics")
     });
 
     fg_cache.freeAll();
+    ap.freeAll();
 }
