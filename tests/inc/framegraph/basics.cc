@@ -337,7 +337,8 @@ TEST("framegraph basics")
     inc::pre::quick_app app(pr::backend::vulkan);
 
     inc::frag::GraphCache fg_cache(&app.context);
-    inc::frag::GraphBuilder fg_builder(app.context);
+    inc::frag::GraphBuilder fg_builder;
+    fg_builder.initialize(app.context);
 
     global_state state;
     state.load(app.context);
