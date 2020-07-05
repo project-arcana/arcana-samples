@@ -39,3 +39,40 @@ DATA ascii
     CHECK(cols[3] == tg::ivec3(10, 11, 12));
     CHECK(cols[4] == tg::ivec3(13, 14, 15));
 }
+
+TEST("pcd binary")
+{
+    cc::string_view file = R"(# .PCD v.7 - Point Cloud Data file format
+VERSION .7
+FIELDS a b
+SIZE 1 1
+TYPE U U
+COUNT 1 1
+WIDTH 213
+HEIGHT 1
+VIEWPOINT 0 0 0 1 0 0 0
+POINTS 3
+DATA binary
+abcdef)";
+
+    auto pts = babel::pcd::read(cc::as_byte_span(file));
+    CHECK(pts.fields.size() == 2);
+    CHECK(pts.width == 213);
+    CHECK(pts.height == 1);
+    CHECK(pts.points == 3);
+
+    {
+        auto cols = cr::to<cc::vector>(pts.get_data<cc::uint8>("a"));
+        CHECK(cols.size() == 3);
+        CHECK(cols[0] == 'a');
+        CHECK(cols[1] == 'c');
+        CHECK(cols[2] == 'e');
+    }
+    {
+        auto cols = cr::to<cc::vector>(pts.get_data<cc::uint8>("b"));
+        CHECK(cols.size() == 3);
+        CHECK(cols[0] == 'b');
+        CHECK(cols[1] == 'd');
+        CHECK(cols[2] == 'f');
+    }
+}
