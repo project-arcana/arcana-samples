@@ -5,8 +5,8 @@
 #include <arcana-incubator/pr-util/framegraph/framegraph.hh>
 #include <arcana-incubator/pr-util/framegraph/resource_cache.hh>
 
-#include <arcana-incubator/pr-util/demo-renderer/assets.hh>
-#include <arcana-incubator/pr-util/demo-renderer/scene.hh>
+#include <arcana-incubator/pr-util/demo-renderer/asset_pack.hh>
+#include <arcana-incubator/pr-util/demo-renderer/data.hh>
 
 #include <arcana-incubator/pr-util/quick_app.hh>
 #include <arcana-incubator/pr-util/resource_loading.hh>
@@ -155,7 +155,7 @@ struct global_state
     }
 };
 
-void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, global_state* state, inc::pre::dmr::asset_pack* ap, inc::pre::dmr::scene* scene)
+void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, global_state* state)
 {
     struct depthpre_data
     {
@@ -177,21 +177,21 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
             auto const t_depth = ctx.get_target(data.depth);
             auto const t_raw_velocity = ctx.get_target(data.velocity);
 
-            pr::argument arg;
-            arg.add(scene->current_frame().sb_modeldata);
+            //            pr::argument arg;
+            //            arg.add(scene->current_frame().sb_modeldata);
 
-            auto fb = ctx.frame().build_framebuffer().cleared_target(t_raw_velocity, 1.f, 1.f, 1.f, 1.f).cleared_depth(t_depth, 0.f).make();
-            auto pass = fb.make_pass(state->pso_depthpre).bind(arg, scene->current_frame().cb_camdata);
+            //            auto fb = ctx.frame().build_framebuffer().cleared_target(t_raw_velocity, 1.f, 1.f, 1.f, 1.f).cleared_depth(t_depth,
+            //            0.f).make(); auto pass = fb.make_pass(state->pso_depthpre).bind(arg, scene->current_frame().cb_camdata);
 
-            for (auto i = 0u; i < scene->instances.size(); ++i)
-            {
-                auto const& inst = scene->instances[i];
+            //            for (auto i = 0u; i < scene->instances.size(); ++i)
+            //            {
+            //                auto const& inst = scene->instances[i];
 
-                pass.write_constants(i);
+            //                pass.write_constants(i);
 
-                auto const& mesh = ap->getMesh(inst.mesh);
-                pass.draw(mesh.vertex, mesh.index);
-            }
+            //                auto const& mesh = ap->getMesh(inst.mesh);
+            //                pass.draw(mesh.vertex, mesh.index);
+            //            }
         });
 
     struct forward_data
@@ -217,21 +217,21 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
                           .make();
 
 
-            pr::argument model_arg;
-            model_arg.add(scene->current_frame().sb_modeldata);
+            //            pr::argument model_arg;
+            //            model_arg.add(scene->current_frame().sb_modeldata);
 
-            auto pass = fb.make_pass(state->pso_pbr) //
-                            .bind(model_arg, scene->current_frame().cb_camdata)
-                            .bind(state->sv_ibl);
+            //            auto pass = fb.make_pass(state->pso_pbr) //
+            //                            .bind(model_arg, scene->current_frame().cb_camdata)
+            //                            .bind(state->sv_ibl);
 
-            for (auto i = 0u; i < scene->instances.size(); ++i)
-            {
-                auto const& inst = scene->instances[i];
-                pass.write_constants(i);
+            //            for (auto i = 0u; i < scene->instances.size(); ++i)
+            //            {
+            //                auto const& inst = scene->instances[i];
+            //                pass.write_constants(i);
 
-                auto const& mesh = ap->getMesh(inst.mesh);
-                pass.bind(ap->getMaterial(inst.mat)).draw(mesh.vertex, mesh.index);
-            }
+            //                auto const& mesh = ap->getMesh(inst.mesh);
+            //                pass.bind(ap->getMaterial(inst.mat)).draw(mesh.vertex, mesh.index);
+            //            }
         });
 
     struct taa_data
@@ -249,7 +249,7 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
             data.scene = ctx.read(E_RESGUID_SCENE, {pr::state::shader_resource, pr::shader::pixel});
             data.vel = ctx.read(E_RESGUID_VELOCITY, {pr::state::shader_resource, pr::shader::pixel});
 
-            data.curr = ctx.import(E_RESGUID_TAA_CURRENT, scene->is_history_a ? state->t_taa_history_b : state->t_taa_history_a, pr::state::render_target);
+            // data.curr = ctx.import(E_RESGUID_TAA_CURRENT, scene->is_history_a ? state->t_taa_history_b : state->t_taa_history_a, pr::state::render_target);
 
             ctx.move(E_RESGUID_TAA_CURRENT, E_RESGUID_POSTFX_HDR);
         },
@@ -260,20 +260,20 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 
             auto t_curr = ctx.get_target(data.curr);
 
-            auto const& t_prev = scene->is_history_a ? state->t_taa_history_a : state->t_taa_history_b;
+            // auto const& t_prev = scene->is_history_a ? state->t_taa_history_a : state->t_taa_history_b;
 
-            ctx.frame().transition(t_prev, pr::state::shader_resource, pr::shader::pixel);
+            //ctx.frame().transition(t_prev, pr::state::shader_resource, pr::shader::pixel);
 
             auto fb = ctx.frame().make_framebuffer(t_curr);
 
             pr::argument arg;
             arg.add(t_scene);
-            arg.add(t_prev);
+            // arg.add(t_prev);
             arg.add(t_depth);
             arg.add(t_vel);
             arg.add_sampler(pr::sampler_filter::min_mag_mip_linear, 1, pr::sampler_address_mode::clamp);
 
-            fb.make_pass(state->pso_taa).bind(arg, scene->current_frame().cb_camdata).draw(3);
+            // fb.make_pass(state->pso_taa).bind(arg, scene->current_frame().cb_camdata).draw(3);
         });
 
     struct tonemap_data
@@ -343,42 +343,8 @@ TEST("framegraph basics")
     global_state state;
     state.load(app.context);
 
-    inc::pre::dmr::asset_pack ap;
-    inc::pre::dmr::scene scene;
-    scene.init(app.context, 512);
+    inc::pre::dmr::AssetPack ap;
 
-
-    auto const mesh_ball = ap.loadMesh(app.context, "res/arcana-sample-resources/phi/mesh/ball.mesh", true);
-    // auto const mesh_colt = ap.loadMesh(app.context, "res/arcana-sample-resources/phi/mesh/colt1911.mesh", true);
-
-
-    auto const mat_ball = ap.loadMaterial(app.context, state.tex_processing, "res/arcana-sample-resources/phi/texture/ball/albedo.png", //
-                                          "res/arcana-sample-resources/phi/texture/ball/normal.png",                                    //
-                                          "res/arcana-sample-resources/phi/texture/ball/arm.png");
-    //    auto const mat_colt = ap.loadMaterial(app.context, state.tex_processing, "res/arcana-sample-resources/phi/texture/colt/albedo.png", //
-    //                                          "res/arcana-sample-resources/phi/texture/colt/normal.png",                                    //
-    //                                          "res/arcana-sample-resources/phi/texture/colt/arm.png");
-
-
-    // scene
-    auto const add_ball = [&](float x, float y, float z) {
-        scene.addInstance(mesh_ball, mat_ball, tg::translation<float>(x, y, z) * tg::rotation_y(180_deg) * tg::scaling(.21f, .21f, .21f));
-    };
-
-    add_ball(-6 * 1.5, 0, 5);
-    add_ball(-4 * 1.5, 0, 6);
-    add_ball(-2 * 1.5, 0, 7);
-    add_ball(0, 0, 8);
-    add_ball(2 * 1.5, 0, 7);
-    add_ball(4 * 1.5, 0, 6);
-    add_ball(6 * 1.5, 0, 5);
-
-    //  scene.addInstance(mesh_colt, mat_colt, tg::translation<float>(0, -1, 2) * tg::rotation_y(-90_deg) * tg::scaling(.75f, .75f, .75f));
-
-    // camera
-    app.camera.target.position = {-10.3f, 4.74f, -2.05f};
-    app.camera.target.forward = tg::normalize(tg::vec3{0.5f, -0.43f, 0.76f});
-    app.camera.interpolate_to_target(.1f);
 
     app.main_loop([&](float dt) {
         if (app.context.clear_backbuffer_resize())
@@ -386,7 +352,6 @@ TEST("framegraph basics")
             auto const size = app.context.get_backbuffer_size();
             fg_cache.freeAll();
             fg_builder.setBackbufferSize(size);
-            scene.resolution = size;
             // app.context.clear_shader_view_cache();
             state.onResize(app.context, size);
         }
@@ -394,14 +359,14 @@ TEST("framegraph basics")
         fg_builder.performInfoImgui();
         app.perform_default_imgui(dt);
 
-        scene.on_next_frame();
+        // scene.on_next_frame();
         fg_cache.onNewFrame();
         fg_builder.reset();
 
-        scene.camdata.fill_data(scene.resolution, app.camera.physical.position, app.camera.physical.forward, scene.halton_index);
-        scene.upload_current_frame(app.context);
+        // scene.camdata.fill_data(scene.resolution, app.camera.physical.position, app.camera.physical.forward, scene.halton_index);
+        // scene.upload_current_frame(app.context);
 
-        populate_graph(fg_builder, &app, &state, &ap, &scene);
+        populate_graph(fg_builder, &app, &state);
         fg_builder.compile(fg_cache);
 
         auto frame = app.context.make_frame();
