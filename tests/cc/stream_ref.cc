@@ -74,22 +74,26 @@ TEST("cc::stream_ref<char>")
         s << "def";
         s << cc::string_view("gh");
         s << cc::string("ijk");
+        cc::string ss = "l";
+        s << ss;
+        cc::string_view sv = "m";
+        s << sv;
     };
 
     // make_stream_ref
     {
         cc::string s;
         foo(cc::make_stream_ref<char>([&s](char c) { s += c; }));
-        CHECK(s == "abcdefghijk");
+        CHECK(s == "abcdefghijklm");
     }
     {
         cc::string s;
         foo(cc::make_stream_ref<char>([&s](cc::span<char const> ii) { s += ii; }));
-        CHECK(s == "abcdefghijk");
+        CHECK(s == "abcdefghijklm");
     }
     {
         cc::string_stream s;
         foo(cc::make_stream_ref<char>(s));
-        CHECK(s.to_string() == "abcdefghijk");
+        CHECK(s.to_string() == "abcdefghijklm");
     }
 }

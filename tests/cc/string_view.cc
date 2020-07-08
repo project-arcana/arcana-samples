@@ -2,6 +2,7 @@
 
 #include <clean-core/string_view.hh>
 #include <clean-core/vector.hh>
+#include <clean-core/span.hh>
 
 static_assert(cc::is_contiguous_range<cc::string_view, char const>);
 static_assert(cc::is_contiguous_range<cc::string_view, void const>);
@@ -90,4 +91,15 @@ TEST("cc::string_view split")
     split("ab c ", {"ab", "c"});
 
     CHECK(cc::vector<cc::string>(cc::string_view("barxolite").split([](char c) { return c == 'a' || c == 'x'; })) == cc::vector<cc::string>{"b", "r", "olite"});
+}
+
+TEST("cc::string_view span interop")
+{
+    cc::string_view sv = "hello";
+    cc::span<char const> ss;
+    ss = sv;
+    CHECK(cc::string(ss) == "hello");
+
+    ss = cc::string_view("world");
+    CHECK(cc::string(ss) == "world");
 }
