@@ -262,7 +262,7 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 
             // auto const& t_prev = scene->is_history_a ? state->t_taa_history_a : state->t_taa_history_b;
 
-            //ctx.frame().transition(t_prev, pr::state::shader_resource, pr::shader::pixel);
+            // ctx.frame().transition(t_prev, pr::state::shader_resource, pr::shader::pixel);
 
             auto fb = ctx.frame().make_framebuffer(t_curr);
 
@@ -332,7 +332,7 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 }
 }
 
-TEST("framegraph basics")
+TEST("framegraph basics", disabled)
 {
     inc::pre::quick_app app(pr::backend::vulkan);
 
