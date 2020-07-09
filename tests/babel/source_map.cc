@@ -25,4 +25,9 @@ TEST("source_map")
         CHECK(map.line_of(&s[2]) == 2);
         CHECK(map.line_of(&s[3]) == 3);
     }
+    {
+        cc::string_view s = "";
+        auto map = babel::source_map(s);
+        CHECK(map.lines().size() == 0);
+    }
 }

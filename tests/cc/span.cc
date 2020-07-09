@@ -130,3 +130,33 @@ TEST("byte_span")
         CHECK(s[3] == std::byte(0));
     }
 }
+
+TEST("cc::span deductions")
+{
+    {
+        cc::vector<int> v;
+        auto s = cc::span(v);
+        static_assert(std::is_same_v<decltype(s.front()), int&>);
+    }
+    {
+        cc::vector<int> const v;
+        auto s = cc::span(v);
+        static_assert(std::is_same_v<decltype(s.front()), int const&>);
+    }
+    {
+        auto s = cc::span(cc::vector<int>{});
+        static_assert(std::is_same_v<decltype(s.front()), int&>);
+    }
+    {
+        cc::string_view sv;
+        auto s = cc::span(sv);
+        static_assert(std::is_same_v<decltype(s.front()), char const&>);
+    }
+    {
+        auto s = cc::span(cc::string_view{});
+        static_assert(std::is_same_v<decltype(s.front()), char const&>);
+    }
+
+    // this test is used for static asserts
+    CHECK(true);
+}
