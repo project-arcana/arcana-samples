@@ -1,5 +1,9 @@
 #include <nexus/test.hh>
 
+#include <clean-core/any_of.hh>
+#include <clean-core/map.hh>
+#include <clean-core/optional.hh>
+#include <clean-core/string.hh>
 #include <clean-core/vector.hh>
 
 #include <babel-serializer/data/json.hh>
@@ -27,9 +31,9 @@ TEST("json basics")
         babel::json::write_config cfg;
         cfg.indent = indent;
 
-        CHECK(babel::json::to_string(nullptr, cfg) == "null");
         CHECK(babel::json::to_string(true, cfg) == "true");
         CHECK(babel::json::to_string(false, cfg) == "false");
+        CHECK(babel::json::to_string(cc::nullopt, cfg) == "null");
         CHECK(babel::json::to_string(0, cfg) == "0");
         CHECK(babel::json::to_string(1, cfg) == "1");
         CHECK(babel::json::to_string(-12, cfg) == "-12");
@@ -38,6 +42,14 @@ TEST("json basics")
         CHECK(babel::json::to_string(std::byte(100), cfg) == "100");
         CHECK(babel::json::to_string('a', cfg) == "\"a\"");
         CHECK(babel::json::to_string("hello", cfg) == "\"hello\"");
+
+        // optional
+        {
+            cc::optional<int> v;
+            CHECK(babel::json::to_string(v, cfg) == "null");
+            v = 7;
+            CHECK(babel::json::to_string(v, cfg) == "7");
+        }
     }
 
     // composites
@@ -55,6 +67,16 @@ TEST("json basics")
     }
     {
         CHECK(babel::json::to_string(foo{}) == "{\"x\":2,\"b\":false}");
+    }
+
+    // maps
+    {
+        cc::map<cc::string, int> m;
+        m["abc"] = 17;
+        m["de"] = 32;
+        auto vA = "{\"abc\":17,\"de\":32}";
+        auto vB = "{\"de\":32,\"abc\":17}";
+        CHECK(babel::json::to_string(m) == cc::any_of(vA, vB));
     }
 
     // indent
@@ -110,5 +132,19 @@ TEST("json basics")
                  "    \"b\": false\n"
                  "  }\n"
                  "]");
+    }
+    {
+        cc::map<cc::string, int> m;
+        m["abc"] = 17;
+        m["de"] = 32;
+        auto vA = "{\n"
+                  "  \"abc\": 17,\n"
+                  "  \"de\": 32\n"
+                  "}";
+        auto vB = "{\n"
+                  "  \"de\": 32,\n"
+                  "  \"abc\": 17\n"
+                  "}";
+        CHECK(babel::json::to_string(m, babel::json::write_config{2}) == cc::any_of(vA, vB));
     }
 }

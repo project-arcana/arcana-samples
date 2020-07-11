@@ -56,4 +56,16 @@ TEST("cc::map")
         v += 2;
     CHECK(m[3] == 9);
     CHECK(m[1] == 8);
+
+    CHECK(m.size() == 2);
+    CHECK(m.remove_key(2) == false);
+
+    CHECK(m.size() == 2);
+    CHECK(m.remove_key(1) == true);
+    CHECK(m.size() == 1);
+    CHECK(!m.contains_key(1));
+    CHECK(m.contains_key(3));
+    CHECK(m.remove_key(1) == false);
+    CHECK(m.remove_key(3) == true);
+    CHECK(m.empty());
 }
