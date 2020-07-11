@@ -46,33 +46,6 @@ TEST("pr backend detail - page allocator")
     CHECK(allocator.get_allocation_size_in_elements(alloc7) == 4);
 }
 
-TEST("pr backend detail - linked pool")
-{
-    struct node
-    {
-        int x;
-        int y;
-    };
-
-    phi::detail::linked_pool<node> pool;
-    pool.initialize(50);
-
-    auto const i1 = pool.acquire();
-    CHECK(i1 == 0);
-    node& n1 = pool.get(i1);
-    n1 = {5, 7};
-
-    auto const i2 = pool.acquire();
-    CHECK(i2 == 1);
-
-    CHECK(n1.x == 5);
-    pool.release(i1);
-    CHECK(n1.x != 5); // NOTE: this read is UB
-
-    auto const i3 = pool.acquire();
-    CHECK(i3 == 0);
-}
-
 TEST("pr backend detail - page allocator random", disabled)
 {
     constexpr auto allocation_size = 32;

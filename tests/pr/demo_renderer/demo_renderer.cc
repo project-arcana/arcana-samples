@@ -7,6 +7,8 @@
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Frame.hh>
 
+#include <dxc-wrapper/file_util.hh>
+
 #include <arcana-incubator/device-abstraction/stringhash.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
@@ -24,15 +26,44 @@ bool verify_workdir()
 }
 
 bool verify_shaders_compiled() { return inc::pre::is_shader_present("misc/imgui_vs", "res/pr/demo_render/bin/"); }
+
+// help or attempt to recover likely errors during first launch (wrong workdir or shaders not compiled)
+bool run_onboarding_test()
+{
+    if (!verify_workdir())
+    {
+        LOG_ERROR("cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
+        return false;
+    }
+    else if (!verify_shaders_compiled())
+    {
+        LOG_WARN("shaders not compiled, run res/pr/demo_render/compiler_shaders.bat/.sh");
+        LOG_WARN("attempting live compilation");
+        dxcw::compiler comp;
+        comp.initialize();
+        dxcw::shaderlist_compilation_result res;
+        dxcw::compile_shaderlist(comp, "res/pr/demo_render/src/shaderlist.txt", &res);
+        comp.destroy();
+
+        if (res.num_shaders_detected == -1 || !verify_shaders_compiled())
+        {
+            LOG_ERROR("failed to compile shaders live");
+            return false;
+        }
+        else
+        {
+            LOG_INFO("live compilation succeeded");
+        }
+    }
+
+    return true;
+}
 }
 
 void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backend_type)
 {
     CC_ASSERT(mWindow == nullptr && "double initialize");
-
-    // onboarding asserts
-    CC_ASSERT(verify_workdir() && "cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
-    CC_ASSERT(verify_shaders_compiled() && "cant find shaders, run res/pr/demo_render/compile_shaders.bat/.sh");
+    CC_ASSERT(run_onboarding_test() && "critical error, onboarding cannot recover");
 
     mWindow = &window;
 
@@ -50,8 +81,8 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     mContext.initialize({mWindow->getSdlWindow()}, backend_type, config);
 
     {
-        auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", phi::shader_stage::vertex, "res/pr/demo_render/bin/");
-        auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", phi::shader_stage::pixel, "res/pr/demo_render/bin/");
+        auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
+        auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
         ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
         ImGui_ImplSDL2_Init(mWindow->getSdlWindow());
@@ -71,9 +102,9 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
         mPasses.forward.tex_ibl_irr = mTexProcessingPSOs.create_diffuse_irradiance_map(frame, mPasses.forward.tex_ibl_spec);
         mPasses.forward.tex_ibl_lut = mTexProcessingPSOs.create_brdf_lut(frame, 256);
 
-        frame.transition(mPasses.forward.tex_ibl_spec, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-        frame.transition(mPasses.forward.tex_ibl_irr, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-        frame.transition(mPasses.forward.tex_ibl_lut, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+        frame.transition(mPasses.forward.tex_ibl_spec, pr::state::shader_resource, pr::shader::pixel);
+        frame.transition(mPasses.forward.tex_ibl_irr, pr::state::shader_resource, pr::shader::pixel);
+        frame.transition(mPasses.forward.tex_ibl_lut, pr::state::shader_resource, pr::shader::pixel);
 
         mContext.submit(cc::move(frame));
     }
@@ -128,9 +159,9 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
     auto normal = mTexProcessingPSOs.load_texture(frame, p_normal, pr::format::rgba8un, true, false);
     auto ao_rough_metal = mTexProcessingPSOs.load_texture(frame, p_arm, pr::format::rgba8un, true, false);
 
-    frame.transition(albedo, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(normal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
-    frame.transition(ao_rough_metal, phi::resource_state::shader_resource, phi::shader_stage::pixel);
+    frame.transition(albedo, pr::state::shader_resource, pr::shader::pixel);
+    frame.transition(normal, pr::state::shader_resource, pr::shader::pixel);
+    frame.transition(ao_rough_metal, pr::state::shader_resource, pr::shader::pixel);
 
     mContext.submit(cc::move(frame));
 
