@@ -158,7 +158,7 @@ TEST("json escaping")
     CHECK(babel::json::to_string(m) == "{\"a\\\"b\":\"c\\nd\"}");
 }
 
-TEST("json parsing")
+TEST("json parsing raw ref")
 {
     auto single_node = [](cc::string_view json) -> babel::json::json_ref::node {
         auto jref = babel::json::read_ref(json);
@@ -185,9 +185,10 @@ TEST("json parsing")
 
     // array
     for (auto json : {
-             "[1,2,3]",     //
-             "[  1, 2 ,3]", //
-             "[1, 2  ,3 ]", //
+             "[1,2,3]",        //
+             "[  1, 2 ,3]",    //
+             "[1, 2  ,3 ]",    //
+             " [1, 2  ,3 ]  ", //
          })
     {
         auto jref = babel::json::read_ref(json);
@@ -200,6 +201,7 @@ TEST("json parsing")
         CHECK(jref.nodes[1].get_int() == 1);
         CHECK(jref.nodes[2].get_int() == 2);
         CHECK(jref.nodes[3].get_int() == 3);
+        CHECK(jref.nodes[0].token == cc::string_view(json).trim());
     }
 
     // map
@@ -234,6 +236,8 @@ TEST("json parsing")
         CHECK(jref.nodes[0].is_array());
         CHECK(jref.nodes[1].is_array());
         CHECK(jref.nodes[0].first_child == 1);
+        CHECK(jref.nodes[0].token == "[[]]");
+        CHECK(jref.nodes[1].token == "[]");
     }
     {
         auto json = "[[[]]]";
@@ -244,5 +248,26 @@ TEST("json parsing")
         CHECK(jref.nodes[2].is_array());
         CHECK(jref.nodes[0].first_child == 1);
         CHECK(jref.nodes[1].first_child == 2);
+        CHECK(jref.nodes[0].token == "[[[]]]");
+        CHECK(jref.nodes[1].token == "[[]]");
+        CHECK(jref.nodes[2].token == "[]");
     }
+}
+
+TEST("json parsing")
+{
+    CHECK(babel::json::read<int>("123") == 123);
+    CHECK(babel::json::read<long>("-123") == -123);
+    CHECK(babel::json::read<bool>("false") == false);
+    CHECK(babel::json::read<float>("1.25") == 1.25f);
+    CHECK(babel::json::read<double>("-1.25e1") == -12.5);
+    CHECK(babel::json::read<char>("\"a\"") == 'a');
+    CHECK(babel::json::read<char>("\"\\n\"") == '\n');
+    CHECK(babel::json::read<cc::string>("\"ab\\ncd\"") == "ab\ncd");
+    CHECK(babel::json::read<foo>("{\"x\": -12,\"b\":true}").x == -12);
+    CHECK(babel::json::read<foo>("{\"x\": -12,\"b\":true}").b == true);
+    CHECK(babel::json::read<cc::map<cc::string, int>>("{\"a\": 3,\"b\":7}") == cc::map<cc::string, int>{{"a", 3}, {"b", 7}});
+    CHECK(babel::json::read<cc::optional<int>>("null").has_value() == false);
+    CHECK(babel::json::read<cc::optional<int>>("17").has_value());
+    CHECK(babel::json::read<cc::optional<int>>("17").value() == 17);
 }
