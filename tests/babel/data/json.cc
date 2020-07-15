@@ -270,4 +270,6 @@ TEST("json parsing")
     CHECK(babel::json::read<cc::optional<int>>("null").has_value() == false);
     CHECK(babel::json::read<cc::optional<int>>("17").has_value());
     CHECK(babel::json::read<cc::optional<int>>("17").value() == 17);
+    CHECK(babel::json::read<cc::vector<int>>("[1,2,3]") == cc::vector<int>{1, 2, 3});
+    CHECK(babel::json::read<cc::array<bool, 3>>("[true,false,true]") == cc::array<bool, 3>{{true, false, true}});
 }
