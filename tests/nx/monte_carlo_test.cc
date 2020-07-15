@@ -124,3 +124,25 @@ MONTE_CARLO_TEST("mct move-only")
     addInvariant("pos", [](cc::unique_ptr<int> const& i) { CHECK(*i >= 0); });
 }
 #endif
+
+MONTE_CARLO_TEST("mct inheritance")
+{
+    struct foo
+    {
+        int test() { return 4; }
+        bool invariant() const { return true; }
+    };
+    struct bar : foo
+    {
+        int test() { return 4; }
+    };
+
+    addValue("gen", foo());
+    addValue("gen", bar());
+    addOp("test", &foo::test).when(&foo::invariant);
+    addOp("test", &bar::test).when([](bar const& b) { return b.invariant(); });
+    // NOTE: this doesn't work because &bar::invariant has type "bool foo::*() const"
+    // addOp("test", &bar::test).when( &bar::invariant);
+
+    testEquivalence([](foo const&, bar const&) {});
+}
