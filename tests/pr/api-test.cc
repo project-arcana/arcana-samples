@@ -137,10 +137,11 @@ struct cam_constants
 
 APP("api_test")
 {
+    auto ctx = pr::Context(pr::backend::vulkan);
+
     inc::da::SDLWindow window;
     window.initialize("api test");
-
-    auto ctx = pr::Context(phi::window_handle{window.getSdlWindow()}, pr::backend::vulkan);
+    auto swapchain = ctx.make_swapchain(phi::window_handle{window.getSdlWindow()}, window.getSize());
 
     // pr::graphics_pipeline_state pso_render;
     pr::auto_graphics_pipeline_state pso_blit;
@@ -170,7 +171,8 @@ APP("api_test")
         config.depth = phi::depth_function::none;
         config.cull = phi::cull_mode::none;
 
-        pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1).config(config), pr::framebuffer(ctx.get_backbuffer_format()));
+        pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1).config(config),
+                                           pr::framebuffer(ctx.get_backbuffer_format(swapchain)));
     }
 
     // load mesh buffers
@@ -179,20 +181,20 @@ APP("api_test")
         auto const mesh = inc::assets::load_binary_mesh("res/arcana-sample-resources/phi/mesh/ball.mesh");
 
         // create an upload buffer and memcpy the mesh data to it
-        auto const upbuff = ctx.make_upload_buffer(mesh.get_vertex_size_bytes() + mesh.get_index_size_bytes());
+        auto const upbuff = ctx.make_upload_buffer(mesh.vertices.size_bytes() + mesh.indices.size_bytes());
         ctx.write_to_buffer(upbuff, mesh.vertices);
-        ctx.write_to_buffer(upbuff, mesh.indices, mesh.get_vertex_size_bytes());
+        ctx.write_to_buffer(upbuff, mesh.indices, mesh.vertices.size_bytes());
 
         // create device-memory vertex/index buffers
-        b_vertices = ctx.make_buffer(mesh.get_vertex_size_bytes(), sizeof(inc::assets::simple_vertex));
-        b_indices = ctx.make_buffer(mesh.get_index_size_bytes(), sizeof(uint32_t));
+        b_vertices = ctx.make_buffer(mesh.vertices.size_bytes(), sizeof(inc::assets::simple_vertex));
+        b_indices = ctx.make_buffer(mesh.indices.size_bytes(), sizeof(uint32_t));
 
         {
             auto frame = ctx.make_frame();
 
             // copy to them
             frame.copy(upbuff, b_vertices);
-            frame.copy(upbuff, b_indices, mesh.get_vertex_size_bytes());
+            frame.copy(upbuff, b_indices, mesh.vertices.size_bytes());
 
             ctx.submit(cc::move(frame));
         }
@@ -226,7 +228,7 @@ APP("api_test")
         ctx.write_to_buffer(b_camconsts, cam_constants{vp});
     };
 
-    create_targets(ctx.get_backbuffer_size());
+    create_targets(ctx.get_backbuffer_size(swapchain));
 
     while (!window.isRequestingClose())
     {
@@ -236,12 +238,12 @@ APP("api_test")
 
         if (window.clearPendingResize())
         {
-            ctx.on_window_resize(window.getSize());
+            ctx.on_window_resize(swapchain, window.getSize());
             ctx.clear_resource_caches();
         }
 
-        if (ctx.clear_backbuffer_resize())
-            create_targets(ctx.get_backbuffer_size());
+        if (ctx.clear_backbuffer_resize(swapchain))
+            create_targets(ctx.get_backbuffer_size(swapchain));
 
         {
             auto frame = ctx.make_frame();
@@ -268,7 +270,7 @@ APP("api_test")
                 }
             }
 
-            auto backbuffer = ctx.acquire_backbuffer();
+            auto backbuffer = ctx.acquire_backbuffer(swapchain);
 
             frame.transition(t_color, phi::resource_state::shader_resource, phi::shader_stage::pixel);
 
@@ -290,7 +292,7 @@ APP("api_test")
             ctx.submit(cc::move(frame));
         }
 
-        ctx.present();
+        ctx.present(swapchain);
     }
 
     ctx.flush();

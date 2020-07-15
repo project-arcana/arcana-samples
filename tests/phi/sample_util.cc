@@ -3,7 +3,7 @@
 #include <cstdio>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
-#include <arcana-incubator/imgui/imgui_impl_pr.hh>
+#include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 #include <phantasm-hardware-interface/Backend.hh>
@@ -20,24 +20,23 @@ phi::detail::unique_buffer phi_test::get_shader_binary(const char* name, const c
     return res;
 }
 
-void phi_test::initialize_imgui(inc::ImGuiPhantasmImpl& impl, inc::da::SDLWindow& window, phi::Backend& backend)
+void phi_test::initialize_imgui(inc::da::SDLWindow& window, phi::Backend& backend)
 {
-    char const* const shader_ending = backend.getBackendType() == phi::backend_type::d3d12 ? "dxil" : "spv";
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
 
-    ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-    ImGui_ImplSDL2_Init(window.getSdlWindow());
+    if (backend.getBackendType() == phi::backend_type::d3d12)
+        ImGui_ImplSDL2_InitForD3D(window.getSdlWindow());
+    else
+        ImGui_ImplSDL2_InitForVulkan(window.getSdlWindow());
     window.setEventCallback(ImGui_ImplSDL2_ProcessEvent);
 
-    {
-        auto const ps_bin = get_shader_binary("imgui_ps", shader_ending);
-        auto const vs_bin = get_shader_binary("imgui_vs", shader_ending);
-        impl.initialize(&backend, ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size());
-    }
+    ImGui_ImplPHI_Init(&backend, 3, phi::format::bgra8un);
 }
 
-void phi_test::shutdown_imgui(inc::ImGuiPhantasmImpl& impl)
+void phi_test::shutdown_imgui()
 {
-    impl.destroy();
+    ImGui_ImplPHI_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 }

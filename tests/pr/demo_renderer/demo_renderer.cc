@@ -10,6 +10,7 @@
 #include <dxc-wrapper/file_util.hh>
 
 #include <arcana-incubator/device-abstraction/stringhash.hh>
+#include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 namespace
@@ -71,23 +72,26 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     mInput.initialize(100);
     mCamera.setup_default_inputs(mInput);
 
-    mInput.bindKey(ge_input_reset_cam, SDL_SCANCODE_H);
+    mInput.bindKey(ge_input_reset_cam, inc::da::scancode::sc_H);
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
     config.validation = phi::validation_level::on_extended;
-    config.present = phi::present_mode::allow_tearing;
 
-    mContext.initialize({mWindow->getSdlWindow()}, backend_type, config);
+    mContext.initialize(backend_type, config);
+    mSwapchain = mContext.make_swapchain({mWindow->getSdlWindow()}, mWindow->getSize());
 
-    {
-        auto [vs, vs_b] = inc::pre::load_shader(mContext, "misc/imgui_vs", pr::shader::vertex, "res/pr/demo_render/bin/");
-        auto [ps, ps_b] = inc::pre::load_shader(mContext, "misc/imgui_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
 
-        ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-        ImGui_ImplSDL2_Init(mWindow->getSdlWindow());
-        mImguiImpl.initialize(&mContext.get_backend(), ps_b.get(), ps_b.size(), vs_b.get(), vs_b.size());
-    }
+    if (backend_type == pr::backend::d3d12)
+        ImGui_ImplSDL2_InitForD3D(window.getSdlWindow());
+    else
+        ImGui_ImplSDL2_InitForVulkan(window.getSdlWindow());
+    window.setEventCallback(ImGui_ImplSDL2_ProcessEvent);
+
+    ImGui_ImplPHI_Init(&mContext.get_backend(), 3, phi::format::bgra8un);
+
 
     mTexProcessingPSOs.init(mContext, "res/pr/demo_render/bin/preprocess/");
 
@@ -96,7 +100,8 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     {
         auto frame = mContext.make_frame();
 
-        specular_intermediate = mTexProcessingPSOs.load_filtered_specular_map(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
+        specular_intermediate
+            = mTexProcessingPSOs.load_filtered_specular_map_from_file(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
 
         mPasses.forward.tex_ibl_spec = cc::move(specular_intermediate.filtered_env);
         mPasses.forward.tex_ibl_irr = mTexProcessingPSOs.create_diffuse_irradiance_map(frame, mPasses.forward.tex_ibl_spec);
@@ -114,9 +119,9 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     mPasses.taa.init(mContext);
     mPasses.postprocess.init(mContext);
 
-    onBackbufferResize(mContext.get_backbuffer_size());
+    onBackbufferResize(mContext.get_backbuffer_size(mSwapchain));
 
-    mScene.init(mContext, 500);
+    mScene.init(mContext, mContext.get_num_backbuffers(mSwapchain), 500);
     mContext.flush();
 }
 
@@ -126,7 +131,7 @@ void dmr::DemoRenderer::destroy()
     {
         mContext.flush();
 
-        mImguiImpl.destroy();
+        ImGui_ImplPHI_Shutdown();
         ImGui_ImplSDL2_Shutdown();
 
         mPasses = {};
@@ -155,9 +160,9 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
 {
     auto frame = mContext.make_frame();
 
-    auto albedo = mTexProcessingPSOs.load_texture(frame, p_albedo, pr::format::rgba8un, true, true);
-    auto normal = mTexProcessingPSOs.load_texture(frame, p_normal, pr::format::rgba8un, true, false);
-    auto ao_rough_metal = mTexProcessingPSOs.load_texture(frame, p_arm, pr::format::rgba8un, true, false);
+    auto albedo = mTexProcessingPSOs.load_texture_from_file(frame, p_albedo, pr::format::rgba8un, true, true);
+    auto normal = mTexProcessingPSOs.load_texture_from_file(frame, p_normal, pr::format::rgba8un, true, false);
+    auto ao_rough_metal = mTexProcessingPSOs.load_texture_from_file(frame, p_arm, pr::format::rgba8un, true, false);
 
     frame.transition(albedo, pr::state::shader_resource, pr::shader::pixel);
     frame.transition(normal, pr::state::shader_resource, pr::shader::pixel);
@@ -223,18 +228,20 @@ void dmr::DemoRenderer::execute(float dt)
         auto frame = mContext.make_frame();
         mPasses.taa.execute(mContext, frame, mTargets, mScene);
 
-        auto backbuffer = mContext.acquire_backbuffer();
+        auto backbuffer = mContext.acquire_backbuffer(mSwapchain);
         mPasses.postprocess.execute_output(mContext, frame, mTargets, mScene, backbuffer);
 
         ImGui::Render();
         auto* const imgui_drawdata = ImGui::GetDrawData();
-        auto const imgui_framesize = mImguiImpl.get_command_size(imgui_drawdata);
+        auto const imgui_framesize = ImGui_ImplPHI_GetDrawDataCommandSize(imgui_drawdata);
+
 
         frame.begin_debug_label("imgui");
-        mImguiImpl.write_commands(imgui_drawdata, backbuffer.res.handle, frame.write_raw_bytes(imgui_framesize), imgui_framesize);
+        ImGui_ImplPHI_RenderDrawData(imgui_drawdata, {frame.write_raw_bytes(imgui_framesize), imgui_framesize});
+
         frame.end_debug_label();
 
-        frame.present_after_submit(backbuffer);
+        frame.present_after_submit(backbuffer, mSwapchain);
         cf_post = mContext.compile(cc::move(frame));
     }
 
@@ -260,11 +267,12 @@ bool dmr::DemoRenderer::handleEvents()
         return false;
 
     if (mWindow->clearPendingResize())
-        mContext.on_window_resize(mWindow->getSize());
+        mContext.on_window_resize(mSwapchain, mWindow->getSize());
 
-    if (mContext.clear_backbuffer_resize())
-        onBackbufferResize(mContext.get_backbuffer_size());
+    if (mContext.clear_backbuffer_resize(mSwapchain))
+        onBackbufferResize(mContext.get_backbuffer_size(mSwapchain));
 
+    ImGui_ImplPHI_NewFrame();
     ImGui_ImplSDL2_NewFrame(mWindow->getSdlWindow());
     ImGui::NewFrame();
 

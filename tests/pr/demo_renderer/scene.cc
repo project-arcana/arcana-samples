@@ -6,9 +6,9 @@
 
 #include <arcana-incubator/device-abstraction/freefly_camera.hh>
 
-void dmr::scene::init(pr::Context& ctx, unsigned max_num_instances)
+void dmr::scene::init(pr::Context& ctx, unsigned num_backbuffers, unsigned max_num_instances)
 {
-    num_backbuffers = ctx.get_num_backbuffers();
+    this->num_backbuffers = num_backbuffers;
 
     instances.reserve(max_num_instances);
     instance_transforms.reserve(max_num_instances);

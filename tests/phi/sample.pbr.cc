@@ -24,9 +24,8 @@
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 
-#include <arcana-incubator/imgui/imgui_impl_pr.hh>
+#include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
-#include <arcana-incubator/imgui/imgui_impl_win32.hh>
 
 #include <arcana-incubator/profiling/remotery.hh>
 
@@ -45,20 +44,24 @@ constexpr unsigned gc_msaa_samples = 8;
 
 void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, const phi::backend_config& backend_config)
 {
+    using namespace phi;
     inc::RmtInstance _remotery_instance;
 
+    // backend init
+    backend.initialize(backend_config);
+
+    // window init
     inc::da::initialize();
-
-    using namespace phi;
-    CC_RUNTIME_ASSERT(backend_config.num_backbuffers <= gc_max_num_backbuffers && "increase gc_max_num_backbuffers");
-
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, {window.getSdlWindow()});
+
+    // main swapchain creation
+    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
+    unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
+    phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
     // Imgui init
-    inc::ImGuiPhantasmImpl imgui_implementation;
-    initialize_imgui(imgui_implementation, window, backend);
+    initialize_imgui(window, backend);
 
     struct resources_t
     {
@@ -204,7 +207,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     }
 
     {
-        l_res.timestamp_queries = backend.createQueryRange(query_type::timestamp, 2 * backend_config.num_backbuffers);
+        l_res.timestamp_queries = backend.createQueryRange(query_type::timestamp, 2 * msc_num_backbuffers);
     }
 
 
@@ -220,7 +223,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
         arg::framebuffer_config fbconf;
-        fbconf.add_render_target(backend.getBackbufferFormat());
+        fbconf.add_render_target(msc_backbuf_format);
 
         phi::pipeline_config config;
         config.cull = phi::cull_mode::front;
@@ -229,7 +232,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     }
 
     {
-        l_res.per_frame_resources.emplace(backend_config.num_backbuffers);
+        l_res.per_frame_resources.emplace(msc_num_backbuffers);
 
         auto srv = resource_view::structured_buffer(handle::null_resource, phi_test::num_instances, sizeof(tg::mat4));
 
@@ -305,7 +308,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
     auto const f_on_resize = [&]() {
         backend.flushGPU();
-        backbuf_size = backend.getBackbufferSize();
+        backbuf_size = backend.getBackbufferSize(main_swapchain);
         LOG("backbuffer resized to {}x{}", backbuf_size.width, backbuf_size.height);
         f_destroy_sized_resources();
         f_create_sized_resources();
@@ -321,8 +324,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::vec3 position_modulos = tg::vec3(9, 6, 9);
     float camera_distance = 1.f;
 
-// cacheline-sized tasks call for desperate measures (macro)
-#define THREAD_BUFFER_SIZE (static_cast<size_t>((sizeof(cmd::draw) * (phi_test::num_instances / phi_test::num_render_threads)) + 1024u))
+    constexpr size_t THREAD_BUFFER_SIZE = size_t(sizeof(cmd::draw) * (phi_test::num_instances / phi_test::num_render_threads)) + 1024;
 
     cc::array<std::byte*, phi_test::num_render_threads + 1> thread_cmd_buffer_mem;
 
@@ -348,7 +350,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         if (window.clearPendingResize())
         {
             if (!window.isMinimized())
-                backend.onResize({window.getWidth(), window.getHeight()});
+                backend.onResize(main_swapchain, window.getSize());
         }
 
         if (!window.isMinimized())
@@ -359,14 +361,21 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             timer.restart();
             run_time += frametime / 1000.f;
 
-            l_res.current_frame_index = cc::wrapped_increment(l_res.current_frame_index, backend_config.num_backbuffers);
+            l_res.current_frame_index = cc::wrapped_increment(l_res.current_frame_index, msc_num_backbuffers);
 
-            if (backend.clearPendingResize())
+            if (backend.clearPendingResize(main_swapchain))
                 f_on_resize();
 
             // 1 per frame, plus postprocessing and UI
             cc::array<handle::command_list, phi_test::num_render_threads + 1> all_command_lists;
             cc::fill(all_command_lists, handle::null_command_list);
+
+            struct
+            {
+                std::byte** thread_cmd_mem;
+                phi::Backend& backend;
+                cc::span<handle::command_list> out_cmdlists;
+            } task_info = {thread_cmd_buffer_mem.data(), backend, all_command_lists};
 
             td::sync render_sync, modeldata_upload_sync;
             // parallel rendering
@@ -375,10 +384,10 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                 td::submit_batched_n(
                     render_sync,
-                    [&](unsigned start, unsigned end, unsigned i) {
+                    [&l_res, &task_info, main_swapchain](unsigned start, unsigned end, unsigned i) {
                         INC_RMT_TRACE_NAMED("CommandRecordTask");
 
-                        command_stream_writer cmd_writer(thread_cmd_buffer_mem[i + 1], THREAD_BUFFER_SIZE);
+                        command_stream_writer cmd_writer(task_info.thread_cmd_mem[i + 1], THREAD_BUFFER_SIZE);
 
                         auto const is_first_batch = i == 0;
                         auto const clear_or_load = is_first_batch ? rt_clear_type::clear : rt_clear_type::load;
@@ -395,7 +404,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                         }
                         {
                             cmd::begin_render_pass bcmd;
-                            bcmd.viewport = backend.getBackbufferSize();
+                            bcmd.viewport = task_info.backend.getBackbufferSize(main_swapchain);
                             bcmd.add_2d_rt(l_res.colorbuffer, format::rgba16f, clear_or_load, gc_msaa_samples > 1);
                             bcmd.set_2d_depth_stencil(l_res.depthbuffer, format::depth24un_stencil8u, clear_or_load, gc_msaa_samples > 1);
                             cmd_writer.add_command(bcmd);
@@ -419,7 +428,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                         {
                             INC_RMT_TRACE_NAMED("CommandRecordTaskBackend");
-                            all_command_lists[i] = backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
+                            task_info.out_cmdlists[i] = task_info.backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         }
                     },
                     phi_test::num_instances, phi_test::num_render_threads);
@@ -437,7 +446,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             {
                 command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], THREAD_BUFFER_SIZE);
 
-                auto const current_backbuffer = backend.acquireBackbuffer();
+                auto const current_backbuffer = backend.acquireBackbuffer(main_swapchain);
 
                 if (!current_backbuffer.is_valid())
                 {
@@ -472,7 +481,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                 {
                     cmd::begin_render_pass bcmd;
-                    bcmd.viewport = backend.getBackbufferSize();
+                    bcmd.viewport = backend.getBackbufferSize(main_swapchain);
                     bcmd.add_backbuffer_rt(current_backbuffer);
                     bcmd.set_null_depth_stencil();
                     cmd_writer.add_command(bcmd);
@@ -513,8 +522,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                     ImGui::Render();
                     auto* const drawdata = ImGui::GetDrawData();
-                    auto const commandsize = imgui_implementation.get_command_size(drawdata);
-                    imgui_implementation.write_commands(drawdata, current_backbuffer, cmd_writer.buffer_head(), commandsize);
+                    auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
+                    ImGui_ImplPHI_RenderDrawData(drawdata, {cmd_writer.buffer_head(), commandsize});
                     cmd_writer.advance_cursor(commandsize);
                 }
 
@@ -563,13 +572,13 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             // present
             {
                 INC_RMT_TRACE_NAMED("Present");
-                backend.present();
+                backend.present(main_swapchain);
             }
 
             // map and memcpy from readback buffer of _next_ frame (or the one most distant from now)
             {
                 handle::resource const readback_buf
-                    = l_res.per_frame_resources[cc::wrapped_increment(l_res.current_frame_index, backend_config.num_backbuffers)].b_timestamp_readback;
+                    = l_res.per_frame_resources[cc::wrapped_increment(l_res.current_frame_index, msc_num_backbuffers)].b_timestamp_readback;
 
                 auto* const readback_map = backend.mapBuffer(readback_buf);
 
@@ -601,7 +610,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     for (auto const& pfr : l_res.per_frame_resources)
         backend.freeVariadic(pfr.cb_camdata, pfr.sb_modeldata, pfr.shaderview_render_vertex, pfr.b_timestamp_readback);
 
-    shutdown_imgui(imgui_implementation);
+    shutdown_imgui();
 
     backend.destroy();
     window.destroy();

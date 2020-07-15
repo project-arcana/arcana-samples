@@ -44,11 +44,12 @@ constexpr auto shader_code_clear = R"(
 APP("ui rendering")
 {
     // TODO: single line versions
+    pr::Context ctx;
+    ctx.initialize(pr::backend::vulkan);
+
     inc::da::SDLWindow window;
     window.initialize("structured interface");
-
-    pr::Context ctx;
-    ctx.initialize({window.getSdlWindow()}, pr::backend::vulkan);
+    auto swapchain = ctx.make_swapchain({window.getSdlWindow()}, window.getSize());
 
     auto vs_clear = ctx.make_shader(shader_code_clear, "main_vs", pr::shader::vertex);
     auto ps_clear = ctx.make_shader(shader_code_clear, "main_ps", pr::shader::pixel);
@@ -66,7 +67,7 @@ APP("ui rendering")
         auto tree = si::element_tree::from_record(r);
         si::compute_aabb_layout(tree);
 
-        auto backbuffer = ctx.acquire_backbuffer();
+        auto backbuffer = ctx.acquire_backbuffer(swapchain);
         auto frame = ctx.make_frame();
 
         {
@@ -75,7 +76,7 @@ APP("ui rendering")
             pass.draw(3);
         }
 
-        frame.present_after_submit(backbuffer);
+        frame.present_after_submit(backbuffer, swapchain);
         ctx.submit(cc::move(frame));
     }
 }

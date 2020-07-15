@@ -17,7 +17,7 @@
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
-#include <arcana-incubator/imgui/imgui_impl_pr.hh>
+#include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 #include "sample_util.hh"
@@ -26,23 +26,21 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
 {
     using namespace phi;
 
+    // backend init
+    backend.initialize(backend_config);
+
+    // window init
+    inc::da::initialize();
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, window_handle{window.getSdlWindow()});
+
+    // main swapchain creation
+    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
+    unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
+    phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
     // Imgui init
-    inc::ImGuiPhantasmImpl imgui_implementation;
-    {
-        ImGui::SetCurrentContext(ImGui::CreateContext(nullptr));
-        ImGui_ImplSDL2_Init(window.getSdlWindow());
-        window.setEventCallback(ImGui_ImplSDL2_ProcessEvent);
-
-        {
-            auto const ps_bin = get_shader_binary("imgui_ps", sample_config.shader_ending);
-            auto const vs_bin = get_shader_binary("imgui_vs", sample_config.shader_ending);
-            imgui_implementation.initialize(&backend, ps_bin.get(), ps_bin.size(), vs_bin.get(), vs_bin.size());
-        }
-    }
+    initialize_imgui(window, backend);
 
     handle::pipeline_state pso_clear;
 
@@ -57,7 +55,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
         shader_stages.push_back(arg::graphics_shader{{pixel_binary.get(), pixel_binary.size()}, shader_stage::pixel});
 
         arg::framebuffer_config fbconf;
-        fbconf.add_render_target(backend.getBackbufferFormat());
+        fbconf.add_render_target(msc_backbuf_format);
 
         pipeline_config config;
         config.cull = cull_mode::front;
@@ -93,7 +91,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
         if (window.clearPendingResize())
         {
             if (!window.isMinimized())
-                backend.onResize({window.getWidth(), window.getHeight()});
+                backend.onResize(main_swapchain, window.getSize());
         }
 
         if (!window.isMinimized())
@@ -110,7 +108,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
             }
 
 
-            if (backend.clearPendingResize())
+            if (backend.clearPendingResize(main_swapchain))
                 on_resize_func();
 
             cc::capped_vector<handle::command_list, 3> cmdlists;
@@ -119,7 +117,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
             {
                 command_stream_writer cmd_writer(thread_cmd_buffer_mem[0], lc_thread_buffer_size);
 
-                auto const ng_backbuffer = backend.acquireBackbuffer();
+                auto const ng_backbuffer = backend.acquireBackbuffer(main_swapchain);
 
                 if (!ng_backbuffer.is_valid())
                 {
@@ -135,7 +133,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
 
                 {
                     cmd::begin_render_pass cmd_brp;
-                    cmd_brp.viewport = backend.getBackbufferSize();
+                    cmd_brp.viewport = backend.getBackbufferSize(main_swapchain);
                     cmd_brp.add_backbuffer_rt(ng_backbuffer);
                     cmd_brp.set_null_depth_stencil();
                     cmd_writer.add_command(cmd_brp);
@@ -158,9 +156,10 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
                 ImGui::ShowDemoWindow(nullptr);
                 ImGui::Render();
 
+                ImGui::Render();
                 auto* const drawdata = ImGui::GetDrawData();
-                auto const commandsize = imgui_implementation.get_command_size(drawdata);
-                imgui_implementation.write_commands(ImGui::GetDrawData(), ng_backbuffer, cmd_writer.buffer_head(), commandsize);
+                auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
+                ImGui_ImplPHI_RenderDrawData(drawdata, {cmd_writer.buffer_head(), commandsize});
                 cmd_writer.advance_cursor(commandsize);
 
                 {
@@ -176,14 +175,14 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
             backend.submit(cmdlists);
 
             // present
-            backend.present();
+            backend.present(main_swapchain);
         }
     }
 
     backend.flushGPU();
     backend.free(pso_clear);
 
-    imgui_implementation.destroy();
+    ImGui_ImplPHI_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();
 }

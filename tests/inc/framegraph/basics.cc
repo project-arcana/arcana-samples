@@ -56,7 +56,7 @@ struct global_state
             tex_processing.init(ctx, "res/pr/demo_render/bin/preprocess/");
             auto frame = ctx.make_frame();
 
-            specular_intermediate = tex_processing.load_filtered_specular_map(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
+            specular_intermediate = tex_processing.load_filtered_specular_map_from_file(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
 
             tex_ibl_spec = cc::move(specular_intermediate.filtered_env);
             tex_ibl_irr = tex_processing.create_diffuse_irradiance_map(frame, tex_ibl_spec);
@@ -132,9 +132,9 @@ struct global_state
             auto [ps_blit, b3] = inc::pre::load_shader(ctx, "post/blit_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
             auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 1);
-            pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(ctx.get_backbuffer_format()));
+            pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::bgra8un));
 
-            pso_blit = ctx.make_pipeline_state(pr::graphics_pass(vs, ps_blit).arg(1, 0, 1), pr::framebuffer(ctx.get_backbuffer_format()));
+            pso_blit = ctx.make_pipeline_state(pr::graphics_pass(vs, ps_blit).arg(1, 0, 1), pr::framebuffer(pr::format::bgra8un));
         }
 
         ctx.flush();
@@ -316,7 +316,7 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
         },
         [=](blitout_data const& data, inc::frag::GraphBuilder::execute_context& ctx) {
             auto const t_hdr = ctx.get_target(data.hdr_in);
-            auto bb = ctx.frame().context().acquire_backbuffer();
+            auto bb = ctx.frame().context().acquire_backbuffer(app->main_swapchain);
 
             {
                 auto fb = ctx.frame().make_framebuffer(bb);
@@ -326,8 +326,8 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
                 fb.make_pass(state->pso_blit).bind(arg).draw(3);
             }
 
-            app->render_imgui(ctx.frame(), bb);
-            ctx.frame().present_after_submit(bb);
+//            app->render_imgui(ctx.frame(), bb);
+            ctx.frame().present_after_submit(bb, app->main_swapchain);
         });
 }
 }
@@ -347,9 +347,9 @@ TEST("framegraph basics", disabled)
 
 
     app.main_loop([&](float dt) {
-        if (app.context.clear_backbuffer_resize())
+        if (app.context.clear_backbuffer_resize(app.main_swapchain))
         {
-            auto const size = app.context.get_backbuffer_size();
+            auto const size = app.context.get_backbuffer_size(app.main_swapchain);
             fg_cache.freeAll();
             fg_builder.setBackbufferSize(size);
             // app.context.clear_shader_view_cache();
