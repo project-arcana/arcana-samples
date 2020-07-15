@@ -142,6 +142,8 @@ void dmr::DemoRenderer::destroy()
         mUniqueMeshes.clear();
         mTexProcessingPSOs.free();
 
+        mSwapchain.free();
+
         mContext.destroy();
         mWindow = nullptr;
     }
@@ -234,13 +236,13 @@ void dmr::DemoRenderer::execute(float dt)
         ImGui::Render();
         auto* const imgui_drawdata = ImGui::GetDrawData();
         auto const imgui_framesize = ImGui_ImplPHI_GetDrawDataCommandSize(imgui_drawdata);
+        {
+            auto fb = frame.build_framebuffer().loaded_target(backbuffer).make();
+            frame.begin_debug_label("imgui");
+            ImGui_ImplPHI_RenderDrawData(imgui_drawdata, {frame.write_raw_bytes(imgui_framesize), imgui_framesize});
 
-
-        frame.begin_debug_label("imgui");
-        ImGui_ImplPHI_RenderDrawData(imgui_drawdata, {frame.write_raw_bytes(imgui_framesize), imgui_framesize});
-
-        frame.end_debug_label();
-
+            frame.end_debug_label();
+        }
         frame.present_after_submit(backbuffer, mSwapchain);
         cf_post = mContext.compile(cc::move(frame));
     }
