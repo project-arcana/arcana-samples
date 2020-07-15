@@ -27,9 +27,18 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 {
     using namespace phi;
 
+    // backend init
+    backend.initialize(backend_config);
+
+    // window init
+    inc::da::initialize();
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
-    backend.initialize(backend_config, {window.getSdlWindow()});
+
+    // main swapchain creation
+    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
+    unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
+    phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
     if (!backend.isRaytracingEnabled())
     {
@@ -82,8 +91,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 resources.num_indices = unsigned(mesh_data.indices.size());
                 resources.num_vertices = unsigned(mesh_data.vertices.size());
 
-                auto const vert_size = mesh_data.get_vertex_size_bytes();
-                auto const ind_size = mesh_data.get_index_size_bytes();
+                auto const vert_size = mesh_data.vertices.size_bytes();
+                auto const ind_size = mesh_data.indices.size_bytes();
 
                 resources.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
                 resources.index_buffer = backend.createBuffer(ind_size, sizeof(int));
@@ -215,13 +224,13 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     auto const f_create_sized_resources = [&] {
         // Create RT write texture
-        resources.rt_write_texture = backend.createTexture(backend.getBackbufferFormat(), backbuf_size, 1, texture_dimension::t2d, 1, true);
+        resources.rt_write_texture = backend.createTexture(msc_backbuf_format, backbuf_size, 1, texture_dimension::t2d, 1, true);
 
         // Shader table setup
         {
             {
                 resource_view uav_sve;
-                uav_sve.init_as_tex2d(resources.rt_write_texture, backend.getBackbufferFormat());
+                uav_sve.init_as_tex2d(resources.rt_write_texture, msc_backbuf_format);
 
                 resource_view srv_sve;
                 srv_sve.init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
@@ -264,7 +273,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
     f_create_sized_resources();
 
     auto const on_resize_func = [&]() {
-        backbuf_size = backend.getBackbufferSize();
+        backbuf_size = backend.getBackbufferSize(main_swapchain);
 
         f_free_sized_resources();
         f_create_sized_resources();
@@ -284,7 +293,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         if (window.clearPendingResize())
         {
             if (!window.isMinimized())
-                backend.onResize({window.getWidth(), window.getHeight()});
+                backend.onResize(main_swapchain, window.getSize());
         }
 
         if (!window.isMinimized())
@@ -300,7 +309,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 LOG("frametime: {}ms", frametime);
             }
 
-            if (backend.clearPendingResize())
+            if (backend.clearPendingResize(main_swapchain))
                 on_resize_func();
 
             {
@@ -326,7 +335,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     writer.add_command(dcmd);
                 }
 
-                auto const backbuffer = backend.acquireBackbuffer();
+                auto const backbuffer = backend.acquireBackbuffer(main_swapchain);
 
                 {
                     cmd::transition_resources tcmd;
@@ -352,7 +361,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
 
             // present
-            backend.present();
+            backend.present(main_swapchain);
         }
     }
 

@@ -137,7 +137,7 @@ void dmr::postprocess_pass::init(pr::Context& ctx)
     auto [ps, b2] = inc::pre::load_shader(ctx, "post/tonemap_ps", pr::shader::pixel, "res/pr/demo_render/bin/");
 
     auto gp = pr::graphics_pass(vs, ps).arg(1, 0, 1);
-    pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(ctx.get_backbuffer_format()));
+    pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::bgra8un));
 }
 
 void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame, dmr::global_targets& targets, dmr::scene& scene, const pr::render_target& backbuffer)
