@@ -324,7 +324,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::vec3 position_modulos = tg::vec3(9, 6, 9);
     float camera_distance = 1.f;
 
-    constexpr size_t THREAD_BUFFER_SIZE = size_t(sizeof(cmd::draw) * (phi_test::num_instances / phi_test::num_render_threads)) + 1024;
+#define THREAD_BUFFER_SIZE (size_t(sizeof(cmd::draw) * (phi_test::num_instances / phi_test::num_render_threads)) + 1024)
 
     cc::array<std::byte*, phi_test::num_render_threads + 1> thread_cmd_buffer_mem;
 
