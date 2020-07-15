@@ -56,7 +56,8 @@ struct global_state
             tex_processing.init(ctx, "res/pr/demo_render/bin/preprocess/");
             auto frame = ctx.make_frame();
 
-            specular_intermediate = tex_processing.load_filtered_specular_map_from_file(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
+            specular_intermediate
+                = tex_processing.load_filtered_specular_map_from_file(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
 
             tex_ibl_spec = cc::move(specular_intermediate.filtered_env);
             tex_ibl_irr = tex_processing.create_diffuse_irradiance_map(frame, tex_ibl_spec);
@@ -326,7 +327,7 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
                 fb.make_pass(state->pso_blit).bind(arg).draw(3);
             }
 
-//            app->render_imgui(ctx.frame(), bb);
+            //            app->render_imgui(ctx.frame(), bb);
             ctx.frame().present_after_submit(bb, app->main_swapchain);
         });
 }
