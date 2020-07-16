@@ -43,12 +43,8 @@ constexpr auto shader_code_clear = R"(
 
 APP("ui rendering")
 {
-    // TODO: single line versions
-    pr::Context ctx;
-    ctx.initialize(pr::backend::vulkan);
-
-    inc::da::SDLWindow window;
-    window.initialize("structured interface");
+    auto window = inc::da::SDLWindow("structured interface");
+    auto ctx = pr::Context(pr::backend::vulkan);
     auto swapchain = ctx.make_swapchain({window.getSdlWindow()}, window.getSize());
 
     auto vs_clear = ctx.make_shader(shader_code_clear, "main_vs", pr::shader::vertex);
