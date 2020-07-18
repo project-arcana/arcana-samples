@@ -97,3 +97,16 @@ TEST("cc::stream_ref<char>")
         CHECK(s.to_string() == "abcdefghijklm");
     }
 }
+
+TEST("cc::stream_ref<char> - char array")
+{
+    auto foo = [](cc::stream_ref<char> s) {
+        char v[] = {char(10), char(0), char(17)};
+        s << v;
+    };
+
+    cc::vector<char> v;
+    foo(cc::make_stream_ref<char>([&](char c) { v.push_back(c); }));
+
+    CHECK(v == cc::vector<char>{char(10), char(0), char(17)});
+}
