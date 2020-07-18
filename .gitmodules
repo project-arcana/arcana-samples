@@ -55,3 +55,6 @@
 [submodule "extern/resource-system"]
 	path = extern/resource-system
 	url = git@github.com:project-arcana/resource-system.git
+[submodule "extern/babel-serializer"]
+	path = extern/babel-serializer
+	url = git@github.com:project-arcana/babel-serializer.git

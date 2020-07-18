@@ -1,7 +1,11 @@
 #include <nexus/test.hh>
 
+#include <clean-core/span.hh>
 #include <clean-core/string_view.hh>
 #include <clean-core/vector.hh>
+
+static_assert(cc::is_contiguous_range<cc::string_view, char const>);
+static_assert(cc::is_contiguous_range<cc::string_view, void const>);
 
 TEST("cc::string_view")
 {
@@ -87,4 +91,35 @@ TEST("cc::string_view split")
     split("ab c ", {"ab", "c"});
 
     CHECK(cc::vector<cc::string>(cc::string_view("barxolite").split([](char c) { return c == 'a' || c == 'x'; })) == cc::vector<cc::string>{"b", "r", "olite"});
+}
+
+TEST("cc::string_view span interop")
+{
+    cc::string_view sv = "hello";
+    cc::span<char const> ss;
+    ss = sv;
+    CHECK(cc::string(ss) == "hello");
+
+    ss = cc::string_view("world");
+    CHECK(cc::string(ss) == "world");
+
+    auto sss0 = cc::span(sv);
+    CHECK(sss0.size() == 5);
+
+    auto sss1 = cc::span<char const>(sv);
+    CHECK(sss1.size() == 5);
+}
+
+TEST("cc::string_view from array")
+{
+    char v[] = {'a', 'b', '\0', 'd', 'e'};
+    auto sv = cc::string_view(v);
+    auto ss = cc::span(v);
+    auto ssv = cc::string_view(ss);
+    auto svs = cc::span(sv);
+
+    CHECK(sv.size() == 2);
+    CHECK(ss.size() == 5);
+    CHECK(ssv.size() == 5);
+    CHECK(svs.size() == 2);
 }

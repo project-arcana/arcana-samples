@@ -23,6 +23,8 @@ TEST("cc::to_string basics")
     CHECK(cc::to_string('z') == "z");
     CHECK(cc::to_string(nullptr) == "nullptr");
     CHECK(cc::to_string((void*)0x1234) == "0x0000000000001234");
+    CHECK(cc::to_string(std::byte(1)) == "01");
+    CHECK(cc::to_string(std::byte(255)) == "FF");
 }
 
 namespace

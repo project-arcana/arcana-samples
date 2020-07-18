@@ -79,6 +79,9 @@ add_subdirectory(extern/phantasm-renderer)
 # UI
 add_subdirectory(extern/structured-interface)
 
+# serialization
+add_subdirectory(extern/babel-serializer)
+
 # TODO: other libs
 
 
@@ -217,6 +220,7 @@ foreach(TARGET_NAME
     resource-system
     clean-ranges
     phantasm-hardware-interface
+    babel-serializer
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
 endforeach()

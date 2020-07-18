@@ -95,8 +95,8 @@ MONTE_CARLO_TEST("cc::array + fwd_array mct")
                 c = v;
         });
 
-        addOp("size", &array_t::size);
-        addOp("empty", &array_t::empty);
+        addOp("size", [](array_t const& a) { return a.size(); });
+        addOp("empty", [](array_t const& a) { return a.empty(); });
     };
 
     addType(cc::array<int>());

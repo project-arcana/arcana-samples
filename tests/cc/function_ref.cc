@@ -31,6 +31,9 @@ TEST("cc::function_ref")
     x = 5;
     CHECK(f(1, 2) == 8);
 
+    f = [](int a, int b) { return a * b; }; // careful, lambda lifetime
+    CHECK(f(3, 4) == 12);
+
     test_callable tc;
     f = tc;
     CHECK(f(2, 3) == 6);

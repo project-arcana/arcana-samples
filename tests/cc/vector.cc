@@ -217,6 +217,8 @@ MONTE_CARLO_TEST("cc::vector mct")
         using vector_t = decltype(obj);
         using T = std::decay_t<decltype(obj[0])>;
 
+        auto is_empty = [](vector_t const& s) { return s.empty(); };
+
         addOp("default ctor", [] { return vector_t(); });
         addOp("move ctor", [](vector_t const& s) { return cc::move(vector_t(s)); });
         addOp("move assignment", [](vector_t& a, vector_t const& b) { a = vector_t(b); });
@@ -261,12 +263,12 @@ MONTE_CARLO_TEST("cc::vector mct")
 
 
         if constexpr (!is_capped_vector<vector_t>::value)
-            addOp("shrink_to_fit", &vector_t::shrink_to_fit).make_optional();
-        addOp("clear", &vector_t::clear);
+            addOp("shrink_to_fit", [](vector_t& s) { s.shrink_to_fit(); }).make_optional();
+        addOp("clear", [](vector_t& s) { s.clear(); });
 
-        addOp("size", &vector_t::size);
-        addOp("front", [](vector_t const& s) { return s.front(); }).when_not(&vector_t::empty);
-        addOp("back", [](vector_t const& s) { return s.back(); }).when_not(&vector_t::empty);
+        addOp("size", [](vector_t const& s) { return s.size(); });
+        addOp("front", [](vector_t const& s) { return s.front(); }).when_not(is_empty);
+        addOp("back", [](vector_t const& s) { return s.back(); }).when_not(is_empty);
     };
 
     auto testType = [&](auto obj) {
@@ -369,4 +371,6 @@ TEST("cc::vector interior references")
     fs.push_back({});
     for (auto i = 0; i < 100; ++i)
         fs.push_back(fs[0]);
+
+    CHECK(true); // silence warning
 }

@@ -11,7 +11,6 @@ inline constexpr auto num_render_threads = 8;
 
 inline auto const get_backend_config = [] {
     phi::backend_config config;
-    config.present = phi::present_mode::allow_tearing;
     config.adapter = phi::adapter_preference::highest_vram;
     config.num_threads = td::is_scheduler_alive() ? td::get_current_num_threads() : 1;
 

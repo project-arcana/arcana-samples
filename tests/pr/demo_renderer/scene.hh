@@ -79,7 +79,7 @@ struct scene
     unsigned num_backbuffers = 0;
     unsigned current_frame_index = 0;
 
-    void init(pr::Context& ctx, unsigned max_num_instances);
+    void init(pr::Context& ctx, unsigned num_backbuffers, unsigned max_num_instances);
 
     per_frame_resource_t& last_frame() { return per_frame_resources[cc::wrapped_decrement(current_frame_index, num_backbuffers)]; }
     per_frame_resource_t& current_frame() { return per_frame_resources[current_frame_index]; }

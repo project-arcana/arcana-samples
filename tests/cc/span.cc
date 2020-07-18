@@ -1,6 +1,9 @@
 #include <nexus/test.hh>
 
+#include <cstdint>
+
 #include <clean-core/span.hh>
+#include <clean-core/string_view.hh>
 #include <clean-core/vector.hh>
 
 #include <clean-ranges/range.hh>
@@ -54,6 +57,7 @@ TEST("cc::span")
 
     s = v;
     CHECK(s.size() == 3);
+    CHECK(cr::range(s) == cc::vector{1, 2, 3});
 
     s = s.first(2);
     CHECK(cr::range(s) == cc::vector{1, 2});
@@ -68,4 +72,91 @@ TEST("cc::span")
     CHECK(wb.size() == 3 * sizeof(int));
     wb[3] = cc::byte(8);
     CHECK(v[0] == 1 + (8 << 24));
+}
+
+TEST("byte_span")
+{
+    {
+        uint32_t x = 0x12345678;
+        auto s = cc::as_byte_span(x);
+        CHECK(s.size() == 4);
+        CHECK(s[0] == std::byte(0x78));
+        CHECK(s[1] == std::byte(0x56));
+        CHECK(s[2] == std::byte(0x34));
+        CHECK(s[3] == std::byte(0x12));
+    }
+    {
+        char c = 'A';
+        auto s = cc::as_byte_span(c);
+        CHECK(s.size() == 1);
+        CHECK(s[0] == std::byte('A'));
+    }
+    {
+        char c[] = {'A', 'B', 'C'};
+        auto s = cc::as_byte_span(c);
+        CHECK(s.size() == 3);
+        CHECK(s[0] == std::byte('A'));
+        CHECK(s[1] == std::byte('B'));
+        CHECK(s[2] == std::byte('C'));
+        s[1] = std::byte('d');
+        CHECK(c[1] == 'd');
+    }
+    {
+        cc::vector<uint32_t> v = {1, 2, 3, 4, 5, 6};
+        auto s = cc::as_byte_span(v);
+        CHECK(s.size() == 4 * 6);
+        CHECK(s[0] == std::byte(1));
+        CHECK(s[1] == std::byte(0));
+        CHECK(s[4] == std::byte(2));
+    }
+    {
+        cc::string_view sv = "hello";
+        auto s = cc::as_byte_span(sv);
+        CHECK(s.size() == 5);
+        CHECK(s.back() == std::byte('o'));
+    }
+    {
+        struct
+        {
+            char a = 'A';
+            char b = 'B';
+            short s = 1;
+        } f;
+        auto s = cc::as_byte_span(f);
+        CHECK(s.size() == 4);
+        CHECK(s[0] == std::byte('A'));
+        CHECK(s[1] == std::byte('B'));
+        CHECK(s[2] == std::byte(1));
+        CHECK(s[3] == std::byte(0));
+    }
+}
+
+TEST("cc::span deductions")
+{
+    {
+        cc::vector<int> v;
+        auto s = cc::span(v);
+        static_assert(std::is_same_v<decltype(s.front()), int&>);
+    }
+    {
+        cc::vector<int> const v;
+        auto s = cc::span(v);
+        static_assert(std::is_same_v<decltype(s.front()), int const&>);
+    }
+    {
+        auto s = cc::span(cc::vector<int>{});
+        static_assert(std::is_same_v<decltype(s.front()), int&>);
+    }
+    {
+        cc::string_view sv;
+        auto s = cc::span(sv);
+        static_assert(std::is_same_v<decltype(s.front()), char const&>);
+    }
+    {
+        auto s = cc::span(cc::string_view{});
+        static_assert(std::is_same_v<decltype(s.front()), char const&>);
+    }
+
+    // this test is used for static asserts
+    CHECK(true);
 }

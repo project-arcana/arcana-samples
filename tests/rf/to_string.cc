@@ -42,6 +42,8 @@ TEST("rf::to_string basics")
     CHECK(rf::to_string('z') == "z");
     CHECK(rf::to_string(nullptr) == "nullptr");
     CHECK(rf::to_string((void*)0x1234) == "0x0000000000001234");
+    CHECK(rf::to_string(std::byte(1)) == "01");
+    CHECK(rf::to_string(std::byte(255)) == "FF");
 
     // custom to_string
     CHECK(rf::to_string(foo{}) == "foo");

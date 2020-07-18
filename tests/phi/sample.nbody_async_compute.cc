@@ -2,6 +2,7 @@
 
 #include <atomic>
 
+#include <clean-core/capped_array.hh>
 #include <clean-core/vector.hh>
 
 #include <typed-geometry/tg.hh>
@@ -19,7 +20,7 @@
 #include <arcana-incubator/device-abstraction/input.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 
-#include <arcana-incubator/imgui/imgui_impl_pr.hh>
+#include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 #include <arcana-incubator/phi-util/growing_writer.hh>
 
@@ -77,18 +78,26 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
     using namespace phi;
 
     // Basic application init
+    // backend init
+    backend.initialize(config);
+
+    // window init
+    inc::da::initialize();
     inc::da::SDLWindow window;
     window.initialize("phi sample - async compute N-body simulation");
-    backend.initialize(config, window_handle{window.getSdlWindow()});
-    inc::ImGuiPhantasmImpl imgui_impl;
-    initialize_imgui(imgui_impl, window, backend);
+
+    // main swapchain creation
+    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
+    unsigned const num_frames = backend.getNumBackbuffers(main_swapchain);
+    phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
+
+    // Imgui init
+    initialize_imgui(window, backend);
+
     inc::da::input_manager input;
     input.initialize();
     inc::da::smooth_fps_cam camera;
     camera.setup_default_inputs(input);
-
-    // constants
-    unsigned const num_frames = backend.getNumBackbuffers();
 
     float const num_async_contexts_sqrt = std::sqrt(float(gc_num_threads));
     tg::isize2 num_viewports = {int(std::ceil(num_async_contexts_sqrt)), int(std::ceil(num_async_contexts_sqrt))};
@@ -156,7 +165,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             auto const vert_attrs = cc::array{vertex_attribute_info{"COLOR", 0, format::rgba32f}};
 
             arg::framebuffer_config fbconf;
-            fbconf.render_targets.push_back(render_target_config{backend.getBackbufferFormat(),
+            fbconf.render_targets.push_back(render_target_config{msc_backbuf_format,
                                                                  true,
                                                                  {
                                                                      blend_factor::src_alpha, blend_factor::one, blend_op::op_add, // color
@@ -280,7 +289,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
     tg::isize2 viewport_size = {};
 
     auto const f_on_resize = [&] {
-        auto const newsize = backend.getBackbufferSize();
+        auto const newsize = backend.getBackbufferSize(main_swapchain);
 
         aspect_ratio = newsize.width / float(newsize.height);
         viewport_size = {newsize.width / num_viewports.width, newsize.height / num_viewports.height};
@@ -307,7 +316,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         if (window.clearPendingResize())
         {
             if (!window.isMinimized())
-                backend.onResize({window.getWidth(), window.getHeight()});
+                backend.onResize(main_swapchain, window.getSize());
         }
 
         if (!window.isMinimized())
@@ -318,7 +327,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             frame_index = cc::wrapped_increment(frame_index, num_frames);
             atob = !atob;
 
-            if (backend.clearPendingResize())
+            if (backend.clearPendingResize(main_swapchain))
                 f_on_resize();
 
             // camera
@@ -368,7 +377,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             {
                 cmdlist_render.reset();
 
-                auto backbuffer = backend.acquireBackbuffer();
+                auto backbuffer = backend.acquireBackbuffer(main_swapchain);
                 if (!backbuffer.is_valid())
                     continue;
 
@@ -415,9 +424,9 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
                 ImGui::Render();
                 auto* const drawdata = ImGui::GetDrawData();
-                auto const commandsize = imgui_impl.get_command_size(drawdata);
+                auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
                 cmdlist_render.accomodate(commandsize);
-                imgui_impl.write_commands(ImGui::GetDrawData(), backbuffer, cmdlist_render.raw_writer().buffer_head(), commandsize);
+                ImGui_ImplPHI_RenderDrawData(drawdata, {cmdlist_render.raw_writer().buffer_head(), commandsize});
                 cmdlist_render.raw_writer().advance_cursor(commandsize);
 
                 tcmd.transitions.clear();
@@ -433,10 +442,10 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
             backend.waitFenceGPU(res.f_global, frame_counter, queue_type::direct);
             backend.submit(cc::span{cl_render}, queue_type::direct);
-            backend.present();
+            backend.present(main_swapchain);
         }
     }
 
     backend.flushGPU();
-    shutdown_imgui(imgui_impl);
+    shutdown_imgui();
 }
