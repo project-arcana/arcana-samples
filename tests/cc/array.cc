@@ -43,7 +43,7 @@ TEST("cc::alloc_array")
 
     CHECK(tg::sum(a) == 6);
 
-    cc::alloc_array<int> b(cc::span{a});
+    cc::alloc_array<int> b(cc::span<int>{a});
     CHECK(a == b);
 
     b[1] = 7;

@@ -314,13 +314,13 @@ MONTE_CARLO_TEST("cc::alloc_vector mct")
             if constexpr (std::is_copy_assignable_v<vector_t>)
                 return cc::move(vector_t(s));
             else
-                return cc::move(vector_t(cc::span{s}));
+                return cc::move(vector_t(cc::span<T const>{s}));
         });
         addOp("move assignment", [](vector_t& a, vector_t const& b) {
             if constexpr (std::is_copy_assignable_v<vector_t>)
                 a = vector_t(b);
             else
-                a = vector_t(cc::span{b});
+                a = vector_t(cc::span<T const>{b});
         });
 
         addOp("randomize", [&](tg::rng& rng, vector_t& s) {
