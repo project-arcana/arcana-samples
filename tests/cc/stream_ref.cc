@@ -71,7 +71,7 @@ TEST("cc::stream_ref<char>")
         s << 'a';
         char v[] = {'b', 'c'};
         s << v;
-        s << "def";
+        s << cc::string_view("def"); // NOTE: string literal directly would add a null char!
         s << cc::string_view("gh");
         s << cc::string("ijk");
         cc::string ss = "l";
@@ -94,6 +94,39 @@ TEST("cc::stream_ref<char>")
     {
         cc::string_stream s;
         foo(cc::make_stream_ref<char>(s));
+        CHECK(s.to_string() == "abcdefghijklm");
+    }
+}
+
+TEST("cc::string_stream_ref")
+{
+    auto foo = [](cc::string_stream_ref s) {
+        s << 'a';
+        char v[] = {'b', 'c', '\0', 'x', 'z'}; // NOTE: must be null-terminated!
+        s << v;
+        s << "def";
+        s << cc::string_view("gh");
+        s << cc::string("ijk");
+        cc::string ss = "l";
+        s << ss;
+        cc::string_view sv = "m";
+        s << sv;
+    };
+
+    // make_stream_ref
+    {
+        cc::string s;
+        foo(cc::make_string_stream_ref([&s](char c) { s += c; }));
+        CHECK(s == "abcdefghijklm");
+    }
+    {
+        cc::string s;
+        foo(cc::make_string_stream_ref([&s](cc::span<char const> ii) { s += ii; }));
+        CHECK(s == "abcdefghijklm");
+    }
+    {
+        cc::string_stream s;
+        foo(cc::make_string_stream_ref(s));
         CHECK(s.to_string() == "abcdefghijklm");
     }
 }
