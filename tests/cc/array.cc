@@ -3,8 +3,8 @@
 
 #include <array>
 
-#include <clean-core/array.hh>
 #include <clean-core/alloc_array.hh>
+#include <clean-core/array.hh>
 #include <clean-core/assert.hh>
 #include <clean-core/capped_array.hh>
 #include <clean-core/fwd_array.hh>
