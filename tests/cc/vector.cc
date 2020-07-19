@@ -3,6 +3,7 @@
 
 #include <vector>
 
+#include <clean-core/alloc_vector.hh>
 #include <clean-core/capped_vector.hh>
 #include <clean-core/vector.hh>
 
@@ -293,6 +294,99 @@ MONTE_CARLO_TEST("cc::vector mct")
     testType(int{});
 }
 
+MONTE_CARLO_TEST("cc::alloc_vector mct")
+{
+    // almost the same as the MCT above, but missing copy ctors/assign ops
+
+    auto const make_int = [](tg::rng& rng) { return uniform(rng, -10, 10); };
+
+    addOp("gen int", make_int);
+
+    auto const addType = [&](auto obj) {
+        using vector_t = decltype(obj);
+        using T = std::decay_t<decltype(obj[0])>;
+
+        auto is_empty = [](vector_t const& s) { return s.empty(); };
+
+        addOp("default ctor", [] { return vector_t(); });
+
+        addOp("move ctor", [](vector_t const& s) {
+            if constexpr (std::is_copy_assignable_v<vector_t>)
+                return cc::move(vector_t(s));
+            else
+                return cc::move(vector_t(cc::span<T const>{s}));
+        });
+        addOp("move assignment", [](vector_t& a, vector_t const& b) {
+            if constexpr (std::is_copy_assignable_v<vector_t>)
+                a = vector_t(b);
+            else
+                a = vector_t(cc::span<T const>{b});
+        });
+
+        addOp("randomize", [&](tg::rng& rng, vector_t& s) {
+            auto cnt = uniform(rng, 0, 30);
+            s.resize(cnt);
+            for (auto i = 0; i < cnt; ++i)
+                s[i] = T(make_int(rng));
+        });
+
+        if constexpr (!is_capped_vector<vector_t>::value)
+            addOp("reserve", [](tg::rng& rng, vector_t& s) { s.reserve(uniform(rng, 0, 30)); }).make_optional();
+        addOp("resize", [](tg::rng& rng, vector_t& s) { s.resize(uniform(rng, 0, 30)); });
+        addOp("resize + int", [](tg::rng& rng, vector_t& s, int c) { s.resize(uniform(rng, 0, 30), c); });
+
+        addOp("random replace", [&](tg::rng& rng, vector_t& s) { random_choice(rng, s) = make_int(rng); }).when([](tg::rng&, vector_t const& s) {
+            return s.size() > 0;
+        });
+
+        addOp("push_back", [](vector_t& s, int c) { s.push_back(c); });
+        addOp("emplace_back", [](vector_t& s, int c) { s.emplace_back(c); });
+
+        addOp("op[]", [](tg::rng& rng, vector_t const& s) { return random_choice(rng, s); }).when([](tg::rng&, vector_t const& s) {
+            return s.size() > 0;
+        });
+        addOp("data[]", [](tg::rng& rng, vector_t const& s) {
+            return s.data()[uniform(rng, 0, int(s.size()) - 1)];
+        }).when([](tg::rng&, vector_t const& s) { return s.size() > 0; });
+
+        addOp("fill", [](vector_t& s, int v) {
+            for (auto& c : s)
+                c = v;
+        });
+
+
+        if constexpr (!is_capped_vector<vector_t>::value)
+            addOp("shrink_to_fit", [](vector_t& s) { s.shrink_to_fit(); }).make_optional();
+        addOp("clear", [](vector_t& s) { s.clear(); });
+
+        addOp("size", [](vector_t const& s) { return s.size(); });
+        addOp("front", [](vector_t const& s) { return s.front(); }).when_not(is_empty);
+        addOp("back", [](vector_t const& s) { return s.back(); }).when_not(is_empty);
+    };
+
+    auto testType = [&](auto obj) {
+        using T = decltype(obj);
+
+        addType(std::vector<T>());
+        addType(cc::alloc_vector<T>());
+        addType(cc::vector<T>());
+
+        testEquivalence([](std::vector<T> const& a, cc::alloc_vector<T> const& b) {
+            REQUIRE(a.size() == b.size());
+            for (auto i = 0; i < int(a.size()); ++i)
+                REQUIRE(a[i] == b[i]);
+        });
+
+        testEquivalence([](cc::vector<T> const& a, cc::alloc_vector<T> const& b) {
+            REQUIRE(a.size() == b.size());
+            for (auto i = 0; i < int(a.size()); ++i)
+                REQUIRE(a[i] == b[i]);
+        });
+    };
+
+    testType(int{});
+}
+
 TEST("cc::vector remove")
 {
     cc::vector<int> v = {3, 2, 1, 3};
@@ -331,7 +425,7 @@ TEST("cc::vector remove")
     CHECK(v == cc::vector{3, 4});
 }
 
-TEST("cc::vector interior references")
+TEST("cc::vector/alloc_vector interior references")
 {
     struct foo
     {
@@ -366,11 +460,42 @@ TEST("cc::vector interior references")
         }
         ~foo() { is_destroyed = true; }
     };
+    {
+        cc::vector<foo> fs;
+        fs.push_back({});
+        for (auto i = 0; i < 100; ++i)
+            fs.push_back(fs[0]);
+    }
 
-    cc::vector<foo> fs;
-    fs.push_back({});
-    for (auto i = 0; i < 100; ++i)
-        fs.push_back(fs[0]);
+    auto const f_test_alloc_vector = [](cc::allocator* alloc) {
+        cc::alloc_vector<foo> afs(alloc);
+        afs.push_back({});
+        for (auto i = 0; i < 100; ++i)
+            afs.push_back(afs[0]);
+    };
 
-    CHECK(true); // silence warning
+    f_test_alloc_vector(cc::system_allocator);
+
+    std::byte buffer[sizeof(foo) * 500];
+    cc::linear_allocator linalloc(buffer);
+
+    f_test_alloc_vector(&linalloc);
+
+    CHECK(true); // this test has the asserts in foo instead of checks
+}
+
+TEST("cc::alloc_vector realloc")
+{
+    // this test checks if realloc is correctly used when growing an alloc_vector with a trivially copyable T
+    // this way, it only ever requires as much space as the maximum size, plus some margin for alignment / headers
+
+    std::byte buffer[sizeof(int) * 520]; // slightly more space for stack alloc headers
+    cc::stack_allocator stackalloc(buffer);
+
+    cc::alloc_vector<int> vec(&stackalloc);
+
+    for (auto i = 0; i < 500; ++i)
+        vec.push_back(i);
+
+    CHECK(true); // this test has the asserts in stack_allocator / alloc_vector instead of checks
 }
