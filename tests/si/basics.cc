@@ -36,6 +36,8 @@ TEST("si basics", disabled)
     si::debug::print(r);
     si::debug::print(si::element_tree::from_record(r));
 
+    ui.update(r, [](si::element_tree const&, si::element_tree&& ui) { return cc::move(ui); });
+
     CHECK(ui.has("press"));
 
     // internal structure concept
