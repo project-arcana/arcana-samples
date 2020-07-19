@@ -332,7 +332,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
             // camera
             {
-                camera.update_default_inputs(window.getSdlWindow(), input, frametime);
+                camera.update_default_inputs(window, input, frametime);
 
                 auto const view = tg::look_at_directx(camera.physical.position, camera.physical.forward, {0, 1, 0});
 

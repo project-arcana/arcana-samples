@@ -1,5 +1,7 @@
 #include <nexus/app.hh>
 
+#include <typed-geometry/tg.hh>
+
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 
