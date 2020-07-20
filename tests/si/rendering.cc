@@ -11,6 +11,7 @@
 #include <structured-interface/si.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
+#include <arcana-incubator/device-abstraction/input.hh>
 
 namespace
 {
@@ -104,6 +105,21 @@ APP("ui rendering")
     si::gui ui;
     si::Simple2DMerger ui_merger;
 
+    // init input
+    inc::da::input_manager input;
+    input.initialize(100);
+
+    enum e_input : uint64_t
+    {
+        action_mouse_x = 1000,
+        action_mouse_y,
+        action_mouse_left,
+    };
+
+    input.bindMouseAxis(action_mouse_x, 0);
+    input.bindMouseAxis(action_mouse_y, 1);
+    input.bindMouseButton(action_mouse_left, inc::da::mouse_button::mb_left);
+
     // upload font data
     // TODO: mipmaps
     auto const& font = ui_merger.get_font_atlas();
@@ -126,18 +142,40 @@ APP("ui rendering")
         ctx.flush(); // needed?
     }
 
+    auto frame = 0;
+    auto clicks = 0;
+
     while (!window.isRequestingClose())
     {
-        window.pollEvents();
+        // input and polling
+        {
+            input.updatePrePoll();
+
+            SDL_Event e;
+            while (window.pollSingleEvent(e))
+                input.processEvent(e);
+
+            input.updatePostPoll();
+        }
+
+        ++frame;
+
+        auto mouse = input.getMousePositionRelative();
 
         // record ui
         auto r = ui.record([&] {
-            si::button("press me");
+            if (si::button("press me"))
+                ++clicks;
             si::text("i'm a test text.");
+            si::text("frame: {}", frame);
+            si::text("clicks: {}", clicks);
+            si::text("mouse: {}, {}", mouse.x, mouse.y);
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
         ui_merger.viewport = {{0, 0}, {float(window.getWidth()), float(window.getHeight())}};
+        ui_merger.mouse_pos = tg::pos2(mouse);
+        ui_merger.is_lmb_down = input.get(action_mouse_left).isActive();
         ui.update(r, ui_merger);
 
         // upload ui data
@@ -195,6 +233,9 @@ APP("ui rendering")
 
         frame.present_after_submit(backbuffer, swapchain);
         ctx.submit(cc::move(frame));
+
+        // less latency
+        ctx.flush();
     }
 
     // make sure nothing is used anymore
