@@ -144,6 +144,8 @@ APP("ui rendering")
 
     auto frame = 0;
     auto clicks = 0;
+    auto slider_val = 0;
+    bool use_frame_counter = true;
 
     while (!window.isRequestingClose())
     {
@@ -158,7 +160,8 @@ APP("ui rendering")
             input.updatePostPoll();
         }
 
-        ++frame;
+        if (use_frame_counter)
+            ++frame;
 
         auto mouse = input.getMousePositionRelative();
 
@@ -169,7 +172,11 @@ APP("ui rendering")
             si::text("i'm a test text.");
             si::text("frame: {}", frame);
             si::text("clicks: {}", clicks);
+            si::text("slider_val: {}", slider_val);
             si::text("mouse: {}, {}", mouse.x, mouse.y);
+
+            si::checkbox("frame counter", use_frame_counter);
+            si::slider("int slider", slider_val, -10, 10);
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
