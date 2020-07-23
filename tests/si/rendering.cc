@@ -144,8 +144,9 @@ APP("ui rendering")
 
     auto frame = 0;
     auto clicks = 0;
-    auto slider_val = 0;
-    bool use_frame_counter = true;
+    auto slider_vali = 0;
+    auto slider_valf = 0.f;
+    bool use_frame_counter = false;
 
     while (!window.isRequestingClose())
     {
@@ -172,11 +173,12 @@ APP("ui rendering")
             si::text("i'm a test text.");
             si::text("frame: {}", frame);
             si::text("clicks: {}", clicks);
-            si::text("slider_val: {}", slider_val);
+            si::text("slider_vals: {} and {}", slider_vali, slider_valf);
             si::text("mouse: {}, {}", mouse.x, mouse.y);
 
             si::checkbox("frame counter", use_frame_counter);
-            si::slider("int slider", slider_val, -10, 10);
+            si::slider("int slider", slider_vali, -10, 10);
+            si::slider("float slider", slider_valf, -10.f, 10.f);
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
