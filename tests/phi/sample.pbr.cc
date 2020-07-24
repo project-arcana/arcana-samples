@@ -13,7 +13,7 @@
 #include <phantasm-hardware-interface/detail/byte_util.hh>
 #include <phantasm-hardware-interface/detail/format_size.hh>
 #include <phantasm-hardware-interface/detail/unique_buffer.hh>
-#include <phantasm-hardware-interface/gpu_info.hh>
+#include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <phantasm-renderer/reflection/vertex_attributes.hh>
