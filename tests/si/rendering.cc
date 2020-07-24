@@ -179,6 +179,12 @@ APP("ui rendering")
             si::checkbox("frame counter", use_frame_counter);
             si::slider("int slider", slider_vali, -10, 10);
             si::slider("float slider", slider_valf, -10.f, 10.f);
+
+            if (auto w = si::window("test window"))
+            {
+                si::text("i'm in a test window!");
+                si::slider("with another slider", slider_vali, -20, 100);
+            }
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
