@@ -79,6 +79,14 @@ TEST("json basics")
         auto vB = "{\"de\":32,\"abc\":17}";
         CHECK(babel::json::to_string(m) == cc::any_of(vA, vB));
     }
+    {
+        cc::map<int, int> m;
+        m[33] = 17;
+        m[-24] = 32;
+        auto vA = "[[33,17],[-24,32]]";
+        auto vB = "[[-24,32],[33,17]]";
+        CHECK(babel::json::to_string(m) == cc::any_of(vA, vB));
+    }
 
     // indent
     {
@@ -146,6 +154,20 @@ TEST("json basics")
                   "  \"de\": 32,\n"
                   "  \"abc\": 17\n"
                   "}";
+        CHECK(babel::json::to_string(m, babel::json::write_config{2}) == cc::any_of(vA, vB));
+    }
+    {
+        cc::map<int, int> m;
+        m[7] = 17;
+        m[9] = 32;
+        auto vA = "[\n"
+                  "  [7, 17],\n"
+                  "  [9, 32]\n"
+                  "]";
+        auto vB = "[\n"
+                  "  [9, 32],\n"
+                  "  [7, 17]\n"
+                  "]";
         CHECK(babel::json::to_string(m, babel::json::write_config{2}) == cc::any_of(vA, vB));
     }
 }
@@ -267,6 +289,7 @@ TEST("json parsing")
     CHECK(babel::json::read<foo>("{\"x\": -12,\"b\":true}").x == -12);
     CHECK(babel::json::read<foo>("{\"x\": -12,\"b\":true}").b == true);
     CHECK(babel::json::read<cc::map<cc::string, int>>("{\"a\": 3,\"b\":7}") == cc::map<cc::string, int>{{"a", 3}, {"b", 7}});
+    CHECK(babel::json::read<cc::map<int, int>>("[[1,3],[2,8]]") == cc::map<int, int>{{1, 3}, {2, 8}});
     CHECK(babel::json::read<cc::optional<int>>("null").has_value() == false);
     CHECK(babel::json::read<cc::optional<int>>("17").has_value());
     CHECK(babel::json::read<cc::optional<int>>("17").value() == 17);
