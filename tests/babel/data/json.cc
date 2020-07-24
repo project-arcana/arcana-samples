@@ -21,6 +21,18 @@ constexpr void introspect(I&& i, foo& v)
     i(v.x, "x");
     i(v.b, "b");
 }
+
+enum enumA
+{
+    valA,
+    valB
+};
+enum class enumB
+{
+    valA,
+    valB,
+    valC
+};
 }
 
 TEST("json basics")
@@ -43,6 +55,10 @@ TEST("json basics")
         CHECK(babel::json::to_string('a', cfg) == "\"a\"");
         CHECK(babel::json::to_string("hello", cfg) == "\"hello\"");
         CHECK(babel::json::to_string(cc::string("hello"), cfg) == "\"hello\"");
+        CHECK(babel::json::to_string(valA, cfg) == "0");
+        CHECK(babel::json::to_string(valB, cfg) == "1");
+        CHECK(babel::json::to_string(enumB::valA, cfg) == "0");
+        CHECK(babel::json::to_string(enumB::valB, cfg) == "1");
 
         // optional
         {
@@ -295,4 +311,8 @@ TEST("json parsing")
     CHECK(babel::json::read<cc::optional<int>>("17").value() == 17);
     CHECK(babel::json::read<cc::vector<int>>("[1,2,3]") == cc::vector<int>{1, 2, 3});
     CHECK(babel::json::read<cc::array<bool, 3>>("[true,false,true]") == cc::array<bool, 3>{{true, false, true}});
+    CHECK(babel::json::read<enumA>("0") == valA);
+    CHECK(babel::json::read<enumA>("1") == valB);
+    CHECK(babel::json::read<enumB>("0") == enumB::valA);
+    CHECK(babel::json::read<enumB>("1") == enumB::valB);
 }
