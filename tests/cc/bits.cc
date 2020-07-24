@@ -20,13 +20,9 @@ TEST("bits")
     CHECK(cc::count_leading_zeros(cc::uint32(0)) == 32);
     CHECK(cc::count_leading_zeros(cc::uint64(0)) == 64);
 
-    CHECK(cc::count_trailing_zeros(cc::uint8(0)) == 0);
-    CHECK(cc::count_trailing_zeros(cc::uint16(0)) == 0);
-    CHECK(cc::count_trailing_zeros(cc::uint32(0)) == 0);
-    CHECK(cc::count_trailing_zeros(cc::uint64(0)) == 0);
+    CHECK(cc::count_trailing_zeros(cc::uint32(0)) == 32);
+    CHECK(cc::count_trailing_zeros(cc::uint64(0)) == 64);
 
-    CHECK(cc::count_trailing_zeros(cc::uint8(0b1011000)) == 3);
-    CHECK(cc::count_trailing_zeros(cc::uint16(0b1011000)) == 3);
     CHECK(cc::count_trailing_zeros(cc::uint32(0b1011000)) == 3);
     CHECK(cc::count_trailing_zeros(cc::uint64(0b1011000)) == 3);
 
@@ -44,9 +40,8 @@ TEST("bits")
     CHECK(cc::bit_log2(cc::uint64(1024)) == 10);
     CHECK(cc::bit_log2(cc::uint64(1) << 63) == 63);
 
-    // NOTE: these two hold on win32 but not on linux
-    // CHECK(cc::ceil_pow2(cc::uint32(0)) == 1);
-    // CHECK(cc::ceil_pow2(cc::uint32(1)) == 1);
+    CHECK(cc::ceil_pow2(cc::uint32(0)) == 1);
+    CHECK(cc::ceil_pow2(cc::uint32(1)) == 1);
     CHECK(cc::ceil_pow2(cc::uint32(2)) == 2);
     CHECK(cc::ceil_pow2(cc::uint32(3)) == 4);
     CHECK(cc::ceil_pow2(cc::uint32(4)) == 4);
