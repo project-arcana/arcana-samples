@@ -110,6 +110,7 @@ endif()
 
 option(ARC_DISABLE_EXCEPTIONS "Set compiler flags to disable exception handling" OFF)
 option(ARC_DISABLE_RTTI "Set compiler flags to disable RTTI" OFF)
+option(ARC_ENABLE_AVX2 "Set compiler flags to enable AVX2 instructions (and older ones included by it)" OFF)
 
 # ===============================================
 # Compile flags
@@ -121,6 +122,12 @@ if (MSVC)
     list(APPEND COMMON_COMPILER_FLAGS
         /MP
     )
+
+    if (ARC_ENABLE_AVX2)
+        list(APPEND COMMON_COMPILER_FLAGS
+            /arch:AVX2
+        )
+    endif()
 
     if (ARC_DISABLE_EXCEPTIONS)
         string(REPLACE "/EHsc" "/EHs-c- /D _HAS_EXCEPTIONS=0" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
@@ -134,6 +141,12 @@ else()
         -Wall
         -Wno-unused-variable
     )
+
+    if (ARC_ENABLE_AVX2)
+        list(APPEND COMMON_COMPILER_FLAGS
+            -mavx2
+        )
+    endif()
 
     if (ARC_DISABLE_EXCEPTIONS)
         list(APPEND COMMON_COMPILER_FLAGS -fno-exceptions)
