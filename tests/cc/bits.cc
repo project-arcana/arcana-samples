@@ -46,14 +46,25 @@ TEST("bits")
     CHECK(cc::ceil_pow2(cc::uint32(3)) == 4);
     CHECK(cc::ceil_pow2(cc::uint32(4)) == 4);
     CHECK(cc::ceil_pow2(cc::uint32(5)) == 8);
+
+    CHECK(cc::is_pow2(cc::uint32(1)));
+    CHECK(cc::is_pow2(cc::uint32(2)));
 }
 
 FUZZ_TEST("bits fuzz")(tg::rng& rng)
 {
-    auto const exp_nonzero = tg::uniform(rng, 4, 30);
-    auto const pow2_clamped = cc::uint32(1) << exp_nonzero;
+    int const exp_nonzero = tg::uniform(rng, 4, 30);
+
+    CHECK(cc::count_trailing_zeros(cc::uint32(1) << exp_nonzero) == exp_nonzero);
+    CHECK(cc::count_leading_zeros(cc::uint32(-1) >> exp_nonzero) == exp_nonzero);
+
+    cc::uint32 const pow2_clamped = cc::uint32(1) << exp_nonzero;
+
+    CHECK(cc::popcount(pow2_clamped) == 1);
+
     CHECK(cc::bit_log2(pow2_clamped) == exp_nonzero);
     CHECK(cc::bit_log2(pow2_clamped - 1) == exp_nonzero - 1);
+
     CHECK(cc::is_pow2(pow2_clamped));
     CHECK(!cc::is_pow2(pow2_clamped - 1));
     CHECK(!cc::is_pow2(pow2_clamped + 1));
