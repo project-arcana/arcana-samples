@@ -11,10 +11,10 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/detail/unique_buffer.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
-#include <phantasm-hardware-interface/arguments.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>

@@ -11,9 +11,9 @@
 
 #include <task-dispatcher/td-lean.hh>
 
+#include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/detail/unique_buffer.hh>
-#include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
