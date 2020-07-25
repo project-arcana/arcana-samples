@@ -205,7 +205,7 @@ void dmr::DemoRenderer::execute(float dt)
         }
 
 
-        mCamera.update_default_inputs(mWindow->getSdlWindow(), mInput, dt);
+        mCamera.update_default_inputs(*mWindow, mInput, dt);
         mScene.camdata.fill_data(mScene.resolution, mCamera.physical.position, mCamera.physical.forward, mScene.halton_index);
     }
     mScene.upload_current_frame(mContext);

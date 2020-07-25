@@ -160,21 +160,21 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 {
     struct depthpre_data
     {
-        inc::frag::virtual_resource_handle depth;
-        inc::frag::virtual_resource_handle velocity;
+        inc::frag::res_handle depth;
+        inc::frag::res_handle velocity;
     };
 
     builder.addPass<depthpre_data>(
         "depth_pre",
-        [&](depthpre_data& data, inc::frag::GraphBuilder::setup_context& ctx) {
+        [&](depthpre_data& data, inc::frag::setup_context& ctx) {
             data.depth = ctx.create(E_RESGUID_MAIN_DEPTH,
-                                    phi::arg::create_resource_info::render_target(phi::format::depth32f, ctx.targetSize(), 1, 1, {0.f, 0}),
+                                    phi::arg::create_resource_info::render_target(phi::format::depth32f, ctx.target_size(), 1, 1, {0.f, 0}),
                                     phi::resource_state::depth_write);
             data.velocity = ctx.create(E_RESGUID_VELOCITY,
-                                       phi::arg::create_resource_info::render_target(phi::format::rg16f, ctx.targetSize(), 1, 1, {255, 255, 255, 255}),
+                                       phi::arg::create_resource_info::render_target(phi::format::rg16f, ctx.target_size(), 1, 1, {255, 255, 255, 255}),
                                        phi::resource_state::render_target);
         },
-        [=](depthpre_data const& data, inc::frag::GraphBuilder::execute_context& ctx) {
+        [=](depthpre_data const& data, inc::frag::exec_context& ctx) {
             auto const t_depth = ctx.get_target(data.depth);
             auto const t_raw_velocity = ctx.get_target(data.velocity);
 
@@ -197,17 +197,17 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 
     struct forward_data
     {
-        inc::frag::virtual_resource_handle depth;
-        inc::frag::virtual_resource_handle scene;
+        inc::frag::res_handle depth;
+        inc::frag::res_handle scene;
     };
 
     builder.addPass<forward_data>(
         "main_forward",
-        [&](forward_data& data, inc::frag::GraphBuilder::setup_context& ctx) {
-            data.depth = ctx.readWrite(E_RESGUID_MAIN_DEPTH);
-            data.scene = ctx.create(E_RESGUID_SCENE, phi::arg::create_resource_info::render_target(phi::format::b10g11r11uf, ctx.targetSize()));
+        [&](forward_data& data, inc::frag::setup_context& ctx) {
+            data.depth = ctx.read_write(E_RESGUID_MAIN_DEPTH);
+            data.scene = ctx.create(E_RESGUID_SCENE, phi::arg::create_resource_info::render_target(phi::format::b10g11r11uf, ctx.target_size()));
         },
-        [=](forward_data const& data, inc::frag::GraphBuilder::execute_context& ctx) {
+        [=](forward_data const& data, inc::frag::exec_context& ctx) {
             auto t_depth = ctx.get_target(data.depth);
             auto t_scene = ctx.get_target(data.scene);
 
@@ -237,15 +237,15 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 
     struct taa_data
     {
-        inc::frag::virtual_resource_handle depth;
-        inc::frag::virtual_resource_handle scene;
-        inc::frag::virtual_resource_handle vel;
-        inc::frag::virtual_resource_handle curr;
+        inc::frag::res_handle depth;
+        inc::frag::res_handle scene;
+        inc::frag::res_handle vel;
+        inc::frag::res_handle curr;
     };
 
     builder.addPass<taa_data>(
         "taa_resolve",
-        [&](taa_data& data, inc::frag::GraphBuilder::setup_context& ctx) {
+        [&](taa_data& data, inc::frag::setup_context& ctx) {
             data.depth = ctx.read(E_RESGUID_MAIN_DEPTH, {pr::state::shader_resource, pr::shader::pixel});
             data.scene = ctx.read(E_RESGUID_SCENE, {pr::state::shader_resource, pr::shader::pixel});
             data.vel = ctx.read(E_RESGUID_VELOCITY, {pr::state::shader_resource, pr::shader::pixel});
@@ -254,7 +254,7 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 
             ctx.move(E_RESGUID_TAA_CURRENT, E_RESGUID_POSTFX_HDR);
         },
-        [=](taa_data const& data, inc::frag::GraphBuilder::execute_context& ctx) {
+        [=](taa_data const& data, inc::frag::exec_context& ctx) {
             auto t_depth = ctx.get_target(data.depth);
             auto t_scene = ctx.get_target(data.scene);
             auto t_vel = ctx.get_target(data.vel);
@@ -279,19 +279,19 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 
     struct tonemap_data
     {
-        inc::frag::virtual_resource_handle hdr_in;
-        inc::frag::virtual_resource_handle hdr_out;
+        inc::frag::res_handle hdr_in;
+        inc::frag::res_handle hdr_out;
     };
 
     builder.addPass<tonemap_data>(
         "tonemap",
-        [&](tonemap_data& data, inc::frag::GraphBuilder::setup_context& ctx) {
+        [&](tonemap_data& data, inc::frag::setup_context& ctx) {
             data.hdr_in = ctx.read(E_RESGUID_POSTFX_HDR, {pr::state::shader_resource, pr::shader::pixel});
-            data.hdr_out = ctx.create(E_RESGUID_TONEMAP_OUT, phi::arg::create_resource_info::render_target(phi::format::bgra8un, ctx.targetSize()),
+            data.hdr_out = ctx.create(E_RESGUID_TONEMAP_OUT, phi::arg::create_resource_info::render_target(phi::format::bgra8un, ctx.target_size()),
                                       pr::state::render_target);
             ctx.move(E_RESGUID_TONEMAP_OUT, E_RESGUID_POSTFX_HDR);
         },
-        [=](tonemap_data const& data, inc::frag::GraphBuilder::execute_context& ctx) {
+        [=](tonemap_data const& data, inc::frag::exec_context& ctx) {
             auto t_hdr_in = ctx.get_target(data.hdr_in);
             auto t_hdr_out = ctx.get_target(data.hdr_out);
 
@@ -306,16 +306,16 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 
     struct blitout_data
     {
-        inc::frag::virtual_resource_handle hdr_in;
+        inc::frag::res_handle hdr_in;
     };
 
     builder.addPass<blitout_data>(
         "blitout/imgui",
-        [&](blitout_data& data, inc::frag::GraphBuilder::setup_context& ctx) {
+        [&](blitout_data& data, inc::frag::setup_context& ctx) {
             data.hdr_in = ctx.read(E_RESGUID_POSTFX_HDR, {pr::state::shader_resource, pr::shader::pixel});
-            ctx.setRoot(); // this pass writes to the backbuffer, set as root
+            ctx.set_root(); // this pass writes to the backbuffer, set as root
         },
-        [=](blitout_data const& data, inc::frag::GraphBuilder::execute_context& ctx) {
+        [=](blitout_data const& data, inc::frag::exec_context& ctx) {
             auto const t_hdr = ctx.get_target(data.hdr_in);
             auto bb = ctx.frame().context().acquire_backbuffer(app->main_swapchain);
 
@@ -352,7 +352,7 @@ TEST("framegraph basics", disabled)
         {
             auto const size = app.context.get_backbuffer_size(app.main_swapchain);
             fg_cache.freeAll();
-            fg_builder.setBackbufferSize(size);
+            fg_builder.setMainTargetSize(size);
             // app.context.clear_shader_view_cache();
             state.onResize(app.context, size);
         }
@@ -368,7 +368,7 @@ TEST("framegraph basics", disabled)
         // scene.upload_current_frame(app.context);
 
         populate_graph(fg_builder, &app, &state);
-        fg_builder.compile(fg_cache);
+        fg_builder.compile(fg_cache, cc::system_allocator);
 
         auto frame = app.context.make_frame();
         fg_builder.execute(&frame);
