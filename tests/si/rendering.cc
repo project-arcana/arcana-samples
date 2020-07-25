@@ -176,15 +176,22 @@ APP("ui rendering")
             si::text("slider_vals: {} and {}", slider_vali, slider_valf);
             si::text("mouse: {}, {}", mouse.x, mouse.y);
 
-            si::checkbox("frame counter", use_frame_counter);
-            si::slider("int slider", slider_vali, -10, 10);
-            si::slider("float slider", slider_valf, -10.f, 10.f);
-
             if (auto w = si::window("test window"))
             {
                 si::text("i'm in a test window!");
                 si::slider("with another slider", slider_vali, -20, 100);
             }
+
+            if (auto w = si::window("window 2"))
+            {
+                si::text("2nd window");
+                si::text("for order tests");
+            }
+
+            si::checkbox("frame counter", use_frame_counter);
+            si::slider("int slider", slider_vali, -10, 10);
+            si::slider("float slider", slider_valf, -10.f, 10.f);
+            si::text("I have a tooltip").tooltip("it's a me, a tooltip!");
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
