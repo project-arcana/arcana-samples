@@ -186,12 +186,28 @@ APP("ui rendering")
             {
                 si::text("2nd window");
                 si::text("for order tests");
+
+                auto t = si::text("i haz tooltip");
+                if (auto tt = si::tooltip(si::placement::centered_above()))
+                {
+                    si::text("with more text");
+                    si::text(".. that changes? {}", mouse.x);
+                }
             }
 
             si::checkbox("frame counter", use_frame_counter);
             si::slider("int slider", slider_vali, -10, 10);
             si::slider("float slider", slider_valf, -10.f, 10.f);
             si::text("I have a tooltip").tooltip("it's a me, a tooltip!");
+
+            {
+                auto t = si::text("I have a custom tooltip");
+                if (auto tt = si::tooltip(si::placement::centered_above()))
+                {
+                    si::text("with more text");
+                    si::text(".. that changes? {}", mouse.x);
+                }
+            }
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
