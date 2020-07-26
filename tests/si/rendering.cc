@@ -208,6 +208,8 @@ APP("ui rendering")
                     si::text(".. that changes? {}", mouse.x);
                 }
             }
+
+            si::text("Custom tooltip via lambda").tooltip([&] { si::text("custom text"); });
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
