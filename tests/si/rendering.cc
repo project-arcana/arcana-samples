@@ -4,6 +4,8 @@
 
 #include <phantasm-renderer/pr.hh>
 
+#include <typed-geometry/tg.hh>
+
 #include <structured-interface/element_tree.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/layout/aabb_layout.hh>
@@ -210,6 +212,9 @@ APP("ui rendering")
             }
 
             si::text("Custom tooltip via lambda").tooltip([&] { si::text("custom text"); });
+
+            // ui stats
+            ui_merger.show_stats_ui();
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
