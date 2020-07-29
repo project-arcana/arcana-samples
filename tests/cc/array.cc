@@ -3,6 +3,7 @@
 
 #include <array>
 
+#include <clean-core/alloc_array.hh>
 #include <clean-core/array.hh>
 #include <clean-core/assert.hh>
 #include <clean-core/capped_array.hh>
@@ -22,6 +23,27 @@ TEST("cc::array")
     CHECK(tg::sum(a) == 6);
 
     cc::array<int> b = a;
+    CHECK(a == b);
+
+    b[1] = 7;
+    CHECK(a != b);
+
+    b = std::move(a);
+    CHECK(a.empty());
+    CHECK(tg::sum(b) == 6);
+}
+
+TEST("cc::alloc_array")
+{
+    cc::alloc_array<int> a;
+    CHECK(a.empty());
+
+    a = {1, 2, 3};
+    CHECK(a.size() == 3);
+
+    CHECK(tg::sum(a) == 6);
+
+    cc::alloc_array<int> b(cc::span<int>{a});
     CHECK(a == b);
 
     b[1] = 7;

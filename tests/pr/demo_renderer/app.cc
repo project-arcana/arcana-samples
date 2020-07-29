@@ -1,5 +1,7 @@
 #include <nexus/app.hh>
 
+#include <typed-geometry/tg.hh>
+
 #include <phantasm-renderer/pr.hh>
 
 #include "demo_renderer.hh"
@@ -10,7 +12,7 @@ void run_demo_renderer(pr::backend type)
 {
     // init
     inc::da::initialize();
-    inc::da::SDLWindow window("Demo Renderer", 1280, 720);
+    inc::da::SDLWindow window("Demo Renderer", {1280, 720});
     dmr::DemoRenderer renderer(window, type);
 
     // assets
