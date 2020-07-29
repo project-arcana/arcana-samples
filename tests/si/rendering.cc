@@ -6,6 +6,8 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <clean-core/unique_function.hh>
+
 #include <structured-interface/element_tree.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/layout/aabb_layout.hh>
@@ -212,6 +214,38 @@ APP("ui rendering")
             }
 
             si::text("Custom tooltip via lambda").tooltip([&] { si::text("custom text"); });
+
+            si::text("popover test").popover("I'm a popover!");
+
+            if (auto w = si::window("tooltips"))
+            {
+                si::text("on text").tooltip("I'm a text tooltip!");
+                si::button("on button").tooltip("I'm a button tooltip!");
+                si::text("placements:");
+                si::button("[default]").tooltip("I'm a tooltip!", si::placement::tooltip_default());
+                si::button("[centered_above]").tooltip("I'm a tooltip!", si::placement::centered_above());
+                si::button("[centered_below]").tooltip("I'm a tooltip!", si::placement::centered_below());
+                si::button("[centered_left]").tooltip("I'm a tooltip!", si::placement::centered_left());
+                si::button("[centered_right]").tooltip("I'm a tooltip!", si::placement::centered_right());
+            }
+            if (auto w = si::window("popovers"))
+            {
+                si::text("on text").popover("I'm a text popover!");
+                si::button("on button").popover("I'm a button popover!");
+                si::text("placements:");
+                si::button("[default]").popover("I'm a popover!", si::placement::popover_default());
+                si::button("[centered_above]").popover("I'm a popover!", si::placement::centered_above());
+                si::button("[centered_below]").popover("I'm a popover!", si::placement::centered_below());
+                si::button("[centered_left]").popover("I'm a popover!", si::placement::centered_left());
+                si::button("[centered_right]").popover("I'm a popover!", si::placement::centered_right());
+                cc::unique_function<void()> rec_popover;
+                rec_popover = [&] {
+                    si::text("this is a recursive popover");
+                    si::text("[hoverable text]").tooltip("tooltip inside popover!");
+                    si::button("next popover").popover(rec_popover);
+                };
+                si::button("[recursive popover]").popover(rec_popover);
+            }
 
             // ui stats
             ui_merger.show_stats_ui();

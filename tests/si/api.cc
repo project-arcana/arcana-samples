@@ -125,6 +125,15 @@ TEST("si api", disabled)
 
         // tooltips & popovers
         si::text("hover over me").tooltip("I'm a tooltip!");
+        si::text("hover over me").tooltip([&] { si::text("complex tooltips possible."); });
+        {
+            auto t = si::text("advanced tooltip");
+            if (auto tt = si::tooltip(si::placement::centered_above()))
+            {
+                si::text("manual tooltips");
+                si::text("just like any element really");
+            }
+        }
         // TODO: popover
 
         // images
