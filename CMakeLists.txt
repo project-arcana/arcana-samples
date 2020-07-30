@@ -57,6 +57,9 @@ add_subdirectory(extern/task-dispatcher)
 # resources
 add_subdirectory(extern/resource-system)
 
+# serialization
+add_subdirectory(extern/babel-serializer)
+
 
 ## Main
 
@@ -78,9 +81,6 @@ add_subdirectory(extern/phantasm-renderer)
 
 # UI
 add_subdirectory(extern/structured-interface)
-
-# serialization
-add_subdirectory(extern/babel-serializer)
 
 # TODO: other libs
 
