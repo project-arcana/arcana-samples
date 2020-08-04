@@ -11,7 +11,7 @@
 #include <structured-interface/element_tree.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/layout/aabb_layout.hh>
-#include <structured-interface/merger/Simple2DMerger.hh>
+#include <structured-interface/merger/Default2DMerger.hh>
 #include <structured-interface/si.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
@@ -97,7 +97,7 @@ APP("ui rendering")
     auto vs_ui = ctx.make_shader(shader_code_ui, "main_vs", pr::shader::vertex);
     auto ps_ui = ctx.make_shader(shader_code_ui, "main_ps", pr::shader::pixel);
 
-    using vertex_t = si::Simple2DMerger::vertex;
+    using vertex_t = si::Default2DMerger::vertex;
     phi::vertex_attribute_info vert_attrs[] = {phi::vertex_attribute_info{"POSITION", unsigned(offsetof(vertex_t, pos)), phi::format::rg32f},
                                                phi::vertex_attribute_info{"TEXCOORD", unsigned(offsetof(vertex_t, uv)), phi::format::rg32f},
                                                phi::vertex_attribute_info{"COLOR", unsigned(offsetof(vertex_t, color)), phi::format::rgba8un}};
@@ -107,7 +107,7 @@ APP("ui rendering")
     auto pso_ui = ctx.make_pipeline_state(gp_info, fb_info);
 
     si::gui ui;
-    si::Simple2DMerger ui_merger;
+    si::Default2DMerger ui_merger;
 
     // init input
     inc::da::input_manager input;
@@ -151,6 +151,8 @@ APP("ui rendering")
     auto slider_vali = 0;
     auto slider_valf = 0.f;
     bool use_frame_counter = false;
+    tg::color3 color = tg::color3::red;
+    cc::string my_string = "editable text";
 
     while (!window.isRequestingClose())
     {
@@ -160,7 +162,24 @@ APP("ui rendering")
 
             SDL_Event e;
             while (window.pollSingleEvent(e))
+            {
+                // DEBUG: for now!
+                if (ui_merger.is_in_text_edit() && e.type == SDL_KEYDOWN && !e.key.repeat)
+                {
+                    if (e.key.keysym.scancode == SDL_Scancode::SDL_SCANCODE_BACKSPACE)
+                        ui_merger.text_edit_backspace();
+                    else if (e.key.keysym.scancode == SDL_Scancode::SDL_SCANCODE_DELETE)
+                        ui_merger.text_edit_entf();
+                    else if (e.key.keysym.sym < 255)
+                    {
+                        char c = char(e.key.keysym.sym);
+                        if (cc::is_printable(c))
+                            ui_merger.text_edit_add_char(c);
+                    }
+                }
+
                 input.processEvent(e);
+            }
 
             input.updatePostPoll();
         }
@@ -179,6 +198,14 @@ APP("ui rendering")
             si::text("clicks: {}", clicks);
             si::text("slider_vals: {} and {}", slider_vali, slider_valf);
             si::text("mouse: {}, {}", mouse.x, mouse.y);
+            // si::input("color input", color);
+
+            if (auto r = si::row())
+            {
+                si::text("same");
+                si::button("btn");
+                si::text("row");
+            }
 
             if (auto w = si::window("test window"))
             {
@@ -203,6 +230,7 @@ APP("ui rendering")
             si::slider("int slider", slider_vali, -10, 10);
             si::slider("float slider", slider_valf, -10.f, 10.f);
             si::text("I have a tooltip").tooltip("it's a me, a tooltip!");
+            si::textbox("some text", my_string).popover([&] { si::value("my_string", my_string); });
 
             {
                 auto t = si::text("I have a custom tooltip");
@@ -247,8 +275,18 @@ APP("ui rendering")
                 si::button("[recursive popover]").popover(rec_popover);
             }
 
+            if (auto w = si::window("canvas"))
+            {
+                auto c = si::canvas({200, 200});
+                c.fill(tg::aabb2({10, float(20 + frame % 10)}, {100, 40}), tg::color3::red);
+                // TODO
+            }
+
             // ui stats
             ui_merger.show_stats_ui();
+
+            // inspector
+            ui_merger.show_inspector_ui();
         });
 
         // perform layouting, drawcall gen, text gen, input handling, etc.

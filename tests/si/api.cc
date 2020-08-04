@@ -162,7 +162,7 @@ TEST("si api", disabled)
         }
 
         // canvas
-        if (auto c = si::canvas())
+        if (auto c = si::canvas({100, 100}))
         {
             // TODO: draw commands, vector api, something
         }
