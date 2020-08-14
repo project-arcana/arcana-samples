@@ -1,5 +1,7 @@
 #include <nexus/app.hh>
 
+#include <chrono>
+
 #include <resource-system/res.hh>
 
 #include <phantasm-renderer/pr.hh>
@@ -112,6 +114,7 @@ APP("ui rendering")
     // init input
     inc::da::input_manager input;
     input.initialize(100);
+    auto is_in_text_edit = false;
 
     enum e_input : uint64_t
     {
@@ -146,6 +149,8 @@ APP("ui rendering")
         ctx.flush(); // needed?
     }
 
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     auto frame = 0;
     auto clicks = 0;
     auto slider_vali = 0;
@@ -156,6 +161,18 @@ APP("ui rendering")
 
     while (!window.isRequestingClose())
     {
+        // text edit state
+        if (!is_in_text_edit && ui_merger.is_in_text_edit())
+        {
+            SDL_StartTextInput();
+            is_in_text_edit = true;
+        }
+        if (is_in_text_edit && !ui_merger.is_in_text_edit())
+        {
+            SDL_StopTextInput();
+            is_in_text_edit = false;
+        }
+
         // input and polling
         {
             input.updatePrePoll();
@@ -164,17 +181,39 @@ APP("ui rendering")
             while (window.pollSingleEvent(e))
             {
                 // DEBUG: for now!
-                if (ui_merger.is_in_text_edit() && e.type == SDL_KEYDOWN && !e.key.repeat)
+
+                if (is_in_text_edit)
                 {
-                    if (e.key.keysym.scancode == SDL_Scancode::SDL_SCANCODE_BACKSPACE)
-                        ui_merger.text_edit_backspace();
-                    else if (e.key.keysym.scancode == SDL_Scancode::SDL_SCANCODE_DELETE)
-                        ui_merger.text_edit_entf();
-                    else if (e.key.keysym.sym < 255)
+                    auto& txt = ui_merger.editable_text();
+                    switch (e.type)
                     {
-                        char c = char(e.key.keysym.sym);
-                        if (cc::is_printable(c))
-                            ui_merger.text_edit_add_char(c);
+                    case SDL_KEYDOWN:
+                        // TODO: ctrl
+                        switch (e.key.keysym.scancode)
+                        {
+                        case SDL_Scancode::SDL_SCANCODE_BACKSPACE:
+                            txt.remove_prev_char();
+                            break;
+                        case SDL_Scancode::SDL_SCANCODE_DELETE:
+                            txt.remove_next_char();
+                            break;
+                        case SDL_Scancode::SDL_SCANCODE_LEFT:
+                            txt.move_cursor_left();
+                            break;
+                        case SDL_Scancode::SDL_SCANCODE_RIGHT:
+                            txt.move_cursor_right();
+                            break;
+
+                        default:
+                            break;
+                        }
+                        break;
+
+                    case SDL_TEXTINPUT:
+                        txt.on_text_input(e.text.text);
+                        break;
+
+                        // TODO: TEXTEDITING with composition
                     }
                 }
 
@@ -190,6 +229,7 @@ APP("ui rendering")
         auto mouse = input.getMousePositionRelative();
 
         // record ui
+        auto t0 = std::chrono::high_resolution_clock::now();
         auto r = ui.record([&] {
             if (si::button("press me"))
                 ++clicks;
@@ -286,13 +326,16 @@ APP("ui rendering")
             ui_merger.show_stats_ui();
 
             // inspector
-            ui_merger.show_inspector_ui();
+            ui_merger.show_inspector_ui(ui.current_ui());
         });
+        auto t1 = std::chrono::high_resolution_clock::now();
 
         // perform layouting, drawcall gen, text gen, input handling, etc.
+        ui_merger.total_time = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_time).count();
         ui_merger.viewport = {{0, 0}, {float(window.getWidth()), float(window.getHeight())}};
         ui_merger.mouse_pos = tg::pos2(mouse);
         ui_merger.is_lmb_down = input.get(action_mouse_left).isActive();
+        ui_merger.set_record_timings(std::chrono::duration<double>(t1 - t0).count());
         ui.update(r, ui_merger);
 
         // upload ui data
