@@ -4,6 +4,8 @@
 
 #include <phantasm-hardware-interface/config.hh>
 
+#include <rich-log/log.hh>
+
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Frame.hh>
 

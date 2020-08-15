@@ -2,6 +2,8 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <rich-log/log.hh>
+
 #include <phantasm-renderer/pr.hh>
 
 #include "demo_renderer.hh"
@@ -15,11 +17,15 @@ void run_demo_renderer(pr::backend type)
     inc::da::SDLWindow window("Demo Renderer", {1280, 720});
     dmr::DemoRenderer renderer(window, type);
 
+
     // assets
+    LOG_INFO("loading meshes...");
     auto const mesh_ball = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/ball.mesh", true);
     auto const mesh_colt = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/colt1911.mesh", true);
     auto const mesh_car = renderer.loadMesh("res/arcana-sample-resources/phi/mesh/old_car.mesh", true);
+    LOG_INFO("...done");
 
+    LOG_INFO("loading materials...");
     auto const mat_ball = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/ball/albedo.png", //
                                                 "res/arcana-sample-resources/phi/texture/ball/normal.png", //
                                                 "res/arcana-sample-resources/phi/texture/ball/arm.png");
@@ -29,6 +35,8 @@ void run_demo_renderer(pr::backend type)
     auto const mat_car = renderer.loadMaterial("res/arcana-sample-resources/phi/texture/oldcar/albedo.png", //
                                                "res/arcana-sample-resources/phi/texture/oldcar/normal.png", //
                                                "res/arcana-sample-resources/phi/texture/oldcar/arm.png");
+    LOG_INFO("...done");
+
 
     // scene
     auto const add_ball = [&](float x, float y, float z) {
