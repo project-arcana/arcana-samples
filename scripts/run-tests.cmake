@@ -12,8 +12,9 @@ if (NOT tests)
     message(FATAL_ERROR "no tests found (wrong working directory?) CMAKE_CURRENT_SOURCE_DIR is '${CMAKE_CURRENT_SOURCE_DIR}'")
 endif()
 
-SET(FINE TRUE)
-SET(FAILS "")
+set(FINE TRUE)
+set(FAILED_TEST_PATHS "")
+set(FAILED_TEST_OUTPUTS "")
 
 foreach (test ${tests})
     message(STATUS "executing ${test}")
@@ -22,14 +23,17 @@ foreach (test ${tests})
         COMMAND ${test}
         WORKING_DIRECTORY "bin/"
         RESULT_VARIABLE status
+        OUTPUT_VARIABLE test_output
+        ERROR_VARIABLE test_output
     )
 
     if (status EQUAL 0)
         # fine
     else()
         SET(FINE FALSE)
-        message("${test} failed")
-        list(APPEND FAILS ${test})
+        message("-- failed ${test}")
+        list(APPEND FAILED_TEST_PATHS ${test})
+        list(APPEND FAILED_TEST_OUTPUTS ${test_output})
     endif()
 endforeach()
 
@@ -38,8 +42,17 @@ if (NOT FINE)
     message("")
     message("================================")
     message("the following tests are failing:")
-    foreach (test ${FAILS})
-        message("  ${test}")
+
+    
+    list(LENGTH FAILED_TEST_PATHS num_failed_tests)
+    math(EXPR iteration_length "${num_failed_tests} - 1")
+    foreach(fail_index RANGE ${iteration_length})
+        list(GET FAILED_TEST_PATHS ${fail_index} failed_test_name)
+        list(GET FAILED_TEST_OUTPUTS ${fail_index} failed_test_output)
+        message("  ${failed_test_name}:")
+        message("${failed_test_output}")
     endforeach()
+    message("")
+    message("================================")
     message(FATAL_ERROR "some tests are failing (run 'cmake -P scripts/run-tests.cmake' in arcana-samples root to execute this check manually)")
 endif()
