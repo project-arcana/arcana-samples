@@ -1,3 +1,8 @@
+
+// NOTE: the framegraph is mainly being developed in a different project
+// this test is generally representative of the API but will inevitably constantly break
+
+#if 0
 #include <nexus/test.hh>
 
 #include <phantasm-renderer/Frame.hh>
@@ -14,9 +19,9 @@
 
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
 
-namespace
+ namespace
 {
-enum E_ResourceGuids : uint64_t
+ enum E_ResourceGuids : uint64_t
 {
     E_RESGUID_MAIN_DEPTH,
     E_RESGUID_VELOCITY,
@@ -27,7 +32,7 @@ enum E_ResourceGuids : uint64_t
     E_RESGUID_UNUSED_1,
 };
 
-struct global_state
+ struct global_state
 {
     inc::pre::texture_processing tex_processing;
 
@@ -156,7 +161,7 @@ struct global_state
     }
 };
 
-void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, global_state* state)
+ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, global_state* state)
 {
     struct depthpre_data
     {
@@ -171,8 +176,8 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
                                     phi::arg::create_resource_info::render_target(phi::format::depth32f, ctx.target_size(), 1, 1, {0.f, 0}),
                                     phi::resource_state::depth_write);
             data.velocity = ctx.create(E_RESGUID_VELOCITY,
-                                       phi::arg::create_resource_info::render_target(phi::format::rg16f, ctx.target_size(), 1, 1, {255, 255, 255, 255}),
-                                       phi::resource_state::render_target);
+                                       phi::arg::create_resource_info::render_target(phi::format::rg16f, ctx.target_size(), 1, 1, {255, 255, 255,
+                                       255}), phi::resource_state::render_target);
         },
         [=](depthpre_data const& data, inc::frag::exec_context& ctx) {
             auto const t_depth = ctx.get_target(data.depth);
@@ -333,7 +338,7 @@ void populate_graph(inc::frag::GraphBuilder& builder, inc::pre::quick_app* app, 
 }
 }
 
-TEST("framegraph basics", disabled)
+ TEST("framegraph basics", disabled)
 {
     inc::pre::quick_app app(pr::backend::vulkan);
 
@@ -378,3 +383,4 @@ TEST("framegraph basics", disabled)
     fg_cache.freeAll();
     ap.freeAll();
 }
+#endif
