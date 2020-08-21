@@ -86,6 +86,31 @@ constexpr auto shader_code_ui = R"(
                                   return input.color * float4(1,1,1,g_texture.Sample(g_sampler, input.uv).x);
                               }
                           )";
+constexpr auto shader_code_ui_wireframe = R"(
+                              struct vs_in
+                              {
+                                  float2 pos   : POSITION;
+                                  float2 uv    : TEXCOORD;
+                                  float4 color : COLOR;
+                              };
+
+                              struct vert_globals
+                              {
+                                  float4x4 proj;
+                              };
+
+                              ConstantBuffer<vert_globals> g_vert_globals : register(b0, space0);
+
+                              float4 main_vs(vs_in input) : SV_POSITION
+                              {
+                                  return mul(g_vert_globals.proj, float4(input.pos.xy, 0.f, 1.f));
+                              }
+
+                              float4 main_ps() : SV_TARGET
+                              {
+                                  return float4(1,0,0,1);
+                              }
+                          )";
 }
 
 APP("ui rendering")
@@ -98,6 +123,8 @@ APP("ui rendering")
     auto ps_clear = ctx.make_shader(shader_code_clear, "main_ps", pr::shader::pixel);
     auto vs_ui = ctx.make_shader(shader_code_ui, "main_vs", pr::shader::vertex);
     auto ps_ui = ctx.make_shader(shader_code_ui, "main_ps", pr::shader::pixel);
+    auto vs_ui_wireframe = ctx.make_shader(shader_code_ui_wireframe, "main_vs", pr::shader::vertex);
+    auto ps_ui_wireframe = ctx.make_shader(shader_code_ui_wireframe, "main_ps", pr::shader::pixel);
 
     using vertex_t = si::Default2DMerger::vertex;
     phi::vertex_attribute_info vert_attrs[] = {phi::vertex_attribute_info{"POSITION", unsigned(offsetof(vertex_t, pos)), phi::format::rg32f},
@@ -107,6 +134,10 @@ APP("ui rendering")
     auto fb_info = pr::framebuffer_info().target(ctx.get_backbuffer_format(swapchain), pr::blend_state::alpha_blending());
     auto gp_info = pr::graphics_pass(vs_ui, ps_ui).arg(1, 0, 1, true).vertex(sizeof(vertex_t), vert_attrs);
     auto pso_ui = ctx.make_pipeline_state(gp_info, fb_info);
+
+    auto fb_info_wf = pr::framebuffer_info().target(ctx.get_backbuffer_format(swapchain));
+    auto gp_info_wf = pr::graphics_pass(vs_ui_wireframe, ps_ui_wireframe).arg(0, 0, 0, true).vertex(sizeof(vertex_t), vert_attrs).wireframe();
+    auto pso_ui_wf = ctx.make_pipeline_state(gp_info_wf, fb_info_wf);
 
     si::gui ui;
     si::Default2DMerger ui_merger;
@@ -156,6 +187,7 @@ APP("ui rendering")
     auto slider_vali = 0;
     auto slider_valf = 0.f;
     bool use_frame_counter = false;
+    bool show_wireframe = false;
     tg::color3 color = tg::color3::red;
     cc::string my_string = "editable text";
 
@@ -266,7 +298,9 @@ APP("ui rendering")
                 }
             }
 
-            si::checkbox("frame counter", use_frame_counter);
+            si::checkbox("frame counter (checkbox)", use_frame_counter);
+            si::toggle("frame counter (toggle)", use_frame_counter);
+            si::checkbox("wireframe", show_wireframe);
             si::slider("int slider", slider_vali, -10, 10);
             si::slider("float slider", slider_valf, -10.f, 10.f);
             si::text("I have a tooltip").tooltip("it's a me, a tooltip!");
@@ -386,6 +420,13 @@ APP("ui rendering")
             // ui
             {
                 auto pass = fb.make_pass(pso_ui).bind(font_arg, ui_proj);
+                CC_ASSERT(ui_merger.get_render_data().lists.size() == 1 && "more not supported currently");
+                pass.draw(ui_vertex_buffer, ui_index_buffer);
+            }
+
+            if (show_wireframe)
+            {
+                auto pass = fb.make_pass(pso_ui_wf).bind(ui_proj);
                 CC_ASSERT(ui_merger.get_render_data().lists.size() == 1 && "more not supported currently");
                 pass.draw(ui_vertex_buffer, ui_index_buffer);
             }
