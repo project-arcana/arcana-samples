@@ -1,5 +1,7 @@
 #include <nexus/fuzz_test.hh>
 
+#include <rich-log/log.hh>
+
 #include <phantasm-hardware-interface/util.hh>
 
 TEST("mipsize utils")
@@ -43,4 +45,71 @@ FUZZ_TEST("mipsize utils fuzz")(tg::rng& rng)
     CHECK(phi::util::get_mip_size(random, num_mips - 2) > 1);
     CHECK(phi::util::get_mip_size(random, num_mips - 1) == 1);
     CHECK(phi::util::get_mip_size(random, num_mips) == 1);
+}
+
+TEST("upload sizes")
+{
+    //    auto const f_test_upsize = [](tg::isize3 size, phi::format fmt) {
+    //        LOG_INFO("{}, format {}:", size, uint8_t(fmt));
+    //        LOG_INFO("m0 d12: {}, vk: {}", phi::util::get_texture_size_bytes(size, fmt, 0, true), phi::util::get_texture_size_bytes(size, fmt, 0, false));
+    //        LOG_INFO("m1 d12: {}, vk: {}", phi::util::get_texture_size_bytes(size, fmt, 1, true), phi::util::get_texture_size_bytes(size, fmt, 1, false));
+    //    };
+
+    //    f_test_upsize({90128, 28561, 7}, phi::format::rgb32i);
+
+    // LOG_INFO("w^8: {}", 1u << 8);
+
+    // 4 byte pixels
+    // in order: all mips d3d12, all mips vk, no mips d3d12, no mips vk
+
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::bgra8un, 0, true) == 360192);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::bgra8un, 0, false) == 349524);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::bgra8un, 1, true) == 262144);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::bgra8un, 1, false) == 262144);
+
+    CHECK(phi::util::get_texture_size_bytes({1024, 1024, 1}, phi::format::bgra8un, 0, true) == 5603072);
+    CHECK(phi::util::get_texture_size_bytes({1024, 1024, 1}, phi::format::bgra8un, 0, false) == 5592404);
+    CHECK(phi::util::get_texture_size_bytes({1024, 1024, 1}, phi::format::bgra8un, 1, true) == 4194304);
+    CHECK(phi::util::get_texture_size_bytes({1024, 1024, 1}, phi::format::bgra8un, 1, false) == 4194304);
+
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 1}, phi::format::bgra8un, 0, true) == 20992);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 1}, phi::format::bgra8un, 0, false) == 12884);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 1}, phi::format::bgra8un, 1, true) == 11008);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 1}, phi::format::bgra8un, 1, false) == 9804);
+
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::bgra8un, 0, true) == 41984);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::bgra8un, 0, false) == 25768);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::bgra8un, 1, true) == 22016);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::bgra8un, 1, false) == 19608);
+
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 4}, phi::format::bgra8un, 0, true) == 1440768);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 4}, phi::format::bgra8un, 0, false) == 1398096);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 4}, phi::format::bgra8un, 1, true) == 1048576);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 4}, phi::format::bgra8un, 1, false) == 1048576);
+
+    // 8 byte pixels
+
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::rgba16f, 0, true) == 704256);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::rgba16f, 0, false) == 699048);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::rgba16f, 1, true) == 524288);
+    CHECK(phi::util::get_texture_size_bytes({256, 256, 1}, phi::format::rgba16f, 1, false) == 524288);
+
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::rgba16f, 0, true) == 64000);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::rgba16f, 0, false) == 51536);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::rgba16f, 1, true) == 44032);
+    CHECK(phi::util::get_texture_size_bytes({57, 43, 2}, phi::format::rgba16f, 1, false) == 39216);
+
+    // 12 byte pixels
+
+    CHECK(phi::util::get_texture_size_bytes({90128, 28561, 7}, phi::format::rgb32i, 0, true) == 587038464);
+    CHECK(phi::util::get_texture_size_bytes({90128, 28561, 7}, phi::format::rgb32i, 0, false) == 538751960);
+    CHECK(phi::util::get_texture_size_bytes({90128, 28561, 7}, phi::format::rgb32i, 1, true) == 1492678400);
+    CHECK(phi::util::get_texture_size_bytes({90128, 28561, 7}, phi::format::rgb32i, 1, false) == 1479883072);
+
+    // 16 byte pixels
+
+    CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 0, true) == 572323328);
+    CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 0, false) == 528704480);
+    CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 1, true) == 415656448);
+    CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 1, false) == 398000096);
 }
