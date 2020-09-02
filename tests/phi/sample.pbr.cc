@@ -195,7 +195,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(format::rgba16f);
-        fbconf.depth_target.push_back(format::depth24un_stencil8u);
+        fbconf.depth_target = format::depth24un_stencil8u;
 
         pipeline_config config;
         config.cull = cull_mode::back;
