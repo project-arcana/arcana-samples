@@ -494,8 +494,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     cmd_writer.add_command(dcmd);
                 }
 
-                cmd_writer.add_command(cmd::end_render_pass{});
-
                 // ImGui and transition to present
                 {
                     INC_RMT_TRACE_NAMED("ImGuiRecord");
@@ -526,6 +524,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     ImGui_ImplPHI_RenderDrawData(drawdata, {cmd_writer.buffer_head(), commandsize});
                     cmd_writer.advance_cursor(commandsize);
                 }
+
+                cmd_writer.add_command(cmd::end_render_pass{});
 
                 // transition backbuffer to present
                 cmd::transition_resources tcmd;

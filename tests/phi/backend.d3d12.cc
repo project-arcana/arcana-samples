@@ -21,7 +21,7 @@ phi_test::sample_config get_d3d12_sample_conf()
 }
 }
 
-APP("sample_pbr_d3d12")
+APP("d3d12_pbr")
 {
     td::launch([&] {
         phi::d3d12::BackendD3D12 backend;
@@ -29,13 +29,7 @@ APP("sample_pbr_d3d12")
     });
 }
 
-APP("sample_raytrace_d3d12")
-{
-    phi::d3d12::BackendD3D12 backend;
-    phi_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
-}
-
-APP("sample_async_nbody_d3d12")
+APP("d3d12_async_compute")
 {
     td::launch([&] {
         phi::d3d12::BackendD3D12 backend;
@@ -43,7 +37,13 @@ APP("sample_async_nbody_d3d12")
     });
 }
 
-APP("sample_imgui_d3d12")
+APP("d3d12_rt")
+{
+    phi::d3d12::BackendD3D12 backend;
+    phi_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
+}
+
+APP("d3d12_imgui")
 {
     phi::d3d12::BackendD3D12 backend;
     phi_test::run_imgui_sample(backend, get_d3d12_sample_conf());

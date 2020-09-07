@@ -269,13 +269,16 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         }
 
         auto const setup_cl = backend.recordCommandList(setup_cmdlist.buffer(), setup_cmdlist.size());
-        backend.submit(cc::span{setup_cl});
+
+        fence_operation signal_op;
+        signal_op.fence = res.f_global;
+        signal_op.value = frame_counter;
+
+        backend.submit(cc::span{setup_cl}, queue_type::direct, {}, cc::span{signal_op});
+
         ++frame_counter;
-        backend.signalFenceGPU(res.f_global, frame_counter, queue_type::direct);
-        backend.waitFenceCPU(res.f_global, frame_counter);
 
         backend.flushGPU();
-
         backend.free(upbuffer);
 
 
@@ -438,11 +441,12 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             }
 
             td::wait_for(compute_sync);
-            backend.submit(cls_compute, queue_type::compute);
-            backend.signalFenceGPU(res.f_global, ++frame_counter, queue_type::compute);
 
-            backend.waitFenceGPU(res.f_global, frame_counter, queue_type::direct);
-            backend.submit(cc::span{cl_render}, queue_type::direct);
+            fence_operation signal_op = {res.f_global, ++frame_counter};
+            backend.submit(cls_compute, queue_type::compute, {}, cc::span{signal_op});
+
+            fence_operation wait_op{res.f_global, frame_counter};
+            backend.submit(cc::span{cl_render}, queue_type::direct, cc::span{wait_op}, {});
             backend.present(main_swapchain);
         }
     }
