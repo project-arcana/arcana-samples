@@ -1,0 +1,173 @@
+{
+    "entries": [
+        {
+            "source": "mesh_pbr.hlsl",
+            "binaries": [
+                {
+                    "target": "vs",
+                    "entrypoint": "main_vs",
+                    "output": "../bin/mesh_pbr_vs"
+                },
+                {
+                    "target": "ps",
+                    "entrypoint": "main_ps",
+                    "output": "../bin/mesh_pbr_vs"
+                }
+            ]
+        },
+        {
+            "source": "postprocess.hlsl",
+            "binaries": [
+                {
+                    "target": "vs",
+                    "entrypoint": "main_vs",
+                    "output": "../bin/fullscreen_vs"
+                },
+                {
+                    "target": "ps",
+                    "entrypoint": "main_ps",
+                    "output": "../bin/postprocess_ps"
+                }
+            ]
+        },
+
+        {
+            "source": "clear_fs.hlsl",
+            "binaries": [
+                {
+                    "target": "ps",
+                    "entrypoint": "main_ps",
+                    "output": "../bin/clear_ps"
+                }
+            ]
+        },
+        {
+            "source": "imgui.hlsl",
+            "binaries": [
+                {
+                    "target": "vs",
+                    "entrypoint": "main_vs",
+                    "output": "../bin/imgui_vs"
+                },
+                {
+                    "target": "ps",
+                    "entrypoint": "main_ps",
+                    "output": "../bin/imgui_ps"
+                }
+            ]
+        },
+
+        {
+            "source": "mipgen.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "main_cs",
+                    "output": "../bin/mipgen"
+                }
+            ]
+        },
+        {
+            "source": "mipgen_gamma.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "main_cs",
+                    "output": "../bin/mipgen_gamma"
+                }
+            ]
+        },
+        {
+            "source": "mipgen_array.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "main_cs",
+                    "output": "../bin/mipgen_array"
+                }
+            ]
+        },
+        {
+            "source": "equirect_to_cube.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "main_cs",
+                    "output": "../bin/equirect_to_cube"
+                }
+            ]
+        },
+        {
+            "source": "specular_map_filter.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "main_cs",
+                    "output": "../bin/specular_map_filter"
+                }
+            ]
+        },
+        {
+            "source": "irradiance_map_filter.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "main_cs",
+                    "output": "../bin/irradiance_map_filter"
+                }
+            ]
+        },
+        {
+            "source": "brdf_lut_gen.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "main_cs",
+                    "output": "../bin/brdf_lut_gen"
+                }
+            ]
+        },
+
+
+        {
+            "source": "nbody/nbody_gravity.hlsl",
+            "binaries": [
+                {
+                    "target": "cs",
+                    "entrypoint": "CSMain",
+                    "output": "../bin/nbody/nbody_gravity"
+                }
+            ]
+        },
+        {
+            "source": "nbody/particle_draw.hlsl",
+            "binaries": [
+                {
+                    "target": "vs",
+                    "entrypoint": "VSParticleDraw",
+                    "output": "../bin/nbody/particle_vs"
+                },
+                {
+                    "target": "gs",
+                    "entrypoint": "GSParticleDraw",
+                    "output": "../bin/nbody/particle_gs"
+                },
+                {
+                    "target": "ps",
+                    "entrypoint": "PSParticleDraw",
+                    "output": "../bin/nbody/particle_ps"
+                }
+            ]
+        },
+        
+        {
+            "source": "raytrace_lib.hlsl",
+            "library": {
+                "raygeneration": ["RayGen"],
+                "miss": ["Miss"],
+                "closesthit": ["ClosestHit"],
+                "output": "../bin/raytrace_lib"
+            }
+        }
+    ]
+}

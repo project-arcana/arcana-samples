@@ -27,7 +27,6 @@
 void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
     using namespace phi;
-
     // backend init
     backend.initialize(backend_config);
 
@@ -38,7 +37,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     // main swapchain creation
     phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
-    unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
+    // unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
     if (!backend.isRaytracingEnabled())
@@ -148,7 +147,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 resources.tlas = backend.createTopLevelAccelStruct(num_instances);
 
 
-                cc::array<accel_struct_geometry_instance, num_instances> instance_data;
+                accel_struct_geometry_instance instance_data[num_instances];
 
                 for (auto i = 0u; i < num_instances; ++i)
                 {

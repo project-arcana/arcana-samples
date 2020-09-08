@@ -14,4 +14,4 @@ if ! test -f "$STANDALONE_EXE"; then
     STANDALONE_EXE=${BASH_SOURCE%/*}/../../../bin/Default/dxc-wrapper-standalone
 fi
 
-$STANDALONE_EXE ${BASH_SOURCE%/*}/src/shaderlist.txt
+$STANDALONE_EXE -l ${BASH_SOURCE%/*}/src/shaderlist.txt
