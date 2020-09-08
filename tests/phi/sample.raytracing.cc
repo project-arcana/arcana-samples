@@ -198,12 +198,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
         {
             auto& raygen_assoc = arg_assocs.emplace_back();
-            raygen_assoc.symbols = {L"raygeneration"};
+            raygen_assoc.library_index = 0;
+            raygen_assoc.export_indices = {0}; // raygeneration
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false});
             raygen_assoc.has_root_constants = false;
 
             auto& closesthit_assoc = arg_assocs.emplace_back();
-            closesthit_assoc.symbols = {L"closesthit"};
+            closesthit_assoc.library_index = 0;
+            closesthit_assoc.export_indices = {2}; // closesthit
             closesthit_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 0, 0, false});
         }
 
