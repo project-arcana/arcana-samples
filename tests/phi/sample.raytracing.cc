@@ -191,7 +191,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             CC_RUNTIME_ASSERT(shader_binaries.back().is_valid() && "failed to load raytracing_lib shader");
             auto& main_lib = libraries.emplace_back();
             main_lib.binary = {shader_binaries.back().get(), shader_binaries.back().size()};
-            main_lib.symbols = {L"raygeneration", L"miss", L"closesthit"};
+            main_lib.exports = {{shader_stage::ray_gen, "raygeneration"}, {shader_stage::ray_miss, "miss"}, {shader_stage::ray_closest_hit, "closesthit"}};
         }
 
         cc::capped_vector<arg::raytracing_argument_association, 16> arg_assocs;
@@ -208,8 +208,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         }
 
         arg::raytracing_hit_group main_hit_group;
-        main_hit_group.name = L"primary_hitgroup";
-        main_hit_group.closest_hit_symbol = L"closesthit";
+        main_hit_group.name = "primary_hitgroup";
+        main_hit_group.closest_hit_name = "closesthit";
 
         resources.rt_pso = backend.createRaytracingPipelineState(libraries, arg_assocs, cc::span{main_hit_group}, 4, sizeof(float[4]), sizeof(float[2]));
     }

@@ -2,6 +2,7 @@
 
 #include <fstream>
 
+#include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/config.hh>
 
 #include <rich-log/log.hh>
@@ -78,9 +79,11 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::on_extended;
+    config.validation = phi::validation_level::on;
+    config.enable_raytracing = false;
 
     mContext.initialize(backend_type, config);
+
     mSwapchain = mContext.make_swapchain({mWindow->getSdlWindow()}, mWindow->getSize());
 
     IMGUI_CHECKVERSION();
