@@ -1,6 +1,7 @@
 #include "sample.hh"
 
 #include <cmath>
+#include <cstdio>
 
 #include <rich-log/log.hh>
 
@@ -13,13 +14,20 @@
 
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
+#include <phantasm-hardware-interface/detail/byte_util.hh>
 #include <phantasm-hardware-interface/detail/unique_buffer.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
+#include <arcana-incubator/device-abstraction/freefly_camera.hh>
+#include <arcana-incubator/device-abstraction/input.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
+#include <arcana-incubator/pr-util/demo-renderer/data.hh>
+
+#include <arcana-incubator/imgui/imgui.hh>
+#include <arcana-incubator/imgui/imgui_impl_phi.hh>
 
 #include "sample_util.hh"
 #include "scene.hh"
@@ -28,26 +36,40 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 {
     using namespace phi;
     // backend init
-    backend.initialize(backend_config);
+    auto conf = backend_config;
+    conf.enable_raytracing = false;
+    backend.initialize(conf);
+
+    if (!backend.isRaytracingEnabled())
+    {
+        LOG_WARN("current GPU has no raytracing capabilities");
+        std::getchar();
+        return;
+    }
 
     // window init
     inc::da::initialize();
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
+    initialize_imgui(window, backend);
 
     // main swapchain creation
     phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
     // unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
-    if (!backend.isRaytracingEnabled())
-    {
-        LOG_WARN("Current GPU has no raytracing capabilities");
-        return;
-    }
+
+    inc::da::input_manager input;
+    input.initialize();
+    inc::da::smooth_fps_cam camera;
+    inc::pre::dmr::camera_gpudata camera_data;
+    camera.setup_default_inputs(input);
 
     struct resources_t
     {
+        handle::resource b_camdata_stacked = handle::null_resource;
+        unsigned camdata_stacked_offset = 0;
+
         handle::resource vertex_buffer = handle::null_resource;
         handle::resource index_buffer = handle::null_resource;
         unsigned num_indices = 0;
@@ -65,11 +87,11 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         handle::shader_view raygen_shader_view = handle::null_shader_view;
 
         handle::resource shader_table_miss = handle::null_resource;
-
         handle::resource shader_table_hitgroups = handle::null_resource;
 
     } resources;
 
+    unsigned backbuf_index = 0;
     tg::isize2 backbuf_size = tg::isize2(50, 50);
     shader_table_sizes table_sizes;
 
@@ -79,6 +101,13 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
         CC_DEFER { std::free(buffer); };
         command_stream_writer writer(buffer, buffer_size);
+
+        // camdata buffer
+        {
+            unsigned const size_camdata_256 = phi::util::align_up(sizeof(inc::pre::dmr::camera_gpudata), 256);
+            resources.b_camdata_stacked = backend.createUploadBuffer(size_camdata_256 * 3, size_camdata_256);
+            resources.camdata_stacked_offset = size_camdata_256;
+        }
 
         // Mesh setup
         {
@@ -133,17 +162,21 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         {
             writer.reset();
             {
-                arg::blas_element blas_elem;
-                blas_elem.is_opaque = true;
-                blas_elem.index_buffer = resources.index_buffer;
-                blas_elem.vertex_buffer = resources.vertex_buffer;
-                blas_elem.num_indices = resources.num_indices;
-                blas_elem.num_vertices = resources.num_vertices;
+                constexpr unsigned num_instances = 2;
+                arg::blas_element blas_elements[num_instances];
 
-                constexpr unsigned num_instances = 1;
+                for (auto i = 0u; i < num_instances; ++i)
+                {
+                    auto& elem = blas_elements[i];
+                    elem.is_opaque = true;
+                    elem.index_buffer = resources.index_buffer;
+                    elem.vertex_buffer = resources.vertex_buffer;
+                    elem.num_indices = resources.num_indices;
+                    elem.num_vertices = resources.num_vertices;
+                }
 
                 resources.blas = backend.createBottomLevelAccelStruct(
-                    cc::span{blas_elem}, accel_struct_build_flags::prefer_fast_trace | accel_struct_build_flags::allow_compaction, &resources.blas_native);
+                    blas_elements, accel_struct_build_flags::prefer_fast_trace | accel_struct_build_flags::allow_compaction, &resources.blas_native);
                 resources.tlas = backend.createTopLevelAccelStruct(num_instances);
 
 
@@ -152,14 +185,15 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 for (auto i = 0u; i < num_instances; ++i)
                 {
                     auto& inst = instance_data[i];
-                    inst.mask = 0xFF;
-                    inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.instance_id = i;
+                    inst.mask = 0xFF;
+                    inst.hit_group_index = 0;
+                    inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.native_accel_struct_handle = resources.blas_native;
-                    inst.instance_offset = i * 2;
 
-                    tg::mat4 transform = tg::transpose(tg::scaling(tg::size3(.1f, .1f, .1f)));
-                    std::memcpy(inst.transform, tg::data_ptr(transform), sizeof(inst.transform));
+                    tg::mat4 const transform
+                        = tg::transpose(tg::translation<float>(i * 20, i * 20, 0) * tg::rotation_y(0_deg) /* * tg::scaling(.1f, .1f, .1f)*/);
+                    std::memcpy(inst.transposed_transform, tg::data_ptr(transform), sizeof(inst.transposed_transform));
                 }
 
                 backend.uploadTopLevelInstances(resources.tlas, instance_data);
@@ -200,7 +234,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.library_index = 0;
             raygen_assoc.export_indices = {0}; // raygeneration
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false});
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true});
             raygen_assoc.has_root_constants = false;
 
             auto& closesthit_assoc = arg_assocs.emplace_back();
@@ -218,6 +252,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     auto const f_free_sized_resources = [&] {
         backend.free(resources.rt_write_texture);
+
         backend.free(resources.raygen_shader_view);
         backend.free(resources.shader_table_raygen);
         backend.free(resources.shader_table_miss);
@@ -242,7 +277,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
             arg::shader_table_record str_raygen;
             str_raygen.symbol = L"raygeneration";
-            str_raygen.shader_arguments.push_back(shader_argument{handle::null_resource, resources.raygen_shader_view, 0});
+            str_raygen.shader_arguments.push_back(shader_argument{resources.b_camdata_stacked, resources.raygen_shader_view, 0});
 
             arg::shader_table_record str_miss;
             str_miss.symbol = L"miss";
@@ -285,7 +320,6 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
     };
 
     auto run_time = 0.f;
-    auto log_time = 0.f;
     inc::da::Timer timer;
 
     std::byte* mem_cmdlist = static_cast<std::byte*>(std::malloc(1024u * 10));
@@ -293,7 +327,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     while (!window.isRequestingClose())
     {
-        window.pollEvents();
+        // polling
+        input.updatePrePoll();
+        SDL_Event e;
+        while (window.pollSingleEvent(e))
+        {
+            input.processEvent(e);
+        }
+        input.updatePostPoll();
 
         if (window.clearPendingResize())
         {
@@ -303,19 +344,24 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
         if (!window.isMinimized())
         {
-            auto const frametime = timer.elapsedMilliseconds();
+            auto const frametime = timer.elapsedSeconds();
             timer.restart();
-            run_time += frametime / 1000.f;
-            log_time += frametime;
-
-            if (log_time >= 1750.f)
-            {
-                log_time = 0.f;
-                LOG("frametime: {}ms", frametime);
-            }
+            run_time += frametime;
 
             if (backend.clearPendingResize(main_swapchain))
                 on_resize_func();
+
+            backbuf_index = cc::wrapped_increment(backbuf_index, 3u);
+            camera.update_default_inputs(window, input, frametime);
+            camera_data.fill_data(backbuf_size, camera.physical.position, camera.physical.forward, 0);
+
+            auto* const map = backend.mapBuffer(resources.b_camdata_stacked, resources.camdata_stacked_offset * backbuf_index,
+                                                resources.camdata_stacked_offset * (backbuf_index + 1));
+            std::memcpy(map, &camera_data, sizeof(camera_data));
+            backend.unmapBuffer(resources.b_camdata_stacked, resources.camdata_stacked_offset * backbuf_index,
+                                resources.camdata_stacked_offset * (backbuf_index + 1));
+
+            inc::imgui_new_frame(window.getSdlWindow());
 
             {
                 command_stream_writer writer(mem_cmdlist, 1024u * 10);
@@ -355,6 +401,38 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 }
 
                 {
+                    if (ImGui::Begin("Raytracing Demo"))
+                    {
+                        ImGui::Text("Frametime: %.2f ms", frametime * 1000.f);
+                        ImGui::Text("backbuffer %u / %u", backbuf_index, 3);
+                        ImGui::Text("cam pos: %.2f %.2f %.2f", double(camera.physical.position.x), double(camera.physical.position.y),
+                                    double(camera.physical.position.z));
+                        ImGui::Text("cam fwd: %.2f %.2f %.2f", double(camera.physical.forward.x), double(camera.physical.forward.y),
+                                    double(camera.physical.forward.z));
+                    }
+
+                    ImGui::End();
+
+                    ImGui::Render();
+                    auto* const drawdata = ImGui::GetDrawData();
+                    auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
+
+                    cmd::transition_resources tcmd;
+                    tcmd.add(backbuffer, resource_state::render_target, shader_stage::pixel);
+                    writer.add_command(tcmd);
+
+                    cmd::begin_render_pass bcmd;
+                    bcmd.viewport = backbuf_size;
+                    bcmd.add_backbuffer_rt(backbuffer, false);
+                    writer.add_command(bcmd);
+
+                    ImGui_ImplPHI_RenderDrawData(drawdata, {writer.buffer_head(), commandsize});
+                    writer.advance_cursor(commandsize);
+
+                    writer.add_command(cmd::end_render_pass{});
+                }
+
+                {
                     cmd::transition_resources tcmd;
                     tcmd.add(backbuffer, resource_state::present);
                     writer.add_command(tcmd);
@@ -371,6 +449,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
     }
 
     backend.flushGPU();
+    shutdown_imgui();
 
     window.destroy();
     backend.destroy();

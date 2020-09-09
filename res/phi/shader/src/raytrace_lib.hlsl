@@ -15,11 +15,52 @@ struct Attributes
   float2 bary;
 };
 
+struct camera_constants
+{
+    float4x4 proj; // jittered
+    float4x4 proj_inv;
+
+    float4x4 view;
+    float4x4 view_inv;
+    
+    float4x4 vp; // jittered proj
+    float4x4 vp_inv;
+
+    float4x4 clean_vp;
+    float4x4 clean_vp_inv;
+    
+    float4x4 prev_clean_vp;
+    float4x4 prev_clean_vp_inv;
+};
+
 // Raytracing output texture, accessed as a UAV
 RWTexture2D<float4> gOutput                 : register(u0, space0);
 
 // Raytracing acceleration structure, accessed as a SRV
 RaytracingAccelerationStructure SceneBVH    : register(t0, space0);
+
+ConstantBuffer<camera_constants> gCamData   : register(b0, space0);
+
+// extracts the (world space) camera position from an inverse view matrix
+float3 extract_camera_position(float4x4 inverse_view)
+{
+    return inverse_view._m03_m13_m23;
+}
+
+// reassembles a HDC position from UV and depth
+float4 convert_uv_to_hdc(float2 uv, float depth)
+{
+	// assuming Y+ NDC
+	return float4(uv.x * (2) - 1, uv.y * (-2) + 1, depth, 1.0f);
+}
+
+float3 screen_pos_to_view_dir(float2 screen_pos, float4x4 inverse_proj)
+{
+  float4 clip_pos = convert_uv_to_hdc(screen_pos, 1.0f);
+  //float4 clip_pos = float4(screen_pos.xy * 2.0 - 1.0, 1, 1);
+  return normalize(mul(inverse_proj, clip_pos).xyz);
+	
+}
 
 [shader("raygeneration")] 
 void RayGen() {
@@ -34,10 +75,13 @@ void RayGen() {
     float2 dims = float2(DispatchRaysDimensions().xy);
     float2 d = (((launchIndex.xy + 0.5f) / dims.xy) * 2.f - 1.f);
 
+    float3 view_dir = screen_pos_to_view_dir(d, gCamData.proj_inv);
+    view_dir = normalize(mul(gCamData.view_inv, float4(view_dir, 0)).xyz);
+
     // Define a ray, consisting of origin, direction, and the min-max distance values
     RayDesc ray;
-    ray.Origin = float3(d.x, -d.y, 1);
-    ray.Direction = float3(0, 0, -1);
+    ray.Origin = /*float3(d.x, -d.y, 1) +*/ extract_camera_position(gCamData.view_inv);
+    ray.Direction = view_dir;
     ray.TMin = 0;
     ray.TMax = 100000;
 

@@ -11,7 +11,7 @@
                 {
                     "target": "ps",
                     "entrypoint": "main_ps",
-                    "output": "../bin/mesh_pbr_vs"
+                    "output": "../bin/mesh_pbr_ps"
                 }
             ]
         },

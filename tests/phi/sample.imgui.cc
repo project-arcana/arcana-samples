@@ -97,7 +97,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
 
         if (!window.isMinimized())
         {
-            auto const frametime = timer.elapsedMilliseconds();
+            auto const frametime = timer.elapsedSeconds();
             timer.restart();
             run_time += frametime / 1000.f;
             log_time += frametime;

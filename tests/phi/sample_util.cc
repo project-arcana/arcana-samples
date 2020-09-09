@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
+#include <arcana-incubator/imgui/imgui.hh>
 #include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
@@ -22,21 +23,8 @@ phi::detail::unique_buffer phi_test::get_shader_binary(const char* name, const c
 
 void phi_test::initialize_imgui(inc::da::SDLWindow& window, phi::Backend& backend)
 {
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-
-    if (backend.getBackendType() == phi::backend_type::d3d12)
-        ImGui_ImplSDL2_InitForD3D(window.getSdlWindow());
-    else
-        ImGui_ImplSDL2_InitForVulkan(window.getSdlWindow());
+    inc::imgui_init(window.getSdlWindow(), &backend, 3, phi::format::bgra8un);
     window.setEventCallback(ImGui_ImplSDL2_ProcessEvent);
-
-    ImGui_ImplPHI_Init(&backend, 3, phi::format::bgra8un);
 }
 
-void phi_test::shutdown_imgui()
-{
-    ImGui_ImplPHI_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
-}
+void phi_test::shutdown_imgui() { inc::imgui_shutdown(); }

@@ -24,6 +24,7 @@
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 
+#include <arcana-incubator/imgui/imgui.hh>
 #include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
@@ -54,14 +55,12 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     inc::da::initialize();
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
+    initialize_imgui(window, backend);
 
     // main swapchain creation
     phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
     unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
-
-    // Imgui init
-    initialize_imgui(window, backend);
 
     struct resources_t
     {
@@ -357,7 +356,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         {
             INC_RMT_TRACE_NAMED("CPUFrame");
 
-            auto const frametime = timer.elapsedMilliseconds();
+            auto const frametime = timer.elapsedSeconds();
             timer.restart();
             run_time += frametime / 1000.f;
 
@@ -483,7 +482,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     cmd::begin_render_pass bcmd;
                     bcmd.viewport = backend.getBackbufferSize(main_swapchain);
                     bcmd.add_backbuffer_rt(current_backbuffer);
-                    bcmd.set_null_depth_stencil();
                     cmd_writer.add_command(bcmd);
                 }
 
@@ -497,22 +495,22 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 // ImGui and transition to present
                 {
                     INC_RMT_TRACE_NAMED("ImGuiRecord");
-                    ImGui_ImplSDL2_NewFrame(window.getSdlWindow());
-                    ImGui::NewFrame();
+                    inc::imgui_new_frame(window.getSdlWindow());
 
                     {
-                        ImGui::Begin("PBR Demo");
+                        if (ImGui::Begin("PBR Demo"))
+                        {
+                            ImGui::Text("Frametime: %.3f ms\nGPU Time: %.3f ms\nGPU timestamp delta: %llu @ %llu Hz", frametime,
+                                        (double(last_gpu_delta) / gpu_timestamp_frequency) * 1000., last_gpu_delta, gpu_timestamp_frequency);
+                            ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
+                            ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
 
-                        ImGui::Text("Frametime: %.3f ms\nGPU Time: %.3f ms\nGPU timestamp delta: %llu @ %llu Hz", frametime,
-                                    (double(last_gpu_delta) / gpu_timestamp_frequency) * 1000., last_gpu_delta, gpu_timestamp_frequency);
-                        ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
-                        ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
+                            if (ImGui::Button("Reset modulos"))
+                                position_modulos = tg::vec3(9, 6, 9);
 
-                        if (ImGui::Button("Reset modulos"))
-                            position_modulos = tg::vec3(9, 6, 9);
-
-                        if (ImGui::Button("Reset runtime"))
-                            run_time = 0.f;
+                            if (ImGui::Button("Reset runtime"))
+                                run_time = 0.f;
+                        }
 
                         ImGui::End();
                     }

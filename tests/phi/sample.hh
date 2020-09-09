@@ -9,20 +9,7 @@ namespace phi_test
 {
 inline constexpr auto num_render_threads = 8;
 
-inline auto const get_backend_config = [] {
-    phi::backend_config config;
-    config.adapter = phi::adapter_preference::highest_vram;
-    config.num_threads = td::is_scheduler_alive() ? td::get_current_num_threads() : 1;
-
-    config.validation =
-#ifdef NDEBUG
-        phi::validation_level::off;
-#else
-        phi::validation_level::on_extended;
-#endif
-
-    return config;
-};
+phi::backend_config get_backend_config();
 
 // Sample code
 struct sample_config
