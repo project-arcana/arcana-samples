@@ -256,18 +256,21 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 resources.shader_table_raygen = backend.createUploadBuffer(table_sizes.ray_gen_stride_bytes * 1);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table_raygen);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.ray_gen_stride_bytes, cc::span{str_raygen});
+                backend.unmapBuffer(resources.shader_table_raygen);
             }
 
             {
                 resources.shader_table_miss = backend.createUploadBuffer(table_sizes.miss_stride_bytes * 1);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table_miss);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.miss_stride_bytes, cc::span{str_miss});
+                backend.unmapBuffer(resources.shader_table_miss);
             }
 
             {
                 resources.shader_table_hitgroups = backend.createUploadBuffer(table_sizes.hit_group_stride_bytes * 1);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table_hitgroups);
                 backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_stride_bytes, cc::span{str_main_hit});
+                backend.unmapBuffer(resources.shader_table_hitgroups);
             }
         }
     };
