@@ -12,7 +12,13 @@ struct HitInfo
 // here the barycentric coordinates
 struct Attributes
 {
-  float2 bary;
+    float2 bary;
+};
+
+struct Ray
+{
+    float3 origin;
+    float3 direction;
 };
 
 struct camera_constants
@@ -22,13 +28,13 @@ struct camera_constants
 
     float4x4 view;
     float4x4 view_inv;
-    
+
     float4x4 vp; // jittered proj
     float4x4 vp_inv;
 
     float4x4 clean_vp;
     float4x4 clean_vp_inv;
-    
+
     float4x4 prev_clean_vp;
     float4x4 prev_clean_vp_inv;
 };
@@ -47,93 +53,47 @@ float3 extract_camera_position(float4x4 inverse_view)
     return inverse_view._m03_m13_m23;
 }
 
-// reassembles a HDC position from UV and depth
-float4 convert_uv_to_hdc(float2 uv, float depth)
+// Generate a ray in world space for a camera pixel corresponding to an index from the dispatched 2D grid.
+Ray compute_camera_ray(uint2 index, in float3 cameraPosition, in float4x4 vp_inverse)
 {
-	// assuming Y+ NDC
-	return float4(uv.x * (2) - 1, uv.y * (-2) + 1, depth, 1.0f);
-}
+    float2 xy = index + 0.5f; // center in the middle of the pixel.
+    float2 screenPos = xy / DispatchRaysDimensions().xy * 2.0 - 1.0;
 
-float3 screen_pos_to_view_dir(float2 screen_pos, float4x4 inverse_proj)
-{
-  float4 clip_pos = convert_uv_to_hdc(screen_pos, 1.0f);
-  //float4 clip_pos = float4(screen_pos.xy * 2.0 - 1.0, 1, 1);
-  return normalize(mul(inverse_proj, clip_pos).xyz);
-	
+    // Invert Y for DirectX-style coordinates.
+    screenPos.y = -screenPos.y;
+
+    // Unproject the pixel coordinate into a world positon.
+    float4 world = mul(vp_inverse, float4(screenPos, 1, 1));
+    world.xyz /= world.w;
+
+    Ray ray;
+    ray.origin = cameraPosition;
+    ray.direction = normalize(world.xyz - ray.origin);
+    return ray;
 }
 
 [shader("raygeneration")] 
-void RayGen() {
-
+void RayGen() 
+{
     // Initialize the ray payload
     HitInfo payload;
     payload.colorAndDistance = float4(0, 0, 0, 0);
 
-    // Get the location within the dispatched 2D grid of work items
-    // (often maps to pixels, so this could represent a pixel coordinate).
-    uint2 launchIndex = DispatchRaysIndex().xy;
-    float2 dims = float2(DispatchRaysDimensions().xy);
-    float2 d = (((launchIndex.xy + 0.5f) / dims.xy) * 2.f - 1.f);
+    // Generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
+    const Ray ray_info = compute_camera_ray(DispatchRaysIndex().xy, extract_camera_position(gCamData.view_inv), gCamData.vp_inv);
 
-    float3 view_dir = screen_pos_to_view_dir(d, gCamData.proj_inv);
-    view_dir = normalize(mul(gCamData.view_inv, float4(view_dir, 0)).xyz);
-
-    // Define a ray, consisting of origin, direction, and the min-max distance values
-    RayDesc ray;
-    ray.Origin = /*float3(d.x, -d.y, 1) +*/ extract_camera_position(gCamData.view_inv);
-    ray.Direction = view_dir;
-    ray.TMin = 0;
-    ray.TMax = 100000;
+    RayDesc ray_desc;
+    ray_desc.Origin = ray_info.origin;
+    ray_desc.Direction = ray_info.direction;
+    // Set TMin to a non-zero small value to avoid aliasing issues due to floating - point errors.
+    // TMin should be kept small to prevent missing geometry at close contact areas.
+    ray_desc.TMin = 0.001;
+    ray_desc.TMax = 10000.0;
 
     // Trace the ray
-    TraceRay(
-      // Parameter name: AccelerationStructure
-      // Acceleration structure
-      SceneBVH,
-
-      // Parameter name: RayFlags
-      // Flags can be used to specify the behavior upon hitting a surface
-      RAY_FLAG_NONE,
-
-      // Parameter name: InstanceInclusionMask
-      // Instance inclusion mask, which can be used to mask out some geometry to this ray by
-      // and-ing the mask with a geometry mask. The 0xFF flag then indicates no geometry will be
-      // masked
-      0xFF,
-
-      // Parameter name: RayContributionToHitGroupIndex
-      // Depending on the type of ray, a given object can have several hit groups attached
-      // (ie. what to do when hitting to compute regular shading, and what to do when hitting
-      // to compute shadows). Those hit groups are specified sequentially in the SBT, so the value
-      // below indicates which offset (on 4 bits) to apply to the hit groups for this ray. In this
-      // sample we only have one hit group per object, hence an offset of 0.
-      0,
-
-      // Parameter name: MultiplierForGeometryContributionToHitGroupIndex
-      // The offsets in the SBT can be computed from the object ID, its instance ID, but also simply
-      // by the order the objects have been pushed in the acceleration structure. This allows the
-      // application to group shaders in the SBT in the same order as they are added in the AS, in
-      // which case the value below represents the stride (4 bits representing the number of hit
-      // groups) between two consecutive objects.
-      0,
-
-      // Parameter name: MissShaderIndex
-      // Index of the miss shader to use in case several consecutive miss shaders are present in the
-      // SBT. This allows to change the behavior of the program when no geometry have been hit, for
-      // example one to return a sky color for regular rendering, and another returning a full
-      // visibility value for shadow rays. This sample has only one miss shader, hence an index 0
-      0,
-
-      // Parameter name: Ray
-      // Ray information to trace
-      ray,
-
-      // Parameter name: Payload
-      // Payload associated to the ray, which will be used to communicate between the hit/miss
-      // shaders and the raygen
-      payload);
-
-    gOutput[launchIndex] = float4(payload.colorAndDistance.rgb, 1.f);
+    TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray_desc, payload);
+    // Write payload to output UAV
+    gOutput[DispatchRaysIndex().xy] = float4(payload.colorAndDistance.rgb, 1.f);
 }
 
 [shader("miss")]
@@ -141,7 +101,6 @@ void Miss(inout HitInfo payload : SV_RayPayload)
 {
     uint2 launchIndex = DispatchRaysIndex().xy;
     float2 dims = float2(DispatchRaysDimensions().xy);
-
     float ramp = launchIndex.y / dims.y;
     payload.colorAndDistance = float4(0.0f, 0.2f, 0.7f - 0.3f*ramp, -1.0f);
 }
