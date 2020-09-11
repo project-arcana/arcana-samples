@@ -11,9 +11,9 @@
 
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
-#include <phantasm-hardware-interface/detail/byte_util.hh>
-#include <phantasm-hardware-interface/detail/format_size.hh>
-#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/byte_util.hh>
+#include <phantasm-hardware-interface/common/container/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/format_size.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <phantasm-renderer/reflection/vertex_attributes.hh>
@@ -356,7 +356,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         {
             INC_RMT_TRACE_NAMED("CPUFrame");
 
-            auto const frametime = timer.elapsedSeconds();
+            auto const frametime = timer.elapsedMilliseconds();
             timer.restart();
             run_time += frametime / 1000.f;
 

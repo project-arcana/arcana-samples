@@ -14,8 +14,8 @@
 
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
-#include <phantasm-hardware-interface/detail/byte_util.hh>
-#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/byte_util.hh>
+#include <phantasm-hardware-interface/common/container/unique_buffer.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
@@ -187,7 +187,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     auto& inst = instance_data[i];
                     inst.instance_id = i;
                     inst.mask = 0xFF;
-                    inst.hit_group_index = 0;
+                    inst.hit_group_index = i;
                     inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.native_accel_struct_handle = resources.blas_native;
 
@@ -217,7 +217,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     // PSO setup
     {
-        cc::capped_vector<detail::unique_buffer, 16> shader_binaries;
+        cc::capped_vector<phi::unique_buffer, 16> shader_binaries;
         cc::capped_vector<arg::raytracing_shader_library, 16> libraries;
 
         {
@@ -225,7 +225,10 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             CC_RUNTIME_ASSERT(shader_binaries.back().is_valid() && "failed to load raytracing_lib shader");
             auto& main_lib = libraries.emplace_back();
             main_lib.binary = {shader_binaries.back().get(), shader_binaries.back().size()};
-            main_lib.exports = {{shader_stage::ray_gen, "raygeneration"}, {shader_stage::ray_miss, "miss"}, {shader_stage::ray_closest_hit, "closesthit"}};
+            main_lib.shader_exports = {{shader_stage::ray_gen, "EPrimaryRayGen"},
+                                       {shader_stage::ray_miss, "EMiss"},
+                                       {shader_stage::ray_closest_hit, "EBarycentricClosestHit"},
+                                       {shader_stage::ray_closest_hit, "EClosestHitFlatColor"}};
         }
 
         cc::capped_vector<arg::raytracing_argument_association, 16> arg_assocs;
@@ -233,21 +236,28 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         {
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.library_index = 0;
-            raygen_assoc.export_indices = {0}; // raygeneration
+            raygen_assoc.export_indices = {0}; // EPrimaryRayGen
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true});
             raygen_assoc.has_root_constants = false;
 
             auto& closesthit_assoc = arg_assocs.emplace_back();
             closesthit_assoc.library_index = 0;
-            closesthit_assoc.export_indices = {2}; // closesthit
+            closesthit_assoc.export_indices = {2}; // ClosestHit
             closesthit_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 0, 0, false});
         }
 
-        arg::raytracing_hit_group main_hit_group;
-        main_hit_group.name = "primary_hitgroup";
-        main_hit_group.closest_hit_name = "closesthit";
+        arg::raytracing_hit_group hit_groups[2];
 
-        resources.rt_pso = backend.createRaytracingPipelineState(libraries, arg_assocs, cc::span{main_hit_group}, 4, sizeof(float[4]), sizeof(float[2]));
+        hit_groups[0].name = "primary_hitgroup";
+        hit_groups[0].closest_hit_name = "EBarycentricClosestHit";
+
+        hit_groups[1].name = "dummy_hitgroup";
+        hit_groups[1].closest_hit_name = "EClosestHitFlatColor";
+
+        unsigned max_recursion = 4;
+        unsigned max_payload_size = sizeof(float[4]);   // RGB + Distance
+        unsigned max_attribute_size = sizeof(float[2]); // Barycentrics, builtin Triangles
+        resources.rt_pso = backend.createRaytracingPipelineState(libraries, arg_assocs, hit_groups, max_recursion, max_payload_size, max_attribute_size);
     }
 
     auto const f_free_sized_resources = [&] {
@@ -276,16 +286,18 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             }
 
             arg::shader_table_record str_raygen;
-            str_raygen.symbol = L"raygeneration";
-            str_raygen.shader_arguments.push_back(shader_argument{resources.b_camdata_stacked, resources.raygen_shader_view, 0});
+            str_raygen.set_shader(0); // str_raygen.symbol = "raygeneration";
+            str_raygen.add_shader_arg(resources.b_camdata_stacked, 0, resources.raygen_shader_view);
 
             arg::shader_table_record str_miss;
-            str_miss.symbol = L"miss";
+            str_miss.set_shader(1); // str_miss.symbol = "miss";
 
-            arg::shader_table_record str_main_hit;
-            str_main_hit.symbol = L"primary_hitgroup";
+            arg::shader_table_record str_hitgroups[2];
+            str_hitgroups[0].set_hitgroup(0); // str_main_hit.symbol = "primary_hitgroup";
+            str_hitgroups[1].set_hitgroup(1);
 
-            table_sizes = backend.calculateShaderTableSize(cc::span{str_raygen}, cc::span{str_miss}, cc::span{str_main_hit});
+
+            table_sizes = backend.calculateShaderTableSize(cc::span{str_raygen}, cc::span{str_miss}, str_hitgroups);
 
             {
                 resources.shader_table_raygen = backend.createUploadBuffer(table_sizes.ray_gen_stride_bytes * 1);
@@ -304,7 +316,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             {
                 resources.shader_table_hitgroups = backend.createUploadBuffer(table_sizes.hit_group_stride_bytes * 1);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table_hitgroups);
-                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_stride_bytes, cc::span{str_main_hit});
+                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_stride_bytes, str_hitgroups);
                 backend.unmapBuffer(resources.shader_table_hitgroups);
             }
         }

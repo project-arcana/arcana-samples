@@ -8,13 +8,6 @@ struct HitInfo
   float4 colorAndDistance;
 };
 
-// Attributes output by the raytracing when hitting a surface,
-// here the barycentric coordinates
-struct Attributes
-{
-    float2 bary;
-};
-
 struct Ray
 {
     float3 origin;
@@ -73,7 +66,7 @@ Ray compute_camera_ray(uint2 index, in float3 cameraPosition, in float4x4 vp_inv
 }
 
 [shader("raygeneration")] 
-void RayGen() 
+void EPrimaryRayGen() 
 {
     // Initialize the ray payload
     HitInfo payload;
@@ -97,7 +90,7 @@ void RayGen()
 }
 
 [shader("miss")]
-void Miss(inout HitInfo payload : SV_RayPayload)
+void EMiss(inout HitInfo payload : SV_RayPayload)
 {
     uint2 launchIndex = DispatchRaysIndex().xy;
     float2 dims = float2(DispatchRaysDimensions().xy);
@@ -106,10 +99,10 @@ void Miss(inout HitInfo payload : SV_RayPayload)
 }
 
 [shader("closesthit")] 
-void ClosestHit(inout HitInfo payload, Attributes attrib) 
+void EBarycentricClosestHit(inout HitInfo payload, BuiltInTriangleIntersectionAttributes attrib) 
 {
     float3 barycentrics = 
-    float3(1.f - attrib.bary.x - attrib.bary.y, attrib.bary.x, attrib.bary.y);
+    float3(1.f - attrib.barycentrics.x - attrib.barycentrics.y, attrib.barycentrics.x, attrib.barycentrics.y);
 
     const float3 A = float3(1, 1, 0);
     const float3 B = float3(0, 1, 1);
@@ -118,4 +111,10 @@ void ClosestHit(inout HitInfo payload, Attributes attrib)
     float3 hitColor = A * barycentrics.x + B * barycentrics.y + C * barycentrics.z;
 
     payload.colorAndDistance = float4(hitColor, RayTCurrent());
+}
+
+[shader("closesthit")] 
+void EClosestHitFlatColor(inout HitInfo payload, BuiltInTriangleIntersectionAttributes attrib) 
+{
+    payload.colorAndDistance = float4(1 * saturate(RayTCurrent() / 100.f),0 ,1 , RayTCurrent());
 }

@@ -9,11 +9,11 @@
 
 #include <phantasm-hardware-interface/Backend.hh>
 
-phi::detail::unique_buffer phi_test::get_shader_binary(const char* name, const char* ending)
+phi::unique_buffer phi_test::get_shader_binary(const char* name, const char* ending)
 {
     char name_formatted[1024];
     std::snprintf(name_formatted, sizeof(name_formatted), "res/phi/shader/bin/%s.%s", name, ending);
-    auto res = phi::detail::unique_buffer::create_from_binary_file(name_formatted);
+    auto res = phi::unique_buffer::create_from_binary_file(name_formatted);
     if (!res.is_valid())
     {
         std::fprintf(stderr, "[phi_test] failed to load shader from %s\n[phi_test]   shaders not compiled? run res/<..>/compile_shaders.bat/.sh\n\n", name_formatted);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/container/unique_buffer.hh>
 
 namespace inc
 {
@@ -18,7 +18,7 @@ class Backend;
 
 namespace phi_test
 {
-phi::detail::unique_buffer get_shader_binary(char const* name, char const* ending);
+phi::unique_buffer get_shader_binary(char const* name, char const* ending);
 
 void initialize_imgui(inc::da::SDLWindow& window, phi::Backend& backend);
 void shutdown_imgui();

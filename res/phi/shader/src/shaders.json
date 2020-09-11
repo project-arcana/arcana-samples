@@ -163,9 +163,12 @@
         {
             "source": "raytrace_lib.hlsl",
             "library": {
-                "raygeneration": ["RayGen"],
-                "miss": ["Miss"],
-                "closesthit": ["ClosestHit"],
+                "exports": [
+                    "EPrimaryRayGen",
+                    "EMiss",
+                    "EBarycentricClosestHit",
+                    "EClosestHitFlatColor"
+                ],
                 "output": "../bin/raytrace_lib"
             }
         }
