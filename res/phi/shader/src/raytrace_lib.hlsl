@@ -116,5 +116,5 @@ void EBarycentricClosestHit(inout HitInfo payload, BuiltInTriangleIntersectionAt
 [shader("closesthit")] 
 void EClosestHitFlatColor(inout HitInfo payload, BuiltInTriangleIntersectionAttributes attrib) 
 {
-    payload.colorAndDistance = float4(1 * saturate(RayTCurrent() / 100.f),0 ,1 , RayTCurrent());
+    payload.colorAndDistance = float4(1 * saturate(RayTCurrent() / 100.f), 0, 1, RayTCurrent());
 }
