@@ -359,14 +359,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
             str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
-            table_sizes = backend.calculateShaderTableSize(cc::span{str_raygen}, cc::span{str_miss}, str_hitgroups);
+            table_sizes = backend.calculateShaderTableSize(str_raygen, cc::span{str_miss}, str_hitgroups);
             {
                 resources.shader_table = backend.createUploadBuffer(table_sizes.total_size);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table);
 
-                backend.writeShaderTable(st_map + table_sizes.offset_ray_gen, resources.rt_pso, table_sizes.ray_gen_size.stride_bytes, cc::span{str_raygen});
-                backend.writeShaderTable(st_map + table_sizes.offset_miss, resources.rt_pso, table_sizes.miss_size.stride_bytes, cc::span{str_miss});
-                backend.writeShaderTable(st_map + table_sizes.offset_hit_group, resources.rt_pso, table_sizes.hit_group_size.stride_bytes, str_hitgroups);
+                backend.writeShaderTable(st_map + table_sizes.offset_ray_gen, resources.rt_pso, 0, cc::span{str_raygen});
+                backend.writeShaderTable(st_map + table_sizes.offset_miss, resources.rt_pso, table_sizes.stride_miss, cc::span{str_miss});
+                backend.writeShaderTable(st_map + table_sizes.offset_hit_group, resources.rt_pso, table_sizes.stride_hit_group, str_hitgroups);
 
                 backend.unmapBuffer(resources.shader_table);
             }
@@ -443,10 +443,6 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     cmd::dispatch_rays dcmd;
                     dcmd.pso = resources.rt_pso;
                     dcmd.set_single_shader_table(resources.shader_table, table_sizes);
-                    //                    dcmd.table_ray_generation = {resources.shader_table, table_sizes.offset_ray_gen, table_sizes.ray_gen_size.width_bytes};
-                    //                    dcmd.table_miss = {resources.shader_table, table_sizes.offset_miss, table_sizes.miss_size.width_bytes, table_sizes.miss_size.stride_bytes};
-                    //                    dcmd.table_hit_groups = {resources.shader_table, table_sizes.offset_hit_group, table_sizes.hit_group_size.width_bytes,
-                    //                                             table_sizes.hit_group_size.stride_bytes};
                     dcmd.width = backbuf_size.width;
                     dcmd.height = backbuf_size.height;
                     dcmd.depth = 1;
