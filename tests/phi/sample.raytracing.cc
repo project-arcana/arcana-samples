@@ -32,6 +32,19 @@
 #include "sample_util.hh"
 #include "scene.hh"
 
+namespace
+{
+template <size_t N1, size_t N2 = 1, size_t N3 = 1, size_t N4 = 1>
+constexpr inline tg::vec<4, size_t> dimensional_index(size_t linear)
+{
+    auto const i1 = linear % N1;
+    auto const i2 = ((linear - i1) / N1) % N2;
+    auto const i3 = ((linear - i2 * N1 - i1) / (N1 * N2)) % N3;
+    auto const i4 = ((linear - i3 * N2 * N1 - i2 * N1 - i1) / (N1 * N2 * N3)) % N4;
+    return {i1, i2, i3, i4};
+}
+}
+
 void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
     using namespace phi;
@@ -178,7 +191,10 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         // AS / RT setup
         {
             constexpr unsigned num_blas_elements = 1;
-            constexpr unsigned num_tlas_instances = 3;
+
+            constexpr unsigned instance_cube_edge_length = 4;
+
+            constexpr unsigned num_tlas_instances = instance_cube_edge_length * instance_cube_edge_length * instance_cube_edge_length;
 
             // Bottom Level Accel Struct (BLAS) - Geometry elements
             {
@@ -210,12 +226,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     auto& inst = instance_data[i];
                     inst.instance_id = i;
                     inst.visibility_mask = 0xFF;
-                    inst.hit_group_index = i;
+                    inst.hit_group_index = i % 3;
                     inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.native_bottom_level_as_handle = resources.blas_native;
 
+                    auto const pos = dimensional_index<instance_cube_edge_length, instance_cube_edge_length, instance_cube_edge_length>(i) * 20;
+
                     tg::mat4 const transform
-                        = tg::transpose(tg::translation<float>(i * 15.f, i * 5.f, 0) * tg::rotation_y(0_deg) /* * tg::scaling(.1f, .1f, .1f)*/);
+                        = tg::transpose(tg::translation<float>(pos.x, pos.y, pos.z) * tg::rotation_y(0_deg) /* * tg::scaling(.1f, .1f, .1f)*/);
                     std::memcpy(inst.transposed_transform, tg::data_ptr(transform), sizeof(inst.transposed_transform));
                 }
 
@@ -328,11 +346,18 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             str_miss.set_shader(1); // str_miss.symbol = "miss";
 
             arg::shader_table_record str_hitgroups[3];
+
             str_hitgroups[0].set_hitgroup(0);
+            str_hitgroups[0].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
+            str_hitgroups[0].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
+
             str_hitgroups[1].set_hitgroup(1);
+            str_hitgroups[1].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
+            str_hitgroups[1].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
+
             str_hitgroups[2].set_hitgroup(2);
-            str_hitgroups->add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
-            str_hitgroups->add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
+            str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
+            str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
             table_sizes = backend.calculateShaderTableSize(cc::span{str_raygen}, cc::span{str_miss}, str_hitgroups);
             {
