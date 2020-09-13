@@ -233,7 +233,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     {
         l_res.per_frame_resources.emplace(msc_num_backbuffers);
 
-        auto srv = resource_view::structured_buffer(handle::null_resource, phi_test::num_instances, sizeof(tg::mat4));
+        auto srv = resource_view::structured_buffer(handle::null_resource, phi_test::gc_num_mesh_instances_pbr, sizeof(tg::mat4));
 
         for (auto& pfb : l_res.per_frame_resources)
         {
@@ -323,7 +323,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::vec3 position_modulos = tg::vec3(9, 6, 9);
     float camera_distance = 1.f;
 
-#define THREAD_BUFFER_SIZE (size_t(sizeof(cmd::draw) * (phi_test::num_instances / phi_test::num_render_threads)) + 1024)
+#define THREAD_BUFFER_SIZE (size_t(sizeof(cmd::draw) * (phi_test::gc_num_mesh_instances_pbr / phi_test::num_render_threads)) + 1024)
 
     cc::array<std::byte*, phi_test::num_render_threads + 1> thread_cmd_buffer_mem;
 
@@ -430,7 +430,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                             task_info.out_cmdlists[i] = task_info.backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         }
                     },
-                    phi_test::num_instances, phi_test::num_render_threads);
+                    phi_test::gc_num_mesh_instances_pbr, phi_test::num_render_threads);
 
 
                 td::submit_batched(
@@ -439,7 +439,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                         INC_RMT_TRACE_NAMED("ModelMatrixTask");
                         phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
                     },
-                    phi_test::num_instances, phi_test::num_render_threads);
+                    phi_test::gc_num_mesh_instances_pbr, phi_test::num_render_threads);
             }
 
             {

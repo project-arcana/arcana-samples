@@ -81,9 +81,10 @@ void EPrimaryRayGen()
     // Set TMin to a non-zero small value to avoid aliasing issues due to floating - point errors.
     // TMin should be kept small to prevent missing geometry at close contact areas.
     ray_desc.TMin = 0.001;
-    ray_desc.TMax = 10000.0;
+    ray_desc.TMax = 1000.0;
 
     // Trace the ray
+    // params after flag (2-5): visibility mask, hitgroup offset, multiplier for geometry index (BLAS element index), miss shader index
     TraceRay(SceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray_desc, payload);
     // Write payload to output UAV
     gOutput[DispatchRaysIndex().xy] = float4(payload.colorAndDistance.rgb, 1.f);
@@ -104,17 +105,23 @@ void EBarycentricClosestHit(inout HitInfo payload, BuiltInTriangleIntersectionAt
     float3 barycentrics = 
     float3(1.f - attrib.barycentrics.x - attrib.barycentrics.y, attrib.barycentrics.x, attrib.barycentrics.y);
 
-    const float3 A = float3(1, 1, 0);
-    const float3 B = float3(0, 1, 1);
-    const float3 C = float3(1, 0, 1);
+    const float3 A = float3(1, 0, 0);
+    const float3 B = float3(0, 1, 0);
+    const float3 C = float3(0, 0, 1);
 
     float3 hitColor = A * barycentrics.x + B * barycentrics.y + C * barycentrics.z;
 
-    payload.colorAndDistance = float4(hitColor, RayTCurrent());
+    payload.colorAndDistance = float4(hitColor * (1.0 - saturate(RayTCurrent() / 50.f)), RayTCurrent());
 }
 
 [shader("closesthit")] 
 void EClosestHitFlatColor(inout HitInfo payload, BuiltInTriangleIntersectionAttributes attrib) 
 {
-    payload.colorAndDistance = float4(1 * saturate(RayTCurrent() / 100.f), 0, 1, RayTCurrent());
+    payload.colorAndDistance = float4(1 * saturate(RayTCurrent() / 50.f), .3f, .7f, RayTCurrent());
+}
+
+[shader("closesthit")] 
+void EClosestHitErrorState(inout HitInfo payload, BuiltInTriangleIntersectionAttributes attrib) 
+{
+    payload.colorAndDistance = float4(0, 1 * (1.0 - saturate(RayTCurrent() / 20.f)), 0, RayTCurrent());
 }

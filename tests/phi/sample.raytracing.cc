@@ -36,14 +36,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 {
     using namespace phi;
     // backend init
-    auto conf = backend_config;
-    conf.enable_raytracing = false;
-    backend.initialize(conf);
+    backend.initialize(backend_config);
 
     if (!backend.isRaytracingEnabled())
     {
-        LOG_WARN("current GPU has no raytracing capabilities");
-        std::getchar();
+        if (backend_config.enable_raytracing)
+            LOG_WARN("current GPU has no raytracing capabilities");
+        else
+            LOG_WARN("raytracing was explicitly disabled");
         return;
     }
 
@@ -64,6 +64,9 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
     inc::da::smooth_fps_cam camera;
     inc::pre::dmr::camera_gpudata camera_data;
     camera.setup_default_inputs(input);
+    camera.target.position = {33, 18, 16};
+    camera.target.forward = tg::normalize(tg::vec3{-.44f, -.52f, -.73f});
+    camera.physical = camera.target;
 
     struct resources_t
     {
@@ -84,7 +87,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
         handle::resource shader_table_raygen = handle::null_resource;
 
-        handle::shader_view raygen_shader_view = handle::null_shader_view;
+        handle::shader_view sv_ray_gen = handle::null_shader_view;
 
         handle::resource shader_table_miss = handle::null_resource;
         handle::resource shader_table_hitgroups = handle::null_resource;
@@ -96,6 +99,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
     shader_table_sizes table_sizes;
 
     // Res setup
+    handle::resource init_upload_buffer;
     {
         auto const buffer_size = 1024ull * 2;
         auto* const buffer = static_cast<std::byte*>(std::malloc(buffer_size));
@@ -112,7 +116,6 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         // Mesh setup
         {
             writer.reset();
-            handle::resource upload_buffer;
             {
                 auto const mesh_data = phi_test::sample_mesh_binary ? inc::assets::load_binary_mesh(phi_test::sample_mesh_path)
                                                                     : inc::assets::load_obj_mesh(phi_test::sample_mesh_path);
@@ -133,14 +136,18 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     writer.add_command(tcmd);
                 }
 
-                upload_buffer = backend.createUploadBuffer(vert_size + ind_size);
-                std::byte* const upload_mapped = backend.mapBuffer(upload_buffer);
+                init_upload_buffer = backend.createUploadBuffer(vert_size + ind_size);
+                {
+                    std::byte* const upload_mapped = backend.mapBuffer(init_upload_buffer);
 
-                std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
-                std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
+                    std::memcpy(upload_mapped, mesh_data.vertices.data(), vert_size);
+                    std::memcpy(upload_mapped + vert_size, mesh_data.indices.data(), ind_size);
 
-                writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, upload_buffer, 0, vert_size});
-                writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, upload_buffer, vert_size, ind_size});
+                    backend.unmapBuffer(init_upload_buffer);
+                }
+
+                writer.add_command(cmd::copy_buffer{resources.vertex_buffer, 0, init_upload_buffer, 0, vert_size});
+                writer.add_command(cmd::copy_buffer{resources.index_buffer, 0, init_upload_buffer, vert_size, ind_size});
 
                 {
                     cmd::transition_resources tcmd;
@@ -152,20 +159,19 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
             auto const meshupload_list = backend.recordCommandList(writer.buffer(), writer.size());
 
-            backend.unmapBuffer(upload_buffer);
             backend.submit(cc::span{meshupload_list});
-            backend.flushGPU();
-            backend.free(upload_buffer);
         }
 
         // AS / RT setup
         {
-            writer.reset();
-            {
-                constexpr unsigned num_instances = 2;
-                arg::blas_element blas_elements[num_instances];
+            constexpr unsigned num_blas_elements = 1;
+            constexpr unsigned num_tlas_instances = 3;
 
-                for (auto i = 0u; i < num_instances; ++i)
+            // Bottom Level Accel Struct (BLAS) - Geometry elements
+            {
+                arg::blas_element blas_elements[num_blas_elements];
+
+                for (auto i = 0u; i < num_blas_elements; ++i)
                 {
                     auto& elem = blas_elements[i];
                     elem.is_opaque = true;
@@ -177,41 +183,46 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
                 resources.blas = backend.createBottomLevelAccelStruct(
                     blas_elements, accel_struct_build_flags::prefer_fast_trace | accel_struct_build_flags::allow_compaction, &resources.blas_native);
-                resources.tlas = backend.createTopLevelAccelStruct(num_instances);
+            }
 
+            // Top Level Accel Struct (TLAS) - BLAS instances
+            {
+                resources.tlas = backend.createTopLevelAccelStruct(num_tlas_instances);
 
-                accel_struct_geometry_instance instance_data[num_instances];
+                accel_struct_instance instance_data[num_tlas_instances];
 
-                for (auto i = 0u; i < num_instances; ++i)
+                for (auto i = 0u; i < num_tlas_instances; ++i)
                 {
                     auto& inst = instance_data[i];
                     inst.instance_id = i;
-                    inst.mask = 0xFF;
+                    inst.visibility_mask = 0xFF;
                     inst.hit_group_index = i;
                     inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
-                    inst.native_accel_struct_handle = resources.blas_native;
+                    inst.native_bottom_level_as_handle = resources.blas_native;
 
                     tg::mat4 const transform
-                        = tg::transpose(tg::translation<float>(i * 20, i * 20, 0) * tg::rotation_y(0_deg) /* * tg::scaling(.1f, .1f, .1f)*/);
+                        = tg::transpose(tg::translation<float>(i * 15.f, i * 5.f, 0) * tg::rotation_y(0_deg) /* * tg::scaling(.1f, .1f, .1f)*/);
                     std::memcpy(inst.transposed_transform, tg::data_ptr(transform), sizeof(inst.transposed_transform));
                 }
 
                 backend.uploadTopLevelInstances(resources.tlas, instance_data);
+            }
 
+            // GPU timeline - build BLAS and TLAS
+            {
+                writer.reset();
                 cmd::update_bottom_level bcmd;
                 bcmd.dest = resources.blas;
-                bcmd.source = handle::null_accel_struct;
                 writer.add_command(bcmd);
 
                 cmd::update_top_level tcmd;
                 tcmd.dest = resources.tlas;
-                tcmd.num_instances = num_instances;
+                tcmd.num_instances = num_tlas_instances;
                 writer.add_command(tcmd);
             }
 
             auto const accelstruct_cmdlist = backend.recordCommandList(writer.buffer(), writer.size());
             backend.submit(cc::span{accelstruct_cmdlist});
-            backend.flushGPU();
         }
     }
 
@@ -227,8 +238,9 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             main_lib.binary = {shader_binaries.back().get(), shader_binaries.back().size()};
             main_lib.shader_exports = {{shader_stage::ray_gen, "EPrimaryRayGen"},
                                        {shader_stage::ray_miss, "EMiss"},
+                                       {shader_stage::ray_closest_hit, "EClosestHitFlatColor"},
                                        {shader_stage::ray_closest_hit, "EBarycentricClosestHit"},
-                                       {shader_stage::ray_closest_hit, "EClosestHitFlatColor"}};
+                                       {shader_stage::ray_closest_hit, "EClosestHitErrorState"}};
         }
 
         cc::capped_vector<arg::raytracing_argument_association, 16> arg_assocs;
@@ -242,19 +254,22 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
             auto& closesthit_assoc = arg_assocs.emplace_back();
             closesthit_assoc.library_index = 0;
-            closesthit_assoc.export_indices = {2}; // ClosestHit
+            closesthit_assoc.export_indices = {2, 3, 4}; // all closest hit exports
             closesthit_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 0, 0, false});
         }
 
-        arg::raytracing_hit_group hit_groups[2];
+        arg::raytracing_hit_group hit_groups[3];
 
-        hit_groups[0].name = "primary_hitgroup";
+        hit_groups[0].name = "hitgroup0";
         hit_groups[0].closest_hit_name = "EBarycentricClosestHit";
 
-        hit_groups[1].name = "dummy_hitgroup";
+        hit_groups[1].name = "hitgroup1";
         hit_groups[1].closest_hit_name = "EClosestHitFlatColor";
 
-        unsigned max_recursion = 4;
+        hit_groups[2].name = "hitgroup2";
+        hit_groups[2].closest_hit_name = "EClosestHitErrorState";
+
+        unsigned max_recursion = 8;
         unsigned max_payload_size = sizeof(float[4]);   // RGB + Distance
         unsigned max_attribute_size = sizeof(float[2]); // Barycentrics, builtin Triangles
         resources.rt_pso = backend.createRaytracingPipelineState(libraries, arg_assocs, hit_groups, max_recursion, max_payload_size, max_attribute_size);
@@ -262,8 +277,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     auto const f_free_sized_resources = [&] {
         backend.free(resources.rt_write_texture);
-
-        backend.free(resources.raygen_shader_view);
+        backend.free(resources.sv_ray_gen);
         backend.free(resources.shader_table_raygen);
         backend.free(resources.shader_table_miss);
         backend.free(resources.shader_table_hitgroups);
@@ -282,41 +296,41 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 resource_view srv_sve;
                 srv_sve.init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
 
-                resources.raygen_shader_view = backend.createShaderView(cc::span{srv_sve}, cc::span{uav_sve}, {}, false);
+                resources.sv_ray_gen = backend.createShaderView(cc::span{srv_sve}, cc::span{uav_sve}, {}, false);
             }
 
             arg::shader_table_record str_raygen;
             str_raygen.set_shader(0); // str_raygen.symbol = "raygeneration";
-            str_raygen.add_shader_arg(resources.b_camdata_stacked, 0, resources.raygen_shader_view);
+            str_raygen.add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
 
             arg::shader_table_record str_miss;
             str_miss.set_shader(1); // str_miss.symbol = "miss";
 
-            arg::shader_table_record str_hitgroups[2];
-            str_hitgroups[0].set_hitgroup(0); // str_main_hit.symbol = "primary_hitgroup";
+            arg::shader_table_record str_hitgroups[3];
+            str_hitgroups[0].set_hitgroup(0);
             str_hitgroups[1].set_hitgroup(1);
-
+            str_hitgroups[2].set_hitgroup(2);
 
             table_sizes = backend.calculateShaderTableSize(cc::span{str_raygen}, cc::span{str_miss}, str_hitgroups);
 
             {
-                resources.shader_table_raygen = backend.createUploadBuffer(table_sizes.ray_gen_stride_bytes * 1);
+                resources.shader_table_raygen = backend.createUploadBuffer(table_sizes.ray_gen_size);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table_raygen);
-                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.ray_gen_stride_bytes, cc::span{str_raygen});
+                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.ray_gen_size.stride_bytes, cc::span{str_raygen});
                 backend.unmapBuffer(resources.shader_table_raygen);
             }
 
             {
-                resources.shader_table_miss = backend.createUploadBuffer(table_sizes.miss_stride_bytes * 1);
+                resources.shader_table_miss = backend.createUploadBuffer(table_sizes.miss_size);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table_miss);
-                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.miss_stride_bytes, cc::span{str_miss});
+                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.miss_size.stride_bytes, cc::span{str_miss});
                 backend.unmapBuffer(resources.shader_table_miss);
             }
 
             {
-                resources.shader_table_hitgroups = backend.createUploadBuffer(table_sizes.hit_group_stride_bytes * 1);
+                resources.shader_table_hitgroups = backend.createUploadBuffer(table_sizes.hit_group_size);
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table_hitgroups);
-                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_stride_bytes, str_hitgroups);
+                backend.writeShaderTable(st_map, resources.rt_pso, table_sizes.hit_group_size.stride_bytes, str_hitgroups);
                 backend.unmapBuffer(resources.shader_table_hitgroups);
             }
         }
@@ -333,6 +347,9 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     auto run_time = 0.f;
     inc::da::Timer timer;
+
+    backend.flushGPU();
+    backend.free(init_upload_buffer);
 
     std::byte* mem_cmdlist = static_cast<std::byte*>(std::malloc(1024u * 10));
     CC_DEFER { std::free(mem_cmdlist); };

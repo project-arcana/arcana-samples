@@ -167,7 +167,8 @@
                     "EPrimaryRayGen",
                     "EMiss",
                     "EBarycentricClosestHit",
-                    "EClosestHitFlatColor"
+                    "EClosestHitFlatColor",
+                    "EClosestHitErrorState"
                 ],
                 "output": "../bin/raytrace_lib"
             }
