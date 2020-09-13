@@ -96,7 +96,7 @@ float4 CalculatePhongLighting(in float4 albedo, in float3 normal, in bool isInSh
     const float4 lightDiffuseColor = float4(1, 0.95, 0.9, 1);
 
     float3 hitPosition = get_world_hit_position();
-    float3 lightPosition = float3(25, 75, -25);
+    float3 lightPosition = float3(25, 75, 25);
     float shadowFactor = isInShadow ? 0.25 : 1.0;
     float3 incidentLightRay = normalize(hitPosition - lightPosition);
 
@@ -211,6 +211,7 @@ float4 TraceRadianceRay(in Ray ray, in uint currentRayRecursionDepth)
     return rayPayload.colorAndDistance;
 }
 
+// returns the (model space) normal interpolated from the hit primitive's vertices
 float3 get_hit_primitive_normal(BuiltInTriangleIntersectionAttributes attrib)
 {
     // Get the base index of the triangle's first 16 bit index.
@@ -272,10 +273,7 @@ void EPrimaryRayGen()
 [shader("miss")]
 void EMiss(inout CustomRayPayload payload : SV_RayPayload)
 {
-    uint2 launchIndex = DispatchRaysIndex().xy;
-    float2 dims = float2(DispatchRaysDimensions().xy);
-    float ramp = launchIndex.y / dims.y;
-    payload.colorAndDistance = float4(0.0f, 0.0f, 0.2f - 0.15f*ramp, -1.0f);
+    payload.colorAndDistance = float4(saturate(WorldRayDirection().y + .4) * float3(.5, .5, .85), -1.0f);
 }
 
 [shader("closesthit")] 
@@ -325,10 +323,10 @@ void EClosestHitFlatColor(inout CustomRayPayload payload, BuiltInTriangleInterse
 [shader("closesthit")] 
 void EClosestHitErrorState(inout CustomRayPayload payload, BuiltInTriangleIntersectionAttributes attrib) 
 {
-    const float3 L = normalize(float3(-1,2,-1));
+    const float3 L = normalize(float3(25, 75, 25));
     float3 N = get_hit_primitive_normal(attrib);
 
     const float4 matAlbedo = float4(1, .85, 1, 1);
 
-    payload.colorAndDistance = float4(matAlbedo.rgb * saturate(dot(N,L)),  RayTCurrent());
+    payload.colorAndDistance = float4(matAlbedo.rgb * saturate(saturate(dot(N,L)) + 0.1),  RayTCurrent());
 }
