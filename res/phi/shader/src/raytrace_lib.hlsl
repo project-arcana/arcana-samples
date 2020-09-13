@@ -41,7 +41,7 @@ struct Vertex
     float4 Tangent;
 };
 
-#define MAX_RAY_RECURSION_DEPTH 4
+#define MAX_RAY_RECURSION_DEPTH 8
 
 // Raytracing output texture, accessed as a UAV
 RWTexture2D<float4> gOutput                 : register(u0, space0);
@@ -250,7 +250,7 @@ void EPrimaryRayGen()
     // Initialize the ray payload
     CustomRayPayload payload;
     payload.colorAndDistance = float4(0, 0, 0, 0);
-    payload.currentRecursion = 0;
+    payload.currentRecursion = 1;
 
     // Generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
     const Ray ray_info = compute_camera_ray(DispatchRaysIndex().xy, extract_camera_position(gCamData.view_inv), gCamData.vp_inv);
