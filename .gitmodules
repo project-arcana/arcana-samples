@@ -58,3 +58,6 @@
 [submodule "extern/babel-serializer"]
 	path = extern/babel-serializer
 	url = git@github.com:project-arcana/babel-serializer.git
+[submodule "extern/texture-processor"]
+	path = extern/texture-processor
+	url = git@github.com:project-arcana/texture-processor.git

@@ -76,6 +76,9 @@ add_subdirectory(extern/phantasm-hardware-interface)
 set(DXCWRAP_BUILD_STANDALONE ON CACHE BOOL "" FORCE)
 add_subdirectory(extern/dxc-wrapper)
 
+# texture processing
+add_subdirectory(extern/texture-processor)
+
 # phantasm renderer
 add_subdirectory(extern/phantasm-renderer)
 
