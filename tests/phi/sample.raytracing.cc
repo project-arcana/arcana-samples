@@ -113,7 +113,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     unsigned backbuf_index = 0;
     tg::isize2 backbuf_size = tg::isize2(50, 50);
-    shader_table_sizes table_sizes;
+    shader_table_strides table_sizes;
     util::shader_table_offsets table_offsets;
 
     // Res setup
@@ -465,7 +465,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     dcmd.width = backbuf_size.width;
                     dcmd.height = backbuf_size.height;
                     dcmd.depth = 1;
-                    dcmd.set_strides_and_sizes(table_sizes);
+                    dcmd.set_strides(table_sizes);
                     dcmd.set_single_buffer(resources.shader_table, false);
                     dcmd.set_offsets(table_offsets.get_ray_gen_offset(backbuf_index), table_offsets.get_miss_offset(0), table_offsets.get_hitgroup_offset(0), 0);
                     //                    dcmd.set_single_shader_table(resources.shader_table, table_sizes);
