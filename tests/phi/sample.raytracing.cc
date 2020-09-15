@@ -48,6 +48,16 @@ constexpr inline tg::vec<4, size_t> dimensional_index(size_t linear)
 
 void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
+    int local = 0;
+
+    CC_ASSERT(local == 0);
+
+    rlog::MessageBuilder builder;
+    builder("local: {}", local);
+
+    LOG_INFO("local: {}", local);
+
+
     using namespace phi;
     // backend init
 
@@ -366,6 +376,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
             table_sizes = backend.calculateShaderTableSize(str_raygen, cc::span{str_miss}, str_hitgroups);
+
             table_offsets.init(table_sizes, 3, 1, 1, 0);
 
             {

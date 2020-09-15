@@ -58,37 +58,27 @@
         },
 
         {
-            "source": "mipgen.hlsl",
+            "source": "preprocess/mipgen.hlsl",
             "binaries": [
                 {
                     "target": "cs",
-                    "entrypoint": "main_cs",
+                    "entrypoint": "cs_mipgen",
                     "output": "../bin/mipgen"
-                }
-            ]
-        },
-        {
-            "source": "mipgen_gamma.hlsl",
-            "binaries": [
+                },
                 {
                     "target": "cs",
-                    "entrypoint": "main_cs",
+                    "entrypoint": "cs_mipgen_gamma",
                     "output": "../bin/mipgen_gamma"
-                }
-            ]
-        },
-        {
-            "source": "mipgen_array.hlsl",
-            "binaries": [
+                },
                 {
                     "target": "cs",
-                    "entrypoint": "main_cs",
+                    "entrypoint": "cs_mipgen_array",
                     "output": "../bin/mipgen_array"
                 }
             ]
         },
         {
-            "source": "equirect_to_cube.hlsl",
+            "source": "preprocess/equirect_to_cube.hlsl",
             "binaries": [
                 {
                     "target": "cs",
@@ -98,7 +88,7 @@
             ]
         },
         {
-            "source": "specular_map_filter.hlsl",
+            "source": "preprocess/specular_map_filter.hlsl",
             "binaries": [
                 {
                     "target": "cs",
@@ -108,7 +98,7 @@
             ]
         },
         {
-            "source": "irradiance_map_filter.hlsl",
+            "source": "preprocess/irradiance_map_filter.hlsl",
             "binaries": [
                 {
                     "target": "cs",
@@ -118,7 +108,7 @@
             ]
         },
         {
-            "source": "brdf_lut_gen.hlsl",
+            "source": "preprocess/brdf_lut_gen.hlsl",
             "binaries": [
                 {
                     "target": "cs",
