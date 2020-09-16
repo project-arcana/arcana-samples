@@ -326,10 +326,15 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         hit_groups[2].name = "hitgroup2";
         hit_groups[2].closest_hit_name = "EClosestHitErrorState";
 
-        unsigned max_recursion = 8;
-        unsigned max_payload_size = sizeof(float[4]) + sizeof(uint32_t); // float4: RGB + Distance, uint: current recursion
-        unsigned max_attribute_size = sizeof(float[2]);                  // Barycentrics, builtin Triangles
-        resources.rt_pso = backend.createRaytracingPipelineState(libraries, arg_assocs, hit_groups, max_recursion, max_payload_size, max_attribute_size);
+        arg::raytracing_pipeline_state_desc desc;
+        desc.libraries = libraries;
+        desc.argument_associations = arg_assocs;
+        desc.hit_groups = hit_groups;
+        desc.max_recursion = 8;
+        desc.max_payload_size_bytes = sizeof(float[4]) + sizeof(uint32_t); // float4: RGB + Distance, uint: current recursion
+        desc.max_attribute_size_bytes = sizeof(float[2]);                  // Barycentrics, builtin Triangles
+
+        resources.rt_pso = backend.createRaytracingPipelineState(desc);
     }
 
     auto const f_free_sized_resources = [&] {
@@ -375,7 +380,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
             str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
-            table_sizes = backend.calculateShaderTableSize(str_raygen, cc::span{str_miss}, str_hitgroups);
+            table_sizes = backend.calculateShaderTableStrides(str_raygen, cc::span{str_miss}, str_hitgroups);
 
             table_offsets.init(table_sizes, 3, 1, 1, 0);
 
