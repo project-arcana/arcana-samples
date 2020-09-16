@@ -174,7 +174,27 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
     // PSO creation
     {
-        cc::array const payload_shape = {
+        auto const vs = get_shader_binary("mesh_pbr_vs", sample_config.shader_ending);
+        auto const ps = get_shader_binary("mesh_pbr_ps", sample_config.shader_ending);
+        CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
+
+        auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
+
+        arg::graphics_pipeline_state_desc desc;
+        desc.config.cull = cull_mode::back;
+        desc.config.depth = depth_function::less;
+        desc.config.samples = gc_msaa_samples;
+
+        desc.framebuffer.add_render_target(format::rgba16f);
+        desc.framebuffer.depth_target = format::depth24un_stencil8u;
+
+        desc.vertices.attributes = attrib_info;
+        desc.vertices.vertex_size_bytes = sizeof(inc::assets::simple_vertex);
+
+        desc.shader_binaries
+            = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
+
+        desc.shader_arg_shapes = {
             // Argument 0, global CBV + model mat structured buffer
             arg::shader_arg_shape(1, 0, 0, true),
             // Argument 1, pixel shader SRVs
@@ -183,26 +203,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             arg::shader_arg_shape(3, 0, 1),
         };
 
-        auto const vs = get_shader_binary("mesh_pbr_vs", sample_config.shader_ending);
-        auto const ps = get_shader_binary("mesh_pbr_ps", sample_config.shader_ending);
-        CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
-
-        cc::array const shader_stages
-            = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
-
-        auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
-
-        arg::framebuffer_config fbconf;
-        fbconf.add_render_target(format::rgba16f);
-        fbconf.depth_target = format::depth24un_stencil8u;
-
-        pipeline_config config;
-        config.cull = cull_mode::back;
-        config.depth = depth_function::less;
-        config.samples = gc_msaa_samples;
-
-        l_res.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
-                                                       true, shader_stages, config);
+        desc.has_root_constants = true;
+        l_res.pso_render = backend.createPipelineState(desc);
     }
 
     {
