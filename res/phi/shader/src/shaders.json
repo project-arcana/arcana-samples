@@ -162,6 +162,20 @@
                 ],
                 "output": "../bin/raytrace_lib"
             }
+        },
+        
+        {
+            "source": "pathtrace_lib.hlsl",
+            "library": {
+                "exports": [
+                    "EPrimaryRayGen",
+                    "EMiss",
+                    "EBarycentricClosestHit",
+                    "EClosestHitFlatColor",
+                    "EClosestHitErrorState"
+                ],
+                "output": "../bin/pathtrace_lib"
+            }
         }
     ]
 }

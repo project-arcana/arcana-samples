@@ -43,6 +43,12 @@ APP("d3d12_rt")
     phi_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
 }
 
+APP("d3d12_pathtrace")
+{
+    phi::d3d12::BackendD3D12 backend;
+    phi_test::run_pathtracing_sample(backend, get_d3d12_sample_conf());
+}
+
 APP("d3d12_imgui")
 {
     phi::d3d12::BackendD3D12 backend;
