@@ -92,10 +92,10 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
     using namespace phi;
     // backend init
 
-    auto conf = backend_config;
-    conf.validation = validation_level::on_extended_dred;
+    // auto conf = backend_config;
+    // conf.validation = validation_level::on_extended_dred;
     //    conf.native_features |= conf.native_feature_d3d12_break_on_warn;
-    backend.initialize(conf);
+    backend.initialize(backend_config);
 
     if (!backend.isRaytracingEnabled())
     {
@@ -116,7 +116,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
     phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize(), present_mode::unsynced_allow_tearing);
     // unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
-    phi::format const write_tex_format = phi::format::bgra8un;
+    phi::format const write_tex_format = phi::format::b10g11r11uf;
 
 
     inc::da::input_manager input;
@@ -385,11 +385,12 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct; u: output tex
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
             raygen_assoc.has_root_constants = false;
-
+        }
+        {
             auto& hitgroup_assoc = arg_assocs.emplace_back();
             hitgroup_assoc.library_index = 0;
             hitgroup_assoc.export_indices = {2, 3};                                          // all closest hit exports
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false}); // t: accelstruct
+            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true});  // t: accelstruct
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
         }
 
@@ -420,9 +421,10 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
     };
 
     auto f_create_sized_resources = [&] {
-        // Create RT write texture
+        // textures
         resources.rt_write_texture = backend.createTexture(write_tex_format, backbuf_size, 1, texture_dimension::t2d, 1, true);
 
+        // SVs
         {
             resource_view srvs[1];
             srvs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
@@ -433,21 +435,21 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             resources.sv_ray_trace_result = backend.createShaderView(srvs, {}, samplers);
         }
 
+        {
+            resource_view uavs[1];
+            uavs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
+
+            resource_view srvs[1];
+            srvs[0].init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
+
+            sampler_config samplers[1];
+            samplers[0].init_default(sampler_filter::min_mag_mip_linear);
+
+            resources.sv_ray_gen = backend.createShaderView(srvs, uavs, samplers, false);
+        }
+
         // Shader table setup
         {
-            {
-                resource_view uavs[1];
-                uavs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
-
-                resource_view srvs[1];
-                srvs[0].init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
-
-                sampler_config samplers[1];
-                samplers[0].init_default(sampler_filter::min_mag_mip_linear);
-
-                resources.sv_ray_gen = backend.createShaderView(srvs, uavs, samplers, false);
-            }
-
             arg::shader_table_record str_raygen;
             str_raygen.set_shader(0); // str_raygen.symbol = "raygeneration";
             str_raygen.add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
@@ -600,36 +602,6 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     // LOG_INFO("ray gen offset: {} (bb {})", dcmd.table_ray_generation.offset_bytes, backbuf_index);
                 }
 
-#define ARC_PHITEST_COPY_TO_BACKBUFFER 1
-#if ARC_PHITEST_COPY_TO_BACKBUFFER
-
-                {
-                    cmd::transition_resources tcmd;
-                    tcmd.add(resources.rt_write_texture, resource_state::copy_src);
-                    tcmd.add(backbuffer, resource_state::copy_dest);
-                    writer.add_command(tcmd);
-                }
-
-                {
-                    cmd::copy_texture ccmd;
-                    ccmd.init_symmetric(resources.rt_write_texture, backbuffer, backbuf_size.width, backbuf_size.height, 0);
-                    writer.add_command(ccmd);
-                }
-
-                {
-                    cmd::transition_resources tcmd;
-                    tcmd.add(backbuffer, resource_state::render_target);
-                    writer.add_command(tcmd);
-                }
-
-                {
-                    cmd::begin_render_pass bcmd;
-                    bcmd.viewport = backbuf_size;
-                    bcmd.add_backbuffer_rt(backbuffer, false);
-                    writer.add_command(bcmd);
-                }
-
-#else
                 {
                     cmd::transition_resources tcmd;
                     tcmd.add(resources.rt_write_texture, resource_state::shader_resource, shader_stage::pixel);
@@ -650,7 +622,6 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     dcmd.add_shader_arg(handle::null_resource, 0, resources.sv_ray_trace_result);
                     writer.add_command(dcmd);
                 }
-#endif
 
                 {
                     if (ImGui::Begin("Unbiased Pathtracing Demo"))
