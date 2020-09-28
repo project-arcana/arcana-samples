@@ -31,6 +31,7 @@
 #define IEEE_INT_SQRT_CONST_NR0_SNORM       0x1FBD1DF5
 #define IEEE_INT_RCP_SQRT_CONST_NR0_SNORM   0x5F341A43
 
+#define PI 3.1415926535897932f
 
 // Relative error : ~3.4% over full
 // Precise format : ~small float

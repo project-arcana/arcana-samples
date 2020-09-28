@@ -19,14 +19,19 @@
             "source": "postprocess.hlsl",
             "binaries": [
                 {
-                    "target": "vs",
-                    "entrypoint": "main_vs",
-                    "output": "../bin/fullscreen_vs"
-                },
-                {
                     "target": "ps",
                     "entrypoint": "main_ps",
                     "output": "../bin/postprocess_ps"
+                }
+            ]
+        },
+        {
+            "source": "fullscreen_tri.hlsl",
+            "binaries": [
+                {
+                    "target": "vs",
+                    "entrypoint": "main",
+                    "output": "../bin/fullscreen_vs"
                 }
             ]
         },
@@ -170,9 +175,8 @@
                 "exports": [
                     "EPrimaryRayGen",
                     "EMiss",
-                    "EBarycentricClosestHit",
-                    "EClosestHitFlatColor",
-                    "EClosestHitErrorState"
+                    "ECH0Shadow",
+                    "ECH0Material"
                 ],
                 "output": "../bin/pathtrace_lib"
             }
