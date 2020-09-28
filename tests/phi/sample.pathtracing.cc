@@ -56,21 +56,39 @@ struct pathtrace_cbv
     int frame_index;
     int num_samples_per_pixel;
     int max_bounces;
+    float fov_radians;
+    float cam_to_pixel_spread_angle_radians;
+};
+
+#define ARC_PHI_TEST_MAX_NUM_LIGHTS 256
+
+enum class pathtrace_light_type : unsigned
+{
+    EnvLight = 0,
+    PointLight,
+    DirectionalLight,
+    RectLight,
+    SpotLight
+};
+
+struct pathtrace_lightdata_soa
+{
+    unsigned numLights;
+    pathtrace_light_type type[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    tg::vec3 position[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    tg::vec3 normal[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    tg::vec3 color[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    tg::vec3 dPdu[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    tg::vec3 dPdv[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    tg::vec3 dimensions[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    float attenuation[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    float rectLightBarnCosAngle[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    float rectLightBarnLength[ARC_PHI_TEST_MAX_NUM_LIGHTS];
 };
 }
 
 void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
-    int local = 0;
-
-    CC_ASSERT(local == 0);
-
-    rlog::MessageBuilder builder;
-    builder("local: {}", local);
-
-    LOG_INFO("local: {}", local);
-
-
     using namespace phi;
     // backend init
 
@@ -98,6 +116,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
     phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize(), present_mode::unsynced_allow_tearing);
     // unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
+    phi::format const write_tex_format = phi::format::bgra8un;
 
 
     inc::da::input_manager input;
@@ -113,6 +132,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
     {
         handle::resource b_camdata_stacked = handle::null_resource;
         unsigned camdata_stacked_offset = 0;
+        handle::resource b_lightdata;
 
         handle::resource vertex_buffer = handle::null_resource;
         handle::resource index_buffer = handle::null_resource;
@@ -125,11 +145,13 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         handle::resource tlas_instance_buffer = handle::null_resource;
 
         handle::pipeline_state rt_pso = handle::null_pipeline_state;
+        handle::pipeline_state pso_tonemap;
 
         handle::resource rt_write_texture = handle::null_resource;
 
         handle::shader_view sv_ray_gen = handle::null_shader_view;
         handle::shader_view sv_mesh_buffers = handle::null_shader_view;
+        handle::shader_view sv_ray_trace_result;
 
         handle::resource shader_table = handle::null_resource;
     } resources;
@@ -154,6 +176,29 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             resources.camdata_stacked_offset = size_camdata_256;
         }
 
+        // lightdata buffer
+        {
+            resources.b_lightdata = backend.createUploadBuffer(sizeof(pathtrace_lightdata_soa));
+
+            pathtrace_lightdata_soa* const map = (pathtrace_lightdata_soa*)backend.mapBuffer(resources.b_lightdata);
+
+            std::memset(map, 0, sizeof(pathtrace_lightdata_soa));
+
+            auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color) {
+                auto const index = map->numLights++;
+                map->type[index] = type;
+                map->position[index] = pos;
+                map->normal[index] = normal;
+                map->color[index] = color;
+            };
+
+            f_add_light(pathtrace_light_type::EnvLight, {}, {}, {});
+            f_add_light(pathtrace_light_type::PointLight, {-2, 1, 0}, {0, 1, 0}, {1, 0, 0});
+            f_add_light(pathtrace_light_type::PointLight, {0, 1, 0}, {0, -1, 0}, {0, 1, 0});
+            f_add_light(pathtrace_light_type::PointLight, {2, 1, 0}, {0, 1, 0}, {0, 0, 1});
+
+            backend.unmapBuffer(resources.b_lightdata);
+        }
         // Mesh setup
         {
             writer.reset();
@@ -220,9 +265,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         // AS / RT setup
         {
             constexpr unsigned num_blas_elements = 1;
-
             constexpr unsigned instance_cube_edge_length = 4;
-
             constexpr unsigned num_tlas_instances = instance_cube_edge_length * instance_cube_edge_length * instance_cube_edge_length;
 
             // Bottom Level Accel Struct (BLAS) - Geometry elements
@@ -255,7 +298,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     auto& inst = instance_data[i];
                     inst.instance_id = i;
                     inst.visibility_mask = 0xFF;
-                    inst.hit_group_index = i % 3;
+                    inst.hit_group_index = 0;
                     inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.native_bottom_level_as_handle = resources.blas_native;
 
@@ -295,7 +338,28 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         }
     }
 
-    // PSO setup
+    // Output PSO setup
+    {
+        auto const vs = get_shader_binary("fullscreen_vs", sample_config.shader_ending);
+        auto const ps = get_shader_binary("postprocess_ps", sample_config.shader_ending);
+        CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
+
+
+        arg::graphics_pipeline_state_desc desc;
+        desc.config.cull = cull_mode::front;
+
+        desc.framebuffer.add_render_target(msc_backbuf_format);
+
+        desc.shader_binaries
+            = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
+
+        // Argument 0, blit target SRV + sampler
+        desc.shader_arg_shapes = {arg::shader_arg_shape(1, 0, 1)};
+
+        resources.pso_tonemap = backend.createPipelineState(desc);
+    }
+
+    // RT PSO setup
     {
         cc::capped_vector<phi::unique_buffer, 16> shader_binaries;
         cc::capped_vector<arg::raytracing_shader_library, 16> libraries;
@@ -307,9 +371,9 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             main_lib.binary = {shader_binaries.back().get(), shader_binaries.back().size()};
             main_lib.shader_exports = {{shader_stage::ray_gen, "EPrimaryRayGen"},
                                        {shader_stage::ray_miss, "EMiss"},
-                                       {shader_stage::ray_closest_hit, "EClosestHitFlatColor"},
-                                       {shader_stage::ray_closest_hit, "EBarycentricClosestHit"},
-                                       {shader_stage::ray_closest_hit, "EClosestHitErrorState"}};
+
+                                       {shader_stage::ray_closest_hit, "ECH0Material"},
+                                       {shader_stage::ray_closest_hit, "ECH0Shadow"}};
         }
 
         cc::capped_vector<arg::raytracing_argument_association, 16> arg_assocs;
@@ -318,68 +382,81 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.library_index = 0;
             raygen_assoc.export_indices = {0};                                            // EPrimaryRayGen
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct, u: output tex
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct; u: output tex
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
             raygen_assoc.has_root_constants = false;
 
             auto& hitgroup_assoc = arg_assocs.emplace_back();
             hitgroup_assoc.library_index = 0;
-            hitgroup_assoc.export_indices = {2, 3, 4};                                       // all closest hit exports
+            hitgroup_assoc.export_indices = {2, 3};                                          // all closest hit exports
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false}); // t: accelstruct
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
         }
 
-        arg::raytracing_hit_group hit_groups[3];
+        arg::raytracing_hit_group hit_groups[2];
 
-        hit_groups[0].name = "hitgroup0";
-        hit_groups[0].closest_hit_name = "EBarycentricClosestHit";
+        hit_groups[0].name = "SHADING_MODEL_0_HGM";
+        hit_groups[0].closest_hit_name = "ECH0Material";
 
-        hit_groups[1].name = "hitgroup1";
-        hit_groups[1].closest_hit_name = "EClosestHitFlatColor";
-
-        hit_groups[2].name = "hitgroup2";
-        hit_groups[2].closest_hit_name = "EClosestHitErrorState";
+        hit_groups[1].name = "SHADING_MODEL_0_HGS";
+        hit_groups[1].closest_hit_name = "ECH0Shadow";
 
         arg::raytracing_pipeline_state_desc desc;
         desc.libraries = libraries;
         desc.argument_associations = arg_assocs;
         desc.hit_groups = hit_groups;
-        desc.max_recursion = 8;
-        desc.max_payload_size_bytes = sizeof(float[4]) + sizeof(uint32_t); // float4: RGB + Distance, uint: current recursion
-        desc.max_attribute_size_bytes = sizeof(float[2]);                  // Barycentrics, builtin Triangles
+        desc.max_recursion = 16;
+        desc.max_payload_size_bytes = 166;
+        desc.max_attribute_size_bytes = sizeof(float[2]); // Barycentrics, builtin Triangles
 
         resources.rt_pso = backend.createRaytracingPipelineState(desc);
     }
 
-    auto const f_free_sized_resources = [&] {
+    auto f_free_sized_resources = [&] {
         backend.free(resources.rt_write_texture);
         backend.free(resources.sv_ray_gen);
         backend.free(resources.shader_table);
+        backend.free(resources.sv_ray_trace_result);
     };
 
-    auto const f_create_sized_resources = [&] {
+    auto f_create_sized_resources = [&] {
         // Create RT write texture
-        resources.rt_write_texture = backend.createTexture(msc_backbuf_format, backbuf_size, 1, texture_dimension::t2d, 1, true);
+        resources.rt_write_texture = backend.createTexture(write_tex_format, backbuf_size, 1, texture_dimension::t2d, 1, true);
+
+        {
+            resource_view srvs[1];
+            srvs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
+
+            sampler_config samplers[1];
+            samplers[0].init_default(sampler_filter::min_mag_mip_point);
+
+            resources.sv_ray_trace_result = backend.createShaderView(srvs, {}, samplers);
+        }
 
         // Shader table setup
         {
             {
-                resource_view uav_sve;
-                uav_sve.init_as_tex2d(resources.rt_write_texture, msc_backbuf_format);
+                resource_view uavs[1];
+                uavs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
 
-                resource_view srv_sve;
-                srv_sve.init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
+                resource_view srvs[1];
+                srvs[0].init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
 
-                resources.sv_ray_gen = backend.createShaderView(cc::span{srv_sve}, cc::span{uav_sve}, {}, false);
+                sampler_config samplers[1];
+                samplers[0].init_default(sampler_filter::min_mag_mip_linear);
+
+                resources.sv_ray_gen = backend.createShaderView(srvs, uavs, samplers, false);
             }
 
             arg::shader_table_record str_raygen;
             str_raygen.set_shader(0); // str_raygen.symbol = "raygeneration";
             str_raygen.add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
+            str_raygen.add_shader_arg(resources.b_lightdata);
 
             arg::shader_table_record str_miss;
             str_miss.set_shader(1); // str_miss.symbol = "miss";
 
-            arg::shader_table_record str_hitgroups[3];
+            arg::shader_table_record str_hitgroups[2];
 
             str_hitgroups[0].set_hitgroup(0);
             str_hitgroups[0].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
@@ -388,10 +465,6 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             str_hitgroups[1].set_hitgroup(1);
             str_hitgroups[1].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
             str_hitgroups[1].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
-
-            str_hitgroups[2].set_hitgroup(2);
-            str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
-            str_hitgroups[2].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
             table_sizes = backend.calculateShaderTableStrides(str_raygen, cc::span{str_miss}, str_hitgroups);
 
@@ -430,9 +503,11 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
     auto run_time = 0.f;
 
+    auto cam_fov = tg::degree(60);
+
     pathtrace_cbv cbv_data = {};
     cbv_data.max_bounces = 5;
-    cbv_data.num_samples_per_pixel = 2;
+    cbv_data.num_samples_per_pixel = 1;
 
     inc::da::Timer timer;
 
@@ -478,7 +553,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                 cbv_data.frame_index = 0;
             }
 
-            camera_data.fill_data(backbuf_size, camera.physical.position, camera.physical.forward, 0);
+            camera_data.fill_data(backbuf_size, camera.physical.position, camera.physical.forward, 0, cam_fov);
 
             cbv_data.proj = camera_data.proj;
             cbv_data.proj_inv = camera_data.proj_inv;
@@ -486,6 +561,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             cbv_data.view_inv = camera_data.view_inv;
             cbv_data.vp = camera_data.clean_vp;
             cbv_data.vp_inv = camera_data.clean_vp_inv;
+            cbv_data.fov_radians = cam_fov.radians();
+            cbv_data.cam_to_pixel_spread_angle_radians = tg::atan((2.f * tg::tan(cam_fov * .5f)) / backbuf_size.width).radians();
 
             auto const current_camdata_offset = resources.camdata_stacked_offset * backbuf_index;
             auto const current_camdata_range = resources.camdata_stacked_offset * (backbuf_index + 1);
@@ -523,6 +600,9 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     // LOG_INFO("ray gen offset: {} (bb {})", dcmd.table_ray_generation.offset_bytes, backbuf_index);
                 }
 
+#define ARC_PHITEST_COPY_TO_BACKBUFFER 1
+#if ARC_PHITEST_COPY_TO_BACKBUFFER
+
                 {
                     cmd::transition_resources tcmd;
                     tcmd.add(resources.rt_write_texture, resource_state::copy_src);
@@ -530,12 +610,47 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     writer.add_command(tcmd);
                 }
 
-
                 {
                     cmd::copy_texture ccmd;
                     ccmd.init_symmetric(resources.rt_write_texture, backbuffer, backbuf_size.width, backbuf_size.height, 0);
                     writer.add_command(ccmd);
                 }
+
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(backbuffer, resource_state::render_target);
+                    writer.add_command(tcmd);
+                }
+
+                {
+                    cmd::begin_render_pass bcmd;
+                    bcmd.viewport = backbuf_size;
+                    bcmd.add_backbuffer_rt(backbuffer, false);
+                    writer.add_command(bcmd);
+                }
+
+#else
+                {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(resources.rt_write_texture, resource_state::shader_resource, shader_stage::pixel);
+                    tcmd.add(backbuffer, resource_state::render_target);
+                    writer.add_command(tcmd);
+                }
+
+                {
+                    cmd::begin_render_pass bcmd;
+                    bcmd.viewport = backbuf_size;
+                    bcmd.add_backbuffer_rt(backbuffer);
+                    writer.add_command(bcmd);
+                }
+
+                {
+                    cmd::draw dcmd;
+                    dcmd.init(resources.pso_tonemap, 3);
+                    dcmd.add_shader_arg(handle::null_resource, 0, resources.sv_ray_trace_result);
+                    writer.add_command(dcmd);
+                }
+#endif
 
                 {
                     if (ImGui::Begin("Unbiased Pathtracing Demo"))
@@ -560,24 +675,11 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
 
-                    {
-                        cmd::transition_resources tcmd;
-                        tcmd.add(backbuffer, resource_state::render_target);
-                        writer.add_command(tcmd);
-                    }
-
-                    {
-                        cmd::begin_render_pass bcmd;
-                        bcmd.viewport = backbuf_size;
-                        bcmd.add_backbuffer_rt(backbuffer, false);
-                        writer.add_command(bcmd);
-                    }
-
                     ImGui_ImplPHI_RenderDrawData(drawdata, {writer.buffer_head(), commandsize});
                     writer.advance_cursor(commandsize);
-
-                    writer.add_command(cmd::end_render_pass{});
                 }
+
+                writer.add_command(cmd::end_render_pass{});
 
                 {
                     cmd::transition_resources tcmd;
