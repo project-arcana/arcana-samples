@@ -416,9 +416,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.library_index = 0;
             raygen_assoc.export_indices = {0};                                            // EPrimaryRayGen
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct; u: output tex
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
-            raygen_assoc.has_root_constants = false;
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct; u: output tex; b: cam data
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, true}); // b: light data
         }
         {
             auto& hitgroup_assoc = arg_assocs.emplace_back();
@@ -442,7 +441,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         desc.hit_groups = hit_groups;
         desc.max_recursion = 16;
         desc.max_payload_size_bytes = 166;
-        desc.max_attribute_size_bytes = sizeof(float[2]); // Barycentrics, builtin Triangles
+        desc.max_attribute_size_bytes = sizeof(float[2]); // barycentrics, the builtin attribute for triangles
 
         resources.rt_pso = backend.createRaytracingPipelineState(desc);
     }
