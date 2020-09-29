@@ -2,6 +2,7 @@
 
 #include <rich-log/log.hh>
 
+#include <phantasm-hardware-interface/common/byte_util.hh>
 #include <phantasm-hardware-interface/util.hh>
 
 TEST("mipsize utils")
@@ -112,4 +113,29 @@ TEST("upload sizes")
     CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 0, false) == 528704480);
     CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 1, true) == 415656448);
     CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 1, false) == 398000096);
+}
+
+TEST("memory alignment")
+{
+    using namespace phi::util;
+
+    CHECK(align_up(1u, 4u) == 4u);
+    CHECK(align_up(4u, 4u) == 4u);
+    CHECK(align_up(16u, 4u) == 16u);
+    CHECK(align_up(16u, 32u) == 32u);
+    CHECK(align_up(31u, 32u) == 32u);
+    CHECK(align_up(33u, 32u) == 64u);
+    CHECK(align_down(31u, 16u) == 16u);
+    CHECK(align_down(32u, 16u) == 32u);
+
+    alignas(16) int foo;
+    CHECK(is_aligned(&foo, 16));
+
+    alignas(32) int bar;
+    CHECK(is_aligned(&bar, 32));
+
+    CHECK(align_up<uint32_t>(0, 4) == 0);
+    CHECK(align_up<int>(0, 4) == 0);
+    CHECK(align_up<uint32_t>(1, 4) == 4);
+    CHECK(align_up<int>(1, 4) == 4);
 }
