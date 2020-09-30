@@ -3,7 +3,6 @@
 #include <cmath>
 #include <cstdio>
 
-#include <rich-log/log.hh>
 
 #include <clean-core/capped_array.hh>
 #include <clean-core/capped_vector.hh>
@@ -12,6 +11,10 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <rich-log/log.hh>
+
+#include <reflector/macros.hh>
+
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/common/byte_util.hh>
@@ -19,6 +22,8 @@
 #include <phantasm-hardware-interface/common/log_util.hh>
 #include <phantasm-hardware-interface/util.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
+
+#include <phantasm-renderer/reflection/gpu_buffer_alignment.hh>
 
 #include <arcana-incubator/asset-loading/image_loader.hh>
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
@@ -46,6 +51,12 @@ constexpr inline tg::vec<4, size_t> dimensional_index(size_t linear)
     auto const i4 = ((linear - i3 * N2 * N1 - i2 * N1 - i1) / (N1 * N2 * N3)) % N4;
     return {i1, i2, i3, i4};
 }
+
+template <class T>
+struct alignas(16) f4pad
+{
+    T val;
+};
 
 struct pathtrace_cbv
 {
@@ -83,23 +94,54 @@ enum class pathtrace_light_type : unsigned
 struct pathtrace_lightdata_soa
 {
     unsigned numLights;
-    pathtrace_light_type type[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    tg::vec3 position[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    tg::vec3 normal[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    tg::vec3 color[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    tg::vec3 dPdu[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    tg::vec3 dPdv[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    tg::vec3 dimensions[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    float attenuation[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    float rectLightBarnCosAngle[ARC_PHI_TEST_MAX_NUM_LIGHTS];
-    float rectLightBarnLength[ARC_PHI_TEST_MAX_NUM_LIGHTS];
+    char _pad0[12];
+    f4pad<pathtrace_light_type> type[ARC_PHI_TEST_MAX_NUM_LIGHTS];   // 3 pad
+    f4pad<tg::vec3> position[ARC_PHI_TEST_MAX_NUM_LIGHTS];           // 1 pad
+    f4pad<tg::vec3> normal[ARC_PHI_TEST_MAX_NUM_LIGHTS];             // 1 pad
+    f4pad<tg::vec3> color[ARC_PHI_TEST_MAX_NUM_LIGHTS];              // 1 pad
+    f4pad<tg::vec3> dPdu[ARC_PHI_TEST_MAX_NUM_LIGHTS];               // 1 pad
+    f4pad<tg::vec3> dPdv[ARC_PHI_TEST_MAX_NUM_LIGHTS];               // 1 pad
+    f4pad<tg::vec3> dimensions[ARC_PHI_TEST_MAX_NUM_LIGHTS];         // 1 pad
+    f4pad<float> attenuation[ARC_PHI_TEST_MAX_NUM_LIGHTS];           // 3 pad
+    f4pad<float> rectLightBarnCosAngle[ARC_PHI_TEST_MAX_NUM_LIGHTS]; // 3 pad
+    f4pad<float> rectLightBarnLength[ARC_PHI_TEST_MAX_NUM_LIGHTS];   // 3 pad
 
     tg::vec4 skyLightSHData[7];
 };
+
+
+REFL_INTROSPECT_FUNC(pathtrace_cbv)
+{
+    // REFL_INTROSPECT_FIELD4(proj, proj_inv, view, view_inv);
+    // REFL_INTROSPECT_FIELD4(vp, vp_inv, frame_index, num_samples_per_pixel);
+
+    REFL_INTROSPECT_FIELD(proj);
+    REFL_INTROSPECT_FIELD(proj_inv);
+    REFL_INTROSPECT_FIELD(view);
+    REFL_INTROSPECT_FIELD(view_inv);
+    REFL_INTROSPECT_FIELD(vp);
+    REFL_INTROSPECT_FIELD(vp_inv);
+    REFL_INTROSPECT_FIELD(frame_index);
+    REFL_INTROSPECT_FIELD(num_samples_per_pixel);
+    REFL_INTROSPECT_FIELD(max_bounces);
+    REFL_INTROSPECT_FIELD(fov_radians);
+    REFL_INTROSPECT_FIELD(cam_to_pixel_spread_angle_radians);
+}
+
+REFL_INTROSPECT_FUNC(pathtrace_lightdata_soa)
+{
+    REFL_INTROSPECT_FIELD4(numLights, type, position, normal);
+    REFL_INTROSPECT_FIELD4(color, dPdu, dPdv, dimensions);
+    REFL_INTROSPECT_FIELD4(attenuation, rectLightBarnCosAngle, rectLightBarnLength, skyLightSHData);
+}
+
 }
 
 void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
+    CC_ASSERT(pr::test_gpu_buffer_alignment<pathtrace_cbv>(nullptr, true) && "fatal");
+    CC_ASSERT(pr::test_gpu_buffer_alignment<pathtrace_lightdata_soa>(nullptr, true) && "fatal");
+
     using namespace phi;
     // backend init
 
@@ -201,16 +243,16 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
             auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color) {
                 auto const index = map->numLights++;
-                map->type[index] = type;
-                map->position[index] = pos;
-                map->normal[index] = normal;
-                map->color[index] = color;
-                map->attenuation[index] = 50.f;
-                map->dimensions[index] = {10, 10, 1};
+                map->type[index].val = type;
+                map->position[index].val = pos;
+                map->normal[index].val = normal;
+                map->color[index].val = color;
+                map->attenuation[index].val = 50.f;
+                map->dimensions[index].val = {10, 10, 1};
             };
 
 
-            f_add_light(pathtrace_light_type::EnvLight, {}, {}, {1, 1, 1});
+            f_add_light(pathtrace_light_type::EnvLight, {}, {}, {1, 0, 1});
             f_add_light(pathtrace_light_type::PointLight, {-2, 1, 0}, {0, 1, 0}, {1, 0, 0});
             f_add_light(pathtrace_light_type::PointLight, {0, 1, 0}, {0, -1, 0}, {0, 1, 0});
             f_add_light(pathtrace_light_type::PointLight, {2, 1, 0}, {0, 1, 0}, {0, 0, 1});
@@ -415,10 +457,15 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
         }
         {
+            auto& miss_assoc = arg_assocs.emplace_back();
+            miss_assoc.set_target_identifiable();
+            miss_assoc.target_indices = {1};
+        }
+        {
             auto& hitgroup_assoc = arg_assocs.emplace_back();
             hitgroup_assoc.set_target_hitgroup();
             hitgroup_assoc.target_indices = {0, 1};                                          // all hitgroups
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true});  // t: accelstruct
+            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, false}); // t: accelstruct
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
         }
 
@@ -495,8 +542,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         // Shader table setup
         {
             arg::shader_table_record str_raygen;
-            str_raygen.set_shader(0); // str_raygen.symbol = "raygeneration";
-            str_raygen.add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
+            str_raygen.set_shader(0);                                                        // str_raygen.symbol = "raygeneration";
+            str_raygen.add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen); // the offset here will be adjusted later per stack
             str_raygen.add_shader_arg(resources.b_lightdata);
 
             arg::shader_table_record str_miss;
@@ -505,11 +552,11 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             arg::shader_table_record str_hitgroups[2];
 
             str_hitgroups[0].set_hitgroup(0);
-            str_hitgroups[0].add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
+            str_hitgroups[0].add_shader_arg(handle::null_resource, 0, handle::null_shader_view);
             str_hitgroups[0].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
             str_hitgroups[1].set_hitgroup(1);
-            str_hitgroups[1].add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
+            str_hitgroups[1].add_shader_arg(handle::null_resource, 0, handle::null_shader_view);
             str_hitgroups[1].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
             table_sizes = backend.calculateShaderTableStrides(str_raygen, cc::span{str_miss}, str_hitgroups);
@@ -712,7 +759,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                 }
 
                 {
-                    // restart render pass with just the single backbuffer RT
+                    // restart render pass with just the single backbuffer RT (no clear)
                     writer.add_command(cmd::end_render_pass{});
 
                     cmd::begin_render_pass bcmd;
@@ -736,8 +783,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                         ImGui::Text("Frame %d", cbv_data.frame_index);
                         ImGui::Text("Accum. samples: %u, #spp: %u", composite_data.num_cumulative_samples, composite_data.num_input_samples);
 
-                        ImGui::SliderInt("Samples per Pixel", &cbv_data.num_samples_per_pixel, 1, 10);
-                        ImGui::SliderInt("Max Bounces", &cbv_data.max_bounces, 1, 10);
+                        ImGui::SliderInt("Samples per Pixel", &cbv_data.num_samples_per_pixel, 1, 15);
+                        ImGui::SliderInt("Max Bounces", &cbv_data.max_bounces, 1, 15);
                     }
 
                     ImGui::End();
