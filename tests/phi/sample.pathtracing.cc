@@ -16,6 +16,7 @@
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/common/byte_util.hh>
 #include <phantasm-hardware-interface/common/container/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/log_util.hh>
 #include <phantasm-hardware-interface/util.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
@@ -186,13 +187,13 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         // camdata buffer
         {
             unsigned const size_camdata_256 = phi::util::align_up<unsigned>(sizeof(pathtrace_cbv), 256);
-            resources.b_camdata_stacked = backend.createUploadBuffer(size_camdata_256 * 3, size_camdata_256);
+            resources.b_camdata_stacked = backend.createUploadBuffer(size_camdata_256 * 3, size_camdata_256, "stacked camera/framedata");
             resources.camdata_stacked_offset = size_camdata_256;
         }
 
         // lightdata buffer
         {
-            resources.b_lightdata = backend.createUploadBuffer(sizeof(pathtrace_lightdata_soa));
+            resources.b_lightdata = backend.createUploadBuffer(sizeof(pathtrace_lightdata_soa), 0, "lightdata SOA");
 
             pathtrace_lightdata_soa* const map = (pathtrace_lightdata_soa*)backend.mapBuffer(resources.b_lightdata);
 
@@ -223,12 +224,6 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             ambient_sh.add_radiance(tg::color3(15, 0, 0), 15.f, tg::normalize(tg::vec3(1, 1, 1)));
             preprocess_spherical_harmonics(ambient_sh, map->skyLightSHData);
 
-            backend.unmapBuffer(resources.b_lightdata);
-        }
-
-        {
-            pathtrace_lightdata_soa const* const map = (pathtrace_lightdata_soa*)backend.mapBuffer(resources.b_lightdata);
-            LOG_INFO("num lights in buffer: {}", map->numLights);
             backend.unmapBuffer(resources.b_lightdata);
         }
 
@@ -414,15 +409,15 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
         {
             auto& raygen_assoc = arg_assocs.emplace_back();
-            raygen_assoc.library_index = 0;
-            raygen_assoc.export_indices = {0};                                            // EPrimaryRayGen
+            raygen_assoc.set_target_identifiable();
+            raygen_assoc.target_indices = {0};                                            // EPrimaryRayGen
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct; u: output tex; b: cam data
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, true}); // b: light data
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
         }
         {
             auto& hitgroup_assoc = arg_assocs.emplace_back();
-            hitgroup_assoc.library_index = 0;
-            hitgroup_assoc.export_indices = {2, 3};                                          // all closest hit exports
+            hitgroup_assoc.set_target_hitgroup();
+            hitgroup_assoc.target_indices = {0, 1};                                          // all hitgroups
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true});  // t: accelstruct
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
         }
@@ -430,10 +425,10 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         arg::raytracing_hit_group hit_groups[2];
 
         hit_groups[0].name = "SHADING_MODEL_0_HGM";
-        hit_groups[0].closest_hit_name = "ECH0Material";
+        hit_groups[0].closest_hit_export_index = 2; // = "ECH0Material";
 
         hit_groups[1].name = "SHADING_MODEL_0_HGS";
-        hit_groups[1].closest_hit_name = "ECH0Shadow";
+        hit_groups[1].closest_hit_export_index = 3; // = "ECH0Shadow";
 
         arg::raytracing_pipeline_state_desc desc;
         desc.libraries = libraries;
@@ -494,7 +489,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             sampler_config samplers[1];
             samplers[0].init_default(sampler_filter::min_mag_mip_linear);
 
-            resources.sv_ray_gen = backend.createShaderView(srvs, uavs, samplers, false);
+            resources.sv_ray_gen = backend.createShaderView(srvs, uavs, {}, false);
         }
 
         // Shader table setup
@@ -510,23 +505,36 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             arg::shader_table_record str_hitgroups[2];
 
             str_hitgroups[0].set_hitgroup(0);
-            str_hitgroups[0].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
+            str_hitgroups[0].add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
             str_hitgroups[0].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
             str_hitgroups[1].set_hitgroup(1);
-            str_hitgroups[1].add_shader_arg(handle::null_resource, 0, resources.sv_ray_gen);
+            str_hitgroups[1].add_shader_arg(resources.b_camdata_stacked, 0, resources.sv_ray_gen);
             str_hitgroups[1].add_shader_arg(handle::null_resource, 0, resources.sv_mesh_buffers);
 
             table_sizes = backend.calculateShaderTableStrides(str_raygen, cc::span{str_miss}, str_hitgroups);
 
+            //            LOG_INFO("----------------");
+            //            LOG_INFO("----------------");
             LOG_INFO("table sizes: raygen {}, hitgroup {}, miss {}", table_sizes.size_ray_gen, table_sizes.size_hit_group, table_sizes.size_miss);
+            //            LOG_INFO("----------------");
+            //            LOG_INFO("----------------");
 
             table_offsets.init(table_sizes, 3, 1, 1, 0);
 
             {
-                resources.shader_table = backend.createUploadBuffer(table_offsets.total_size);
+                resources.shader_table = backend.createBuffer(table_offsets.total_size, 0, resource_heap::upload, false, "main shader table");
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table);
 
+                [[maybe_unused]] auto f_log_section = [st_map, limit = table_offsets.total_size](char const* name, size_t offset, size_t size,
+                                                                                                 unsigned stack_i = 0, unsigned num_stacks = 1) -> void {
+                    LOG_INFO("------ {} shader table (stack {}/{}) ------", name, stack_i + 1, num_stacks);
+                    LOG_INFO("------ map offset: {}, size: {}, far: {} (limit: {}) ------", offset, size, offset + size, limit);
+
+                    log::dump_hex(st_map + offset, size);
+
+                    LOG_INFO("------ end of {} memory ------", name);
+                };
 
                 for (auto stack_i = 0u; stack_i < 3u; ++stack_i)
                 {
@@ -535,10 +543,20 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
                     // write it to the mapped shader table at this stack's position
                     backend.writeShaderTable(st_map + table_offsets.get_ray_gen_offset(stack_i), resources.rt_pso, 0, cc::span{str_raygen});
+
+                    // f_log_section("ray generation", table_offsets.get_ray_gen_offset(stack_i), table_offsets.strides.size_ray_gen, stack_i, 3);
                 }
 
                 backend.writeShaderTable(st_map + table_offsets.get_miss_offset(0), resources.rt_pso, table_sizes.stride_miss, cc::span{str_miss});
+                // f_log_section("miss", table_offsets.get_miss_offset(0), table_sizes.stride_miss);
+
+                CC_ASSERT(table_offsets.get_hitgroup_offset(0) + table_sizes.stride_hit_group * cc::span(str_hitgroups).size() <= table_offsets.total_size
+                          && "last table entry OOB");
+
                 backend.writeShaderTable(st_map + table_offsets.get_hitgroup_offset(0), resources.rt_pso, table_sizes.stride_hit_group, str_hitgroups);
+                // f_log_section("hitgroups", table_offsets.get_hitgroup_offset(0), table_sizes.stride_hit_group);
+
+                //                log::dump_hex(st_map, table_offsets.total_size);
 
                 backend.unmapBuffer(resources.shader_table);
             }
