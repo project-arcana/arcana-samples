@@ -61,6 +61,21 @@ TEST("bits")
 
     CHECK(cc::is_pow2(cc::uint32(1)));
     CHECK(cc::is_pow2(cc::uint32(2)));
+
+    CHECK(cc::has_bit(cc::uint8(0b0101), 0) == true);
+    CHECK(cc::has_bit(cc::uint16(0b0101), 0) == true);
+    CHECK(cc::has_bit(cc::uint32(0b0101), 0) == true);
+    CHECK(cc::has_bit(cc::uint64(0b0101), 0) == true);
+
+    CHECK(cc::has_bit(cc::uint8(0b0101), 1) == false);
+    CHECK(cc::has_bit(cc::uint16(0b0101), 1) == false);
+    CHECK(cc::has_bit(cc::uint32(0b0101), 1) == false);
+    CHECK(cc::has_bit(cc::uint64(0b0101), 1) == false);
+
+    CHECK(cc::has_bit(0b1100u, 2));
+    CHECK(cc::has_bit(0b1100u, 3));
+    CHECK(cc::has_bit(cc::uint8(0xFF), 7));
+    CHECK(cc::has_bit(cc::uint32(0xFFFFFFFF), 31));
 }
 
 FUZZ_TEST("bits fuzz")(tg::rng& rng)
