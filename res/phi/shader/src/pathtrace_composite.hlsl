@@ -2,51 +2,72 @@
 #include "common/tonemappers.hlsli"
 #include "common/color_util.hlsli"
 #include "common/math.hlsli"
+#include "common/random.hlsli"
 
 Texture2D<float4> gCurrentIrradiance                                    : register(t0);
 Texture2D<float4> gCumulativeIrradiance                                 : register(t1);
 
+Texture2D<uint> gCurrentNumRays                                         : register(t2);
+Texture2D<uint> gCumulativeNumRays                                      : register(t3);
+
 struct PathtraceCompositeData
 {
-    uint num_cumulative_samples;    // amount of samples contained in gCumulativeIrradiance
-    uint num_input_samples;         // amount of samples contained in gCurrentIrradiance
+    uint cumulative_samples;    // amount of samples contained in gCumulativeIrradiance
+    uint new_samples;         // amount of samples contained in gCurrentIrradiance
     uint2 viewport_size;
 };
 
 [[vk::push_constant]] ConstantBuffer<PathtraceCompositeData> gData      : register(b1, space0);
 
 
-float4 main_ps(
-    in noperspective float2 Texcoord : TEXCOORD0
-) : SV_TARGET
+void main_ps(
+    in noperspective float2 in_uv : TEXCOORD0,
+    out float4 out_tonemapped_color : SV_Target0,
+    out float4 out_cumulative_irradiance : SV_Target1,
+    out uint out_cumulative_num_rays : SV_Target2
+)
 {
-    const int3 pixel = int3(Texcoord * gData.viewport_size, 0);
+    const int3 pixel = int3(in_uv * gData.viewport_size, 0);
 
-    const float4 irradiance = gCurrentIrradiance.Load(pixel);
+    // sample irradiance
+    const float4 new_irradiance = gCurrentIrradiance.Load(pixel);
     const float4 cumulative = gCumulativeIrradiance.Load(pixel);
-    const float variance = prev_cumulative.a;
 
-    const uint4 new_num_samples = gData.num_cumulative_samples + gData.num_input_samples;
+    // sample ray counts
+    const float new_samples = gCurrentNumRays.Load(pixel);
+    float cumulative_samples = gCumulativeNumRays.Load(pixel);
 
-    float3 new_cumulative_rgb = 
-        (cumulative.rgb * gData.num_cumulative_samples + irradiance.rgb) 
-        / new_num_samples;
+    // reset cumulative count if this is a new frame
+    if (gData.cumulative_samples == 0)
+        cumulative_samples = 0;
 
-    float new_variance = 0.f;
+    // sum the amounts
+    // max not normally required as new_samples is usually not 0
+    out_cumulative_num_rays = max(1, cumulative_samples + new_samples); 
 
-    if (new_num_samples > 1 && new_num_samples < 4096)
-    {
-        float irr_y = get_luminance(cumulative.rgb);
-        float deviation2 = pow2(irr_y - get_luminance(new_cumulative_rgb));
+    // acc <- ((n - 1) * acc + of) / n
+    // extend the average over all samples of this pixel
+    float3 new_cumulative_rgb = ((cumulative.rgb * cumulative_samples) + new_irradiance.rgb) / out_cumulative_num_rays;
 
-        new_variance = deviation2;
+    out_cumulative_irradiance = float4(new_cumulative_rgb, 1.f);
 
-        if (gData.num_cumulative_samples > 0)
-        {
-            new_variance += variance * (gData.num_cumulative_samples - 1);
-        }
-        new_variance /= new_num_samples - 1;
-    }
+#define DEBUG_IGNORE_ACCUMULATION 0
 
-    return float4(new_cumulative_rgb, new_variance);
+#if DEBUG_IGNORE_ACCUMULATION
+
+    // ignore accumulation in output
+    out_tonemapped_color = float4(pow(tonemap_aces_fitted(new_irradiance.rgb / gData.new_samples), 1.0f / 2.224f), 1.f);
+
+#else
+    // tonemap
+    float3 final_color = tonemap_aces_fitted(new_cumulative_rgb);
+
+    // gamma
+    final_color = pow(final_color, 1.0f / 2.224f);
+
+    // dither
+    final_color = dither(final_color, pixel.xy, 100);
+
+    out_tonemapped_color = float4(final_color, 1.f);
+#endif
 }

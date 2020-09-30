@@ -24,7 +24,7 @@ float4 ycocg_to_rgba(float4 val)
 }
 
 // fast reversible tonemap for TAA or other resolve passes
-float3 fast_tonemap(float3 lin_c) { return lin_c * rcp(max3(lin_c.r, lin_c.g, lin_c.b) + 1.0); }
-float3 fast_invert_tonemap(float3 map_c) { return map_c * rcp(1.0 - max3(map_c.r, map_c.g, map_c.b)); }
+float3 fast_tonemap(float3 lin_c) { return lin_c * rcp(max(max(lin_c.r, lin_c.g), lin_c.b) + 1.0); }
+float3 fast_invert_tonemap(float3 map_c) { return map_c * rcp(1.0 - max(max(map_c.r, map_c.g), map_c.b)); }
 
 float get_luminance(float3 c) { return dot(c, float3(.3f, .59f, .11f)); }

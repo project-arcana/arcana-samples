@@ -181,5 +181,15 @@
                 "output": "../bin/pathtrace_lib"
             }
         }
+        {
+            "source": "pathtrace_composite.hlsl",
+            "binaries":[
+                {
+                    "target": "ps",
+                    "entrypoint":"main_ps",
+                    "output": "../bin/pathtrace_composite"
+                }
+            ]
+        }
     ]
 }

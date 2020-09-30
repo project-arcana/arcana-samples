@@ -34,3 +34,28 @@ float linearize_reverse_z(float depth, float nearplane)
 {
 	return nearplane / depth;
 }
+
+float3x3 compute_tangent_basis(float3 tangent_z)
+{
+    // adapted from:
+	// https://github.com/nvpro-samples/vk_denoise/blob/master/shaders/sampling.glsl
+	// (MIT)
+	const float sign = tangent_z.z >= 0 ? 1 : -1;
+	const float a = -rcp( sign + tangent_z.z );
+	const float b = tangent_z.x * tangent_z.y * a;
+	
+	float3 tangent_x = { 1 + sign * a * pow2( tangent_z.x ), sign * b, -sign * tangent_z.x };
+	float3 tangent_y = { b,  sign + a * pow2( tangent_z.y ), -tangent_z.y };
+
+	return float3x3( tangent_x, tangent_y, tangent_z );
+}
+
+float3 tangent_to_world(float3 vec, float3 tangent_z)
+{
+	return mul(vec, compute_tangent_basis(tangent_z));
+}
+
+float3 world_to_tangent(float3 vec, float3 tangent_z)
+{
+	return mul(compute_tangent_basis(tangent_z), vec);
+}

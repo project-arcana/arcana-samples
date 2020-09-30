@@ -201,12 +201,15 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         handle::pipeline_state pso_tonemap;
 
         handle::resource rt_write_texture = handle::null_resource;
+        handle::resource t_current_num_samples = handle::null_resource;
+
         handle::resource t_cumulative_irradiance_a = handle::null_resource;
         handle::resource t_cumulative_irradiance_b = handle::null_resource;
+        handle::resource t_cumulative_num_samples_a = handle::null_resource;
+        handle::resource t_cumulative_num_samples_b = handle::null_resource;
 
         handle::shader_view sv_ray_gen = handle::null_shader_view;
         handle::shader_view sv_mesh_buffers = handle::null_shader_view;
-        handle::shader_view sv_ray_trace_result;
         handle::shader_view sv_composite_a;
         handle::shader_view sv_composite_b;
 
@@ -241,29 +244,35 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
             std::memset(map, 0, sizeof(pathtrace_lightdata_soa));
 
-            auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color) {
+            auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color, float attenuation, tg::vec3 dimensions) {
                 auto const index = map->numLights++;
                 map->type[index].val = type;
                 map->position[index].val = pos;
                 map->normal[index].val = normal;
                 map->color[index].val = color;
-                map->attenuation[index].val = 50.f;
-                map->dimensions[index].val = {10, 10, 1};
+                map->attenuation[index].val = attenuation;
+                map->dimensions[index].val = dimensions;
+            };
+
+            auto f_add_envlight = [&](tg::vec3 color) { //
+                f_add_light(pathtrace_light_type::EnvLight, {0, 0, 0}, {0, 0, 0}, color, 0.f, {0, 0, 0});
+            };
+
+            auto f_add_pointlight = [&](tg::vec3 pos, tg::vec3 color, float radius, float attenuation) {
+                f_add_light(pathtrace_light_type::PointLight, pos, {0, 0, 0}, color, attenuation, {0, 0, radius});
             };
 
 
-            f_add_light(pathtrace_light_type::EnvLight, {}, {}, {1, 0, 1});
-            f_add_light(pathtrace_light_type::PointLight, {-2, 1, 0}, {0, 1, 0}, {1, 0, 0});
-            f_add_light(pathtrace_light_type::PointLight, {0, 1, 0}, {0, -1, 0}, {0, 1, 0});
-            f_add_light(pathtrace_light_type::PointLight, {2, 1, 0}, {0, 1, 0}, {0, 0, 1});
-            f_add_light(pathtrace_light_type::PointLight, {0, 0, 0}, {0, 1, 0}, {0, 0, 1});
-            f_add_light(pathtrace_light_type::PointLight, {1, 1, 1}, {0, 1, 0}, {0, 1, 1});
+            f_add_envlight(tg::vec3(1, 1, 1) * .1f);
 
-            f_add_light(pathtrace_light_type::DirectionalLight, {0, 0, 0}, {0, -1, 0}, {1, 1, 0});
+            f_add_pointlight({28, 30, 33}, {50, 0, 0}, 3.f, 25.f);
+            f_add_pointlight({11, 73, 52}, {0, 25, 25}, 3.f, 25.f);
+            f_add_pointlight({49, 11, 9}, {25, 15, 0}, 3.f, 25.f);
 
             SHVecColor ambient_sh;
-            ambient_sh.add_ambient(tg::color3(1, 1, 15));
-            ambient_sh.add_radiance(tg::color3(15, 0, 0), 15.f, tg::normalize(tg::vec3(1, 1, 1)));
+            ambient_sh.add_ambient(tg::color3(1, 1, 1) * 2.f);
+            ambient_sh.add_radiance(tg::color3(.9f, .5f, 0), 5.f, tg::normalize(tg::vec3(1, 1, 1)));
+            ambient_sh.add_radiance(tg::color3(0, 0, 1), 5.f, tg::normalize(tg::vec3(-1, 1, 1)));
             preprocess_spherical_harmonics(ambient_sh, map->skyLightSHData);
 
             backend.unmapBuffer(resources.b_lightdata);
@@ -418,12 +427,13 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         arg::graphics_pipeline_state_desc desc;
         desc.framebuffer.add_render_target(msc_backbuf_format); // target0: backbuffer / output
         desc.framebuffer.add_render_target(write_tex_format);   // target1: new cumulative
+        desc.framebuffer.add_render_target(format::r32u);       // target2: new cumulative num samples
 
         desc.shader_binaries
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
-        // current and cumulative irradiance, SRVs
-        desc.shader_arg_shapes = {arg::shader_arg_shape(2, 0, 0)};
+        // current and cumulative irradiance and num samples, SRVs
+        desc.shader_arg_shapes = {arg::shader_arg_shape(4, 0, 0)};
 
         desc.has_root_constants = true;
 
@@ -453,7 +463,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.set_target_identifiable();
             raygen_assoc.target_indices = {0};                                            // EPrimaryRayGen
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct; u: output tex; b: cam data
+            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 2, 0, true}); // t: accelstruct; u: output tex, output num samples; b: cam data
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
         }
         {
@@ -490,51 +500,47 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
     auto f_free_sized_resources = [&] {
         handle::resource res_to_free[]
-            = {resources.rt_write_texture, resources.shader_table, resources.t_cumulative_irradiance_a, resources.t_cumulative_irradiance_b};
+            = {resources.rt_write_texture,          resources.t_current_num_samples,     resources.shader_table,
+               resources.t_cumulative_irradiance_a, resources.t_cumulative_irradiance_b, resources.t_cumulative_num_samples_a,
+               resources.t_cumulative_num_samples_b};
         backend.freeRange(res_to_free);
 
-        handle::shader_view sv_to_free[] = {resources.sv_ray_gen, resources.sv_ray_trace_result, resources.sv_composite_a, resources.sv_composite_b};
+        handle::shader_view sv_to_free[] = {resources.sv_ray_gen, resources.sv_composite_a, resources.sv_composite_b};
         backend.freeRange(sv_to_free);
     };
 
     auto f_create_sized_resources = [&] {
         // textures
-        resources.rt_write_texture = backend.createTexture(write_tex_format, backbuf_size, 1, texture_dimension::t2d, 1, true);
+        resources.rt_write_texture = backend.createTexture(write_tex_format, backbuf_size, 1, texture_dimension::t2d, 1, true, "pathtrace current irradiance");
+        resources.t_current_num_samples = backend.createTexture(format::r32u, backbuf_size, 1, texture_dimension::t2d, 1, true, "pathtrace current num samples");
         resources.t_cumulative_irradiance_a = backend.createRenderTarget(write_tex_format, backbuf_size);
         resources.t_cumulative_irradiance_b = backend.createRenderTarget(write_tex_format, backbuf_size);
+        resources.t_cumulative_num_samples_a = backend.createRenderTarget(format::r32u, backbuf_size);
+        resources.t_cumulative_num_samples_b = backend.createRenderTarget(format::r32u, backbuf_size);
 
         // SVs
         {
-            resource_view srvs[2];
+            resource_view srvs[4];
             srvs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
             srvs[1].init_as_tex2d(resources.t_cumulative_irradiance_a, write_tex_format);
+            srvs[2].init_as_tex2d(resources.t_current_num_samples, format::r32u);
+            srvs[3].init_as_tex2d(resources.t_cumulative_num_samples_a, format::r32u);
 
             resources.sv_composite_a = backend.createShaderView(srvs, {}, {});
 
             srvs[1].resource = resources.t_cumulative_irradiance_b;
+            srvs[3].resource = resources.t_cumulative_num_samples_b;
 
             resources.sv_composite_b = backend.createShaderView(srvs, {}, {});
         }
 
         {
-            resource_view srvs[1];
-            srvs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
-
-            sampler_config samplers[1];
-            samplers[0].init_default(sampler_filter::min_mag_mip_point);
-
-            resources.sv_ray_trace_result = backend.createShaderView(srvs, {}, samplers);
-        }
-
-        {
-            resource_view uavs[1];
+            resource_view uavs[2];
             uavs[0].init_as_tex2d(resources.rt_write_texture, write_tex_format);
+            uavs[1].init_as_tex2d(resources.t_current_num_samples, format::r32u);
 
             resource_view srvs[1];
             srvs[0].init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
-
-            sampler_config samplers[1];
-            samplers[0].init_default(sampler_filter::min_mag_mip_linear);
 
             resources.sv_ray_gen = backend.createShaderView(srvs, uavs, {}, false);
         }
@@ -628,6 +634,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
     cbv_data.num_samples_per_pixel = 1;
 
     pathtrace_composite_data composite_data = {};
+    bool is_accumulation_enabled = true;
 
     bool is_frame_atob = true;
 
@@ -675,7 +682,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
             bool const did_cam_change = camera.update_default_inputs(window, input, frametime);
 
-            if (did_cam_change)
+            if (did_cam_change || !is_accumulation_enabled)
             {
                 composite_data.num_cumulative_samples = 0;
             }
@@ -707,7 +714,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                 {
                     cmd::transition_resources tcmd;
                     tcmd.add(resources.rt_write_texture, resource_state::unordered_access, shader_stage::ray_gen);
-
+                    tcmd.add(resources.t_current_num_samples, resource_state::unordered_access, shader_stage::ray_gen);
                     writer.add_command(tcmd);
                 }
 
@@ -730,6 +737,9 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                 auto const t_cumulative_irradiance_src = is_frame_atob ? resources.t_cumulative_irradiance_a : resources.t_cumulative_irradiance_b;
                 auto const t_cumulative_irradiance_dst = is_frame_atob ? resources.t_cumulative_irradiance_b : resources.t_cumulative_irradiance_a;
 
+                auto const t_cumulative_num_samples_src = is_frame_atob ? resources.t_cumulative_num_samples_a : resources.t_cumulative_num_samples_b;
+                auto const t_cumulative_num_samples_dst = is_frame_atob ? resources.t_cumulative_num_samples_b : resources.t_cumulative_num_samples_a;
+
                 {
                     cmd::transition_resources tcmd;
                     tcmd.add(resources.rt_write_texture, resource_state::shader_resource, shader_stage::pixel);
@@ -740,10 +750,19 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                 }
 
                 {
+                    cmd::transition_resources tcmd;
+                    tcmd.add(t_cumulative_num_samples_src, resource_state::shader_resource, shader_stage::pixel);
+                    tcmd.add(resources.t_current_num_samples, resource_state::shader_resource, shader_stage::pixel);
+                    tcmd.add(t_cumulative_num_samples_dst, resource_state::render_target);
+                    writer.add_command(tcmd);
+                }
+
+                {
                     cmd::begin_render_pass bcmd;
                     bcmd.viewport = backbuf_size;
                     bcmd.add_backbuffer_rt(backbuffer);
                     bcmd.add_2d_rt(t_cumulative_irradiance_dst, write_tex_format);
+                    bcmd.add_2d_rt(t_cumulative_num_samples_dst, format::r32u);
                     writer.add_command(bcmd);
                 }
 
@@ -783,7 +802,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                         ImGui::Text("Frame %d", cbv_data.frame_index);
                         ImGui::Text("Accum. samples: %u, #spp: %u", composite_data.num_cumulative_samples, composite_data.num_input_samples);
 
-                        ImGui::SliderInt("Samples per Pixel", &cbv_data.num_samples_per_pixel, 1, 15);
+                        ImGui::Checkbox("Enable Accumulation", &is_accumulation_enabled);
+                        ImGui::SliderInt("Samples per Pixel", &cbv_data.num_samples_per_pixel, 0, 15);
                         ImGui::SliderInt("Max Bounces", &cbv_data.max_bounces, 1, 15);
                     }
 
