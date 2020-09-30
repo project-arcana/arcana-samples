@@ -303,14 +303,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
         {
             auto& raygen_assoc = arg_assocs.emplace_back();
-            raygen_assoc.library_index = 0;
-            raygen_assoc.export_indices = {0};                                            // EPrimaryRayGen
+            raygen_assoc.target_type = raygen_assoc.e_target_identifiable_shader;
+            raygen_assoc.target_indices = {0};                                            // EPrimaryRayGen
             raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct, u: output tex
             raygen_assoc.has_root_constants = false;
 
             auto& hitgroup_assoc = arg_assocs.emplace_back();
-            hitgroup_assoc.library_index = 0;
-            hitgroup_assoc.export_indices = {2, 3, 4};                                       // all closest hit exports
+            hitgroup_assoc.target_type = raygen_assoc.e_target_hitgroup;
+            hitgroup_assoc.target_indices = {0, 1, 2};                                       // all hitgroups
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false}); // t: accelstruct
             hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
         }
@@ -318,13 +318,13 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         arg::raytracing_hit_group hit_groups[3];
 
         hit_groups[0].name = "hitgroup0";
-        hit_groups[0].closest_hit_name = "EBarycentricClosestHit";
+        hit_groups[0].closest_hit_export_index = 2; // = "EBarycentricClosestHit";
 
         hit_groups[1].name = "hitgroup1";
-        hit_groups[1].closest_hit_name = "EClosestHitFlatColor";
+        hit_groups[1].closest_hit_export_index = 3; // = "EClosestHitFlatColor";
 
         hit_groups[2].name = "hitgroup2";
-        hit_groups[2].closest_hit_name = "EClosestHitErrorState";
+        hit_groups[2].closest_hit_export_index = 4; //= "EClosestHitErrorState";
 
         arg::raytracing_pipeline_state_desc desc;
         desc.libraries = libraries;
