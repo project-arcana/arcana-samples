@@ -38,7 +38,6 @@
 
 #include "sample_util.hh"
 #include "scene.hh"
-#include "sse_vec.hh"
 
 namespace
 {

@@ -67,7 +67,7 @@ constexpr tg::uvec3 gc_massive_cube_dims = tg::uvec3(100, 100, 100);
 constexpr float gc_massive_cube_scale = 75.f;
 }
 
-void phi_test::fill_model_matrix_data(phi_test::model_matrix_data& data, float runtime, unsigned from, unsigned to, tg::vec3 mul)
+void phi_test::fill_model_matrix_data(cc::span<tg::mat4> data, float runtime, unsigned from, unsigned to, tg::vec3 mul)
 {
     cc::array constexpr model_positions
         = {tg::vec3(1, 0, 0), tg::vec3(0, 1, 0), tg::vec3(0, 0, 1), tg::vec3(-1, 0, 0), tg::vec3(0, -1, 0), tg::vec3(0, 0, -1)};

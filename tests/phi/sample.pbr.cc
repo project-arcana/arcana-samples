@@ -38,9 +38,45 @@
 
 namespace
 {
-constexpr bool gc_enable_compute_mips = 1;
+constexpr bool gc_enable_compute_mips = true;
 constexpr unsigned gc_max_num_backbuffers = 4;
 constexpr unsigned gc_msaa_samples = 8;
+
+struct pbr_cbv_data
+{
+    tg::mat4 cam_vp;
+    tg::pos3 cam_pos;
+    float runtime;
+};
+
+constexpr float cam_dist = phi_test::massive_sample ? 1000.f : 10.f;
+
+tg::mat4 get_projection_matrix(int w, int h) { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100000.f); }
+
+tg::pos3 get_cam_pos(float runtime, float distance_mult)
+{
+    auto res = tg::rotate_y(tg::pos3(1, 1.5f, 1) * cam_dist * distance_mult, tg::radians(runtime * 0.05f))
+               + tg::vec3(0, tg::sin(tg::radians(runtime * 0.125f)) * cam_dist * distance_mult, 0);
+    return res;
+}
+
+tg::mat4 get_view_matrix(tg::pos3 const& cam_pos)
+{
+    if constexpr (phi_test::massive_sample)
+    {
+        return tg::look_at_directx(cam_pos, tg::pos3(100, 100, 100) * 100.f, tg::vec3(0, 1, 0));
+    }
+    else
+    {
+        constexpr auto target = tg::pos3(0, 1.45f, 0);
+        return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
+    }
+}
+
+tg::mat4 get_view_projection_matrix(tg::pos3 const& cam_pos, int w, int h) { return get_projection_matrix(w, h) * get_view_matrix(cam_pos); }
+
+constexpr unsigned gc_num_mesh_instances_pbr = phi_test::massive_sample ? 1000000 : 256;
+using pbr_model_matrix_data = cc::array<tg::mat4, gc_num_mesh_instances_pbr>;
 }
 
 void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, const phi::backend_config& backend_config)
@@ -235,12 +271,12 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     {
         l_res.per_frame_resources.emplace(msc_num_backbuffers);
 
-        auto srv = resource_view::structured_buffer(handle::null_resource, phi_test::gc_num_mesh_instances_pbr, sizeof(tg::mat4));
+        auto srv = resource_view::structured_buffer(handle::null_resource, gc_num_mesh_instances_pbr, sizeof(tg::mat4));
 
         for (auto& pfb : l_res.per_frame_resources)
         {
-            pfb.cb_camdata = backend.createUploadBuffer(sizeof(phi_test::global_data));
-            pfb.sb_modeldata = backend.createUploadBuffer(sizeof(phi_test::model_matrix_data));
+            pfb.cb_camdata = backend.createUploadBuffer(sizeof(pbr_cbv_data));
+            pfb.sb_modeldata = backend.createUploadBuffer(sizeof(pbr_model_matrix_data));
 
             srv.resource = pfb.sb_modeldata;
             pfb.shaderview_render_vertex = backend.createShaderView(cc::span{srv}, {}, {});
@@ -325,7 +361,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::vec3 position_modulos = tg::vec3(9, 6, 9);
     float camera_distance = 1.f;
 
-#define THREAD_BUFFER_SIZE (size_t(sizeof(cmd::draw) * (phi_test::gc_num_mesh_instances_pbr / phi_test::num_render_threads)) + 1024)
+#define THREAD_BUFFER_SIZE (size_t(sizeof(cmd::draw) * (gc_num_mesh_instances_pbr / phi_test::num_render_threads)) + 1024)
 
     cc::array<std::byte*, phi_test::num_render_threads + 1> thread_cmd_buffer_mem;
 
@@ -338,7 +374,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             std::free(mem);
     };
 
-    phi_test::model_matrix_data* model_data = new phi_test::model_matrix_data();
+    pbr_model_matrix_data* model_data = new pbr_model_matrix_data();
     CC_DEFER { delete model_data; };
 
     uint64_t last_gpu_delta = 0;
@@ -432,7 +468,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                             task_info.out_cmdlists[i] = task_info.backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         }
                     },
-                    phi_test::gc_num_mesh_instances_pbr, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
 
 
                 td::submit_batched(
@@ -441,7 +477,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                         INC_RMT_TRACE_NAMED("ModelMatrixTask");
                         phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
                     },
-                    phi_test::gc_num_mesh_instances_pbr, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
             }
 
             {
@@ -550,9 +586,9 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             // Data upload
             {
                 INC_RMT_TRACE_NAMED("DataUpload");
-                phi_test::global_data camdata;
-                camdata.cam_pos = phi_test::get_cam_pos(run_time, camera_distance);
-                camdata.cam_vp = phi_test::get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
+                pbr_cbv_data camdata;
+                camdata.cam_pos = get_cam_pos(run_time, camera_distance);
+                camdata.cam_vp = get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
                 camdata.runtime = static_cast<float>(run_time);
 
                 auto* const camdata_map = backend.mapBuffer(l_res.current_frame().cb_camdata);
@@ -561,7 +597,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                 td::wait_for(modeldata_upload_sync);
                 auto* const modeldata_map = backend.mapBuffer(l_res.current_frame().sb_modeldata);
-                std::memcpy(modeldata_map, model_data, sizeof(phi_test::model_matrix_data));
+                std::memcpy(modeldata_map, model_data, sizeof(pbr_model_matrix_data));
                 backend.unmapBuffer(l_res.current_frame().sb_modeldata);
             }
 
