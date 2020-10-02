@@ -14,7 +14,7 @@ SIZE 4 4 4 4
 TYPE F F F I
 # comment line!
 COUNT 1 1 1 3
-WIDTH 213
+WIDTH 5
 HEIGHT 1
 VIEWPOINT 0 0 0 1 0 0 0
 POINTS 5
@@ -27,7 +27,7 @@ DATA ascii
 
     auto pts = babel::pcd::read(cc::as_byte_span(file));
     CHECK(pts.fields.size() == 4);
-    CHECK(pts.width == 213);
+    CHECK(pts.width == 5);
     CHECK(pts.height == 1);
     CHECK(pts.points == 5);
 
@@ -48,7 +48,7 @@ FIELDS a b
 SIZE 1 1
 TYPE U U
 COUNT 1 1
-WIDTH 213
+WIDTH 3
 HEIGHT 1
 VIEWPOINT 0 0 0 1 0 0 0
 POINTS 3
@@ -57,7 +57,7 @@ abcdef)";
 
     auto pts = babel::pcd::read(cc::as_byte_span(file));
     CHECK(pts.fields.size() == 2);
-    CHECK(pts.width == 213);
+    CHECK(pts.width == 3);
     CHECK(pts.height == 1);
     CHECK(pts.points == 3);
 
