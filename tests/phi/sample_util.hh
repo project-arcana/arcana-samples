@@ -118,11 +118,11 @@ public:
     {
         for (auto i = 0; i < NumVecs; ++i)
         {
-            phi::SSEVec sum = phi::SSEAdd(phi::SSELoadAligned(&val[i * VecSize]),    //
-                                          phi::SSELoadAligned(&rhs.val[i * VecSize]) //
+            phi::util::SSEVec sum = phi::util::SSEAdd(phi::util::SSELoadAligned(&val[i * VecSize]),    //
+                                                      phi::util::SSELoadAligned(&rhs.val[i * VecSize]) //
             );
 
-            phi::SSEStoreAligned(sum, &val[i * VecSize]);
+            phi::util::SSEStoreAligned(sum, &val[i * VecSize]);
         }
 
         return *this;
@@ -132,11 +132,11 @@ public:
     {
         for (auto i = 0; i < NumVecs; ++i)
         {
-            phi::SSEVec diff = phi::SSESubtract(phi::SSELoadAligned(&val[i * VecSize]),    //
-                                                phi::SSELoadAligned(&rhs.val[i * VecSize]) //
+            phi::util::SSEVec diff = phi::util::SSESubtract(phi::util::SSELoadAligned(&val[i * VecSize]),    //
+                                                            phi::util::SSELoadAligned(&rhs.val[i * VecSize]) //
             );
 
-            phi::SSEStoreAligned(diff, &val[i * VecSize]);
+            phi::util::SSEStoreAligned(diff, &val[i * VecSize]);
         }
 
         return *this;
@@ -146,11 +146,11 @@ public:
     {
         for (auto i = 0; i < NumVecs; ++i)
         {
-            phi::SSEVec prod = phi::SSEMultiply(phi::SSELoadAligned(&val[i * VecSize]),    //
-                                                phi::SSELoadAligned(&rhs.val[i * VecSize]) //
+            phi::util::SSEVec prod = phi::util::SSEMultiply(phi::util::SSELoadAligned(&val[i * VecSize]),    //
+                                                            phi::util::SSELoadAligned(&rhs.val[i * VecSize]) //
             );
 
-            phi::SSEStoreAligned(prod, &val[i * VecSize]);
+            phi::util::SSEStoreAligned(prod, &val[i * VecSize]);
         }
 
         return *this;
@@ -159,15 +159,15 @@ public:
     SHVec& operator/=(float const& divisor)
     {
         float const rcp = 1.f / divisor;
-        phi::SSEVec const rcp_vec = phi::SSEReplicateToVector(&rcp);
+        phi::util::SSEVec const rcp_vec = phi::util::SSEReplicateToVector(&rcp);
 
         for (auto i = 0; i < NumVecs; ++i)
         {
-            phi::SSEVec prod = phi::SSEMultiply(phi::SSELoadAligned(&val[i * VecSize]), //
-                                                rcp_vec                                 //
+            phi::util::SSEVec prod = phi::util::SSEMultiply(phi::util::SSELoadAligned(&val[i * VecSize]), //
+                                                            rcp_vec                                       //
             );
 
-            phi::SSEStoreAligned(prod, &val[i * VecSize]);
+            phi::util::SSEStoreAligned(prod, &val[i * VecSize]);
         }
 
         return *this;
@@ -175,15 +175,15 @@ public:
 
     SHVec& operator*=(float const& scalar)
     {
-        phi::SSEVec const scalar_vec = phi::SSEReplicateToVector(&scalar);
+        phi::util::SSEVec const scalar_vec = phi::util::SSEReplicateToVector(&scalar);
 
         for (auto i = 0; i < NumVecs; ++i)
         {
-            phi::SSEVec prod = phi::SSEMultiply(phi::SSELoadAligned(&val[i * VecSize]), //
-                                                scalar_vec                              //
+            phi::util::SSEVec prod = phi::util::SSEMultiply(phi::util::SSELoadAligned(&val[i * VecSize]), //
+                                                            scalar_vec                                    //
             );
 
-            phi::SSEStoreAligned(prod, &val[i * VecSize]);
+            phi::util::SSEStoreAligned(prod, &val[i * VecSize]);
         }
 
         return *this;
@@ -191,16 +191,16 @@ public:
 
     friend SHVec operator*(SHVec const& lhs, float const& scalar)
     {
-        phi::SSEVec const scalar_vec = phi::SSEReplicateToVector(&scalar);
+        phi::util::SSEVec const scalar_vec = phi::util::SSEReplicateToVector(&scalar);
 
         SHVec res;
         for (auto i = 0; i < NumVecs; ++i)
         {
-            phi::SSEVec prod = phi::SSEMultiply(phi::SSELoadAligned(&lhs.val[i * VecSize]), //
-                                                scalar_vec                                  //
+            phi::util::SSEVec prod = phi::util::SSEMultiply(phi::util::SSELoadAligned(&lhs.val[i * VecSize]), //
+                                                            scalar_vec                                        //
             );
 
-            phi::SSEStoreAligned(prod, &res.val[i * VecSize]);
+            phi::util::SSEStoreAligned(prod, &res.val[i * VecSize]);
         }
 
         return res;
