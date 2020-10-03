@@ -26,6 +26,37 @@ phi::unique_buffer get_shader_binary(char const* name, char const* ending);
 void initialize_imgui(inc::da::SDLWindow& window, phi::Backend& backend);
 void shutdown_imgui();
 
+constexpr size_t linear_index(tg::vec<4, size_t> dimensions, tg::vec<4, size_t> dimensional_i)
+{
+    return dimensional_i.x + dimensional_i.y * dimensions.x + dimensional_i.z * dimensions.x * dimensions.y
+           + dimensional_i.w * dimensions.x * dimensions.y * dimensions.z;
+}
+
+constexpr tg::vec<4, size_t> dimensional_index(tg::vec<4, size_t> dimensions, size_t linear_i)
+{
+    auto const i1 = linear_i % dimensions.x;
+    auto const i2 = ((linear_i - i1) / dimensions.x) % dimensions.y;
+    auto const i3 = ((linear_i - i2 * dimensions.x - i1) / (dimensions.x * dimensions.y)) % dimensions.z;
+    auto const i4
+        = ((linear_i - i3 * dimensions.y * dimensions.x - i2 * dimensions.x - i1) / (dimensions.x * dimensions.y * dimensions.z)) % dimensions.w;
+    return {i1, i2, i3, i4};
+}
+
+constexpr size_t linear_index(tg::span<size_t const> indices, tg::span<size_t const> dimensions)
+{
+    size_t res = 0;
+    for (auto ind_i = 0u; ind_i < indices.size(); ++ind_i)
+    {
+        auto val = indices[ind_i];
+        for (auto ind_dim = 0u; ind_dim < ind_i; ++ind_dim)
+            val *= dimensions[ind_dim];
+
+        res += val;
+    }
+
+    return res;
+}
+
 template <int SHOrder>
 struct alignas(16) SHVec
 {

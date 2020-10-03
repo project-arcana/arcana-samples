@@ -33,31 +33,8 @@
 #include "sample_util.hh"
 #include "scene.hh"
 
-namespace
-{
-template <size_t N1, size_t N2 = 1, size_t N3 = 1, size_t N4 = 1>
-constexpr inline tg::vec<4, size_t> dimensional_index(size_t linear)
-{
-    auto const i1 = linear % N1;
-    auto const i2 = ((linear - i1) / N1) % N2;
-    auto const i3 = ((linear - i2 * N1 - i1) / (N1 * N2)) % N3;
-    auto const i4 = ((linear - i3 * N2 * N1 - i2 * N1 - i1) / (N1 * N2 * N3)) % N4;
-    return {i1, i2, i3, i4};
-}
-}
-
 void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
-    int local = 0;
-
-    CC_ASSERT(local == 0);
-
-    rlog::MessageBuilder builder;
-    builder("local: {}", local);
-
-    LOG_INFO("local: {}", local);
-
-
     using namespace phi;
     // backend init
 
@@ -98,27 +75,27 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     struct resources_t
     {
-        handle::resource b_camdata_stacked = handle::null_resource;
+        handle::resource b_camdata_stacked;
         unsigned camdata_stacked_offset = 0;
 
-        handle::resource vertex_buffer = handle::null_resource;
-        handle::resource index_buffer = handle::null_resource;
+        handle::resource vertex_buffer;
+        handle::resource index_buffer;
         unsigned num_indices = 0;
         unsigned num_vertices = 0;
 
-        handle::accel_struct blas = handle::null_accel_struct;
+        handle::accel_struct blas;
         uint64_t blas_native = 0;
-        handle::accel_struct tlas = handle::null_accel_struct;
-        handle::resource tlas_instance_buffer = handle::null_resource;
+        handle::accel_struct tlas;
+        handle::resource tlas_instance_buffer;
 
-        handle::pipeline_state rt_pso = handle::null_pipeline_state;
+        handle::pipeline_state rt_pso;
 
-        handle::resource rt_write_texture = handle::null_resource;
+        handle::resource rt_write_texture;
 
-        handle::shader_view sv_ray_gen = handle::null_shader_view;
-        handle::shader_view sv_mesh_buffers = handle::null_shader_view;
+        handle::shader_view sv_ray_gen;
+        handle::shader_view sv_mesh_buffers;
 
-        handle::resource shader_table = handle::null_resource;
+        handle::resource shader_table;
     } resources;
 
     unsigned backbuf_index = 0;
@@ -209,6 +186,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             constexpr unsigned num_blas_elements = 1;
 
             constexpr unsigned instance_cube_edge_length = 4;
+            constexpr auto instance_cube_dimensions = tg::vec<4, size_t>{instance_cube_edge_length, instance_cube_edge_length, instance_cube_edge_length, 1};
 
             constexpr unsigned num_tlas_instances = instance_cube_edge_length * instance_cube_edge_length * instance_cube_edge_length;
 
@@ -246,7 +224,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.native_bottom_level_as_handle = resources.blas_native;
 
-                    auto const pos = dimensional_index<instance_cube_edge_length, instance_cube_edge_length, instance_cube_edge_length>(i) * 20;
+                    auto const pos = phi_test::dimensional_index(instance_cube_dimensions, i) * 20;
 
                     tg::mat4 const transform
                         = tg::transpose(tg::translation<float>(pos.x, pos.y, pos.z) * tg::rotation_y(0_deg) /* * tg::scaling(.1f, .1f, .1f)*/);

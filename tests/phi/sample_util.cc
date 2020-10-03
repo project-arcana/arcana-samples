@@ -35,11 +35,10 @@ void phi_test::preprocess_spherical_harmonics(const phi_test::SHVecColor& sh_irr
 
     // ref http://www.ppsloan.org/publications/StupidSH36.pdf
 
-    float const pi_sqrt = tg::sqrt(tg::pi_scalar<float>);
-    float const c0 = 1.0f / (2 * pi_sqrt);
-    float const c1 = tg::sqrt(3.f) / (3 * pi_sqrt);
-    float const c2 = tg::sqrt(15.f) / (8 * pi_sqrt);
-    float const c3 = tg::sqrt(5.f) / (16 * pi_sqrt);
+    float const c0 = 0.2820947917738781434740397f; // 1.0f / (2 * sqrt(pi));
+    float const c1 = 0.3257350079352799477242564f; // sqrt(3.f) / (3 * sqrt(pi));
+    float const c2 = 0.2731371076480197676358464f; // sqrt(15.f) / (8 * sqrt(pi));
+    float const c3 = 0.0788478913131300015077234f; // sqrt(5.f) / (16 * sqrt(pi));
     float const c4 = .5f * c2;
 
     out_data[0].x = -c1 * sh_irradiance.R.val[3];

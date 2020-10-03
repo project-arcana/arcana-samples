@@ -101,28 +101,28 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     struct resources_t
     {
         // material
-        handle::resource mat_albedo = handle::null_resource;
-        handle::resource mat_normal = handle::null_resource;
-        handle::resource mat_arm = handle::null_resource;
+        handle::resource mat_albedo;
+        handle::resource mat_normal;
+        handle::resource mat_arm;
 
         // IBL
-        handle::resource ibl_specular = handle::null_resource;
-        handle::resource ibl_irradiance = handle::null_resource;
-        handle::resource ibl_lut = handle::null_resource;
+        handle::resource ibl_specular;
+        handle::resource ibl_irradiance;
+        handle::resource ibl_lut;
 
         // mesh
-        handle::resource vertex_buffer = handle::null_resource;
-        handle::resource index_buffer = handle::null_resource;
+        handle::resource vertex_buffer;
+        handle::resource index_buffer;
         unsigned num_indices = 0;
 
         // multi-buffered resources
         struct per_frame_resource_t
         {
-            phi::handle::resource cb_camdata = phi::handle::null_resource;
-            phi::handle::resource sb_modeldata = phi::handle::null_resource;
+            phi::handle::resource cb_camdata;
+            phi::handle::resource sb_modeldata;
             phi::handle::resource b_timestamp_readback;
 
-            phi::handle::shader_view shaderview_render_vertex = phi::handle::null_shader_view;
+            phi::handle::shader_view shaderview_render_vertex;
         };
 
         cc::capped_array<per_frame_resource_t, gc_max_num_backbuffers> per_frame_resources;
@@ -131,18 +131,18 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         per_frame_resource_t const& current_frame() const { return per_frame_resources[current_frame_index]; }
 
         // render PSO + SVs
-        handle::pipeline_state pso_render = handle::null_pipeline_state;
-        handle::shader_view shaderview_render = handle::null_shader_view;
-        handle::shader_view shaderview_render_ibl = handle::null_shader_view;
+        handle::pipeline_state pso_render;
+        handle::shader_view shaderview_render;
+        handle::shader_view shaderview_render_ibl;
 
         // render targets
-        handle::resource depthbuffer = handle::null_resource;
-        handle::resource colorbuffer = handle::null_resource;
-        handle::resource colorbuffer_resolve = handle::null_resource;
+        handle::resource depthbuffer;
+        handle::resource colorbuffer;
+        handle::resource colorbuffer_resolve;
 
         // blit PSO + SV
-        handle::pipeline_state pso_blit = handle::null_pipeline_state;
-        handle::shader_view shaderview_blit = handle::null_shader_view;
+        handle::pipeline_state pso_blit;
+        handle::shader_view shaderview_blit;
 
         // timestamp query range
         handle::query_range timestamp_queries;

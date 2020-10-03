@@ -41,16 +41,6 @@
 
 namespace
 {
-template <size_t N1, size_t N2 = 1, size_t N3 = 1, size_t N4 = 1>
-constexpr inline tg::vec<4, size_t> dimensional_index(size_t linear)
-{
-    auto const i1 = linear % N1;
-    auto const i2 = ((linear - i1) / N1) % N2;
-    auto const i3 = ((linear - i2 * N1 - i1) / (N1 * N2)) % N3;
-    auto const i4 = ((linear - i3 * N2 * N1 - i2 * N1 - i1) / (N1 * N2 * N3)) % N4;
-    return {i1, i2, i3, i4};
-}
-
 template <class T>
 struct alignas(16) f4pad
 {
@@ -108,12 +98,8 @@ struct pathtrace_lightdata_soa
     tg::vec4 skyLightSHData[7];
 };
 
-
 REFL_INTROSPECT_FUNC(pathtrace_cbv)
 {
-    // REFL_INTROSPECT_FIELD4(proj, proj_inv, view, view_inv);
-    // REFL_INTROSPECT_FIELD4(vp, vp_inv, frame_index, num_samples_per_pixel);
-
     REFL_INTROSPECT_FIELD(proj);
     REFL_INTROSPECT_FIELD(proj_inv);
     REFL_INTROSPECT_FIELD(view);
@@ -133,7 +119,6 @@ REFL_INTROSPECT_FUNC(pathtrace_lightdata_soa)
     REFL_INTROSPECT_FIELD4(color, dPdu, dPdv, dimensions);
     REFL_INTROSPECT_FIELD4(attenuation, rectLightBarnCosAngle, rectLightBarnLength, skyLightSHData);
 }
-
 }
 
 void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
@@ -182,37 +167,37 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
     struct resources_t
     {
-        handle::resource b_camdata_stacked = handle::null_resource;
+        handle::resource b_camdata_stacked;
         unsigned camdata_stacked_offset = 0;
         handle::resource b_lightdata;
 
-        handle::resource vertex_buffer = handle::null_resource;
-        handle::resource index_buffer = handle::null_resource;
+        handle::resource vertex_buffer;
+        handle::resource index_buffer;
         unsigned num_indices = 0;
         unsigned num_vertices = 0;
 
-        handle::accel_struct blas = handle::null_accel_struct;
+        handle::accel_struct blas;
         uint64_t blas_native = 0;
-        handle::accel_struct tlas = handle::null_accel_struct;
-        handle::resource tlas_instance_buffer = handle::null_resource;
+        handle::accel_struct tlas;
+        handle::resource tlas_instance_buffer;
 
-        handle::pipeline_state rt_pso = handle::null_pipeline_state;
+        handle::pipeline_state rt_pso;
         handle::pipeline_state pso_tonemap;
 
-        handle::resource rt_write_texture = handle::null_resource;
-        handle::resource t_current_num_samples = handle::null_resource;
+        handle::resource rt_write_texture;
+        handle::resource t_current_num_samples;
 
-        handle::resource t_cumulative_irradiance_a = handle::null_resource;
-        handle::resource t_cumulative_irradiance_b = handle::null_resource;
-        handle::resource t_cumulative_num_samples_a = handle::null_resource;
-        handle::resource t_cumulative_num_samples_b = handle::null_resource;
+        handle::resource t_cumulative_irradiance_a;
+        handle::resource t_cumulative_irradiance_b;
+        handle::resource t_cumulative_num_samples_a;
+        handle::resource t_cumulative_num_samples_b;
 
-        handle::shader_view sv_ray_gen = handle::null_shader_view;
-        handle::shader_view sv_mesh_buffers = handle::null_shader_view;
+        handle::shader_view sv_ray_gen;
+        handle::shader_view sv_mesh_buffers;
         handle::shader_view sv_composite_a;
         handle::shader_view sv_composite_b;
 
-        handle::resource shader_table = handle::null_resource;
+        handle::resource shader_table;
     } resources;
 
     unsigned backbuf_index = 0;
@@ -262,7 +247,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             };
 
 
-            f_add_envlight(tg::vec3(1, 1, 1) * .1f);
+            f_add_envlight(tg::vec3(1, 1, 1) * .5f);
 
             f_add_pointlight({28, 30, 33}, {50, 0, 0}, 3.f, 25.f);
             f_add_pointlight({11, 73, 52}, {0, 25, 25}, 3.f, 25.f);
@@ -344,6 +329,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         {
             constexpr unsigned num_blas_elements = 1;
             constexpr unsigned instance_cube_edge_length = 4;
+            constexpr auto instance_cube_dimensions = tg::vec<4, size_t>{instance_cube_edge_length, instance_cube_edge_length, instance_cube_edge_length, 1};
             constexpr unsigned num_tlas_instances = instance_cube_edge_length * instance_cube_edge_length * instance_cube_edge_length;
 
             // Bottom Level Accel Struct (BLAS) - Geometry elements
@@ -380,7 +366,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     inst.flags = accel_struct_instance_flags::triangle_front_counterclockwise;
                     inst.native_bottom_level_as_handle = resources.blas_native;
 
-                    auto const pos = dimensional_index<instance_cube_edge_length, instance_cube_edge_length, instance_cube_edge_length>(i) * 20;
+                    auto const pos = phi_test::dimensional_index(instance_cube_dimensions, i) * 20;
 
                     tg::mat4 const transform
                         = tg::transpose(tg::translation<float>(pos.x, pos.y, pos.z) * tg::rotation_y(0_deg) /* * tg::scaling(.1f, .1f, .1f)*/);
