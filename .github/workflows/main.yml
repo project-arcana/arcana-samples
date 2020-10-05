@@ -28,14 +28,14 @@ jobs:
             environment_script: "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build/vcvars64.bat"
           }
         - {
-            name: "Ubuntu Latest GCC 8", artifact: "Linux-GCC8-Debug.tar.xz",
-            os: ubuntu-latest,
+            name: "Ubuntu 20.04 GCC 8", artifact: "Linux-GCC8-Debug.tar.xz",
+            os: ubuntu-20.04,
             build_type: "Debug",
             cc: "gcc-8", cxx: "g++-8"
           }
         - {
-            name: "Ubuntu Latest Clang 8", artifact: "Linux-Clang8-Debug.tar.xz",
-            os: ubuntu-latest,
+            name: "Ubuntu 20.04 Clang 8", artifact: "Linux-Clang8-Debug.tar.xz",
+            os: ubuntu-20.04,
             build_type: "Debug",
             cc: "clang-8", cxx: "clang++-8"
           }
