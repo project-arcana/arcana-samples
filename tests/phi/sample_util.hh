@@ -21,6 +21,9 @@ class Backend;
 
 namespace phi_test
 {
+/// help or attempt to recover likely errors during first launch (wrong workdir or shaders not compiled)
+bool run_onboarding_test();
+
 phi::unique_buffer get_shader_binary(char const* name, char const* ending);
 
 void initialize_imgui(inc::da::SDLWindow& window, phi::Backend& backend);

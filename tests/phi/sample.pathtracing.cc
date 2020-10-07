@@ -123,6 +123,9 @@ REFL_INTROSPECT_FUNC(pathtrace_lightdata_soa)
 
 void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
+    if (!phi_test::run_onboarding_test())
+        return;
+
     CC_ASSERT(pr::test_gpu_buffer_alignment<pathtrace_cbv>(nullptr, true) && "fatal");
     CC_ASSERT(pr::test_gpu_buffer_alignment<pathtrace_lightdata_soa>(nullptr, true) && "fatal");
 

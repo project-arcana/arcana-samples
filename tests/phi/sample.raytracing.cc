@@ -35,6 +35,9 @@
 
 void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
+    if (!phi_test::run_onboarding_test())
+        return;
+
     using namespace phi;
     // backend init
 

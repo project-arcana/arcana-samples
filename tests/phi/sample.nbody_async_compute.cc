@@ -76,6 +76,9 @@ void initialize_nbody_particle_data(cc::span<nbody_particle> out_particles, tg::
 
 void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_config const& sample_conf, phi::backend_config const& config)
 {
+    if (!phi_test::run_onboarding_test())
+        return;
+
     using namespace phi;
 
     // Basic application init

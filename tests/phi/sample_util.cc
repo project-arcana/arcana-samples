@@ -1,13 +1,66 @@
 #include "sample_util.hh"
 
 #include <cstdio>
+#include <fstream>
+
+#include <rich-log/log.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
+
+#include <arcana-incubator/pr-util/resource_loading.hh>
+
 #include <arcana-incubator/imgui/imgui.hh>
 #include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
+#include <dxc-wrapper/compiler.hh>
+#include <dxc-wrapper/file_util.hh>
+
 #include <phantasm-hardware-interface/Backend.hh>
+
+namespace
+{
+bool verify_workdir()
+{
+    std::ifstream file("res/res_canary");
+    return file.good();
+}
+
+bool verify_shaders_compiled() { return inc::pre::is_shader_present("imgui_ps", "res/phi/shader/bin/"); }
+
+}
+
+bool phi_test::run_onboarding_test()
+{
+    if (!verify_workdir())
+    {
+        LOG_ERROR("cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
+        return false;
+    }
+    else if (!verify_shaders_compiled())
+    {
+        LOG_WARN("shaders not compiled, run res/pr/demo_render/compiler_shaders.bat/.sh");
+        LOG_WARN("attempting live compilation");
+        dxcw::compiler comp;
+        comp.initialize();
+        dxcw::shaderlist_compilation_result res;
+        dxcw::compile_shaderlist_json(comp, "res/phi/shader/src/shaders.json", &res);
+        comp.destroy();
+
+        if (res.num_shaders_detected == -1 || !verify_shaders_compiled())
+        {
+            LOG_ERROR("failed to compile shaders live");
+            return false;
+        }
+        else
+        {
+            LOG_INFO("live compilation succeeded");
+        }
+    }
+
+    return true;
+}
+
 
 phi::unique_buffer phi_test::get_shader_binary(const char* name, const char* ending)
 {

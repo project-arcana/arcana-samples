@@ -81,6 +81,9 @@ using pbr_model_matrix_data = cc::array<tg::mat4, gc_num_mesh_instances_pbr>;
 
 void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, const phi::backend_config& backend_config)
 {
+    if (!phi_test::run_onboarding_test())
+        return;
+
     using namespace phi;
     inc::RmtInstance _remotery_instance;
 
