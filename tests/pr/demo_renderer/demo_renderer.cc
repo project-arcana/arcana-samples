@@ -41,7 +41,7 @@ bool run_onboarding_test()
     }
     else if (!verify_shaders_compiled())
     {
-        LOG_WARN("shaders not compiled, run res/pr/demo_render/compiler_shaders.bat/.sh");
+        LOG_WARN("shaders not compiled, run res/pr/demo_render/compile_shaders.[bat|sh]");
         LOG_WARN("attempting live compilation");
         dxcw::compiler comp;
         comp.initialize();
