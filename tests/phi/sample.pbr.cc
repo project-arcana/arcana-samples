@@ -11,9 +11,9 @@
 
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
-#include <phantasm-hardware-interface/detail/byte_util.hh>
-#include <phantasm-hardware-interface/detail/format_size.hh>
-#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/byte_util.hh>
+#include <phantasm-hardware-interface/common/container/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/format_size.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <phantasm-renderer/reflection/vertex_attributes.hh>
@@ -24,6 +24,7 @@
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 
+#include <arcana-incubator/imgui/imgui.hh>
 #include <arcana-incubator/imgui/imgui_impl_phi.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
@@ -37,13 +38,52 @@
 
 namespace
 {
-constexpr bool gc_enable_compute_mips = 1;
+constexpr bool gc_enable_compute_mips = true;
 constexpr unsigned gc_max_num_backbuffers = 4;
 constexpr unsigned gc_msaa_samples = 8;
+
+struct pbr_cbv_data
+{
+    tg::mat4 cam_vp;
+    tg::pos3 cam_pos;
+    float runtime;
+};
+
+constexpr float cam_dist = phi_test::massive_sample ? 1000.f : 10.f;
+
+tg::mat4 get_projection_matrix(int w, int h) { return tg::perspective_directx(60_deg, w / float(h), 0.1f, 100000.f); }
+
+tg::pos3 get_cam_pos(float runtime, float distance_mult)
+{
+    auto res = tg::rotate_y(tg::pos3(1, 1.5f, 1) * cam_dist * distance_mult, tg::radians(runtime * 0.05f))
+               + tg::vec3(0, tg::sin(tg::radians(runtime * 0.125f)) * cam_dist * distance_mult, 0);
+    return res;
+}
+
+tg::mat4 get_view_matrix(tg::pos3 const& cam_pos)
+{
+    if constexpr (phi_test::massive_sample)
+    {
+        return tg::look_at_directx(cam_pos, tg::pos3(100, 100, 100) * 100.f, tg::vec3(0, 1, 0));
+    }
+    else
+    {
+        constexpr auto target = tg::pos3(0, 1.45f, 0);
+        return tg::look_at_directx(cam_pos, target, tg::vec3(0, 1, 0));
+    }
+}
+
+tg::mat4 get_view_projection_matrix(tg::pos3 const& cam_pos, int w, int h) { return get_projection_matrix(w, h) * get_view_matrix(cam_pos); }
+
+constexpr unsigned gc_num_mesh_instances_pbr = phi_test::massive_sample ? 1000000 : 256;
+using pbr_model_matrix_data = cc::array<tg::mat4, gc_num_mesh_instances_pbr>;
 }
 
 void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, const phi::backend_config& backend_config)
 {
+    if (!phi_test::run_onboarding_test())
+        return;
+
     using namespace phi;
     inc::RmtInstance _remotery_instance;
 
@@ -54,40 +94,38 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     inc::da::initialize();
     inc::da::SDLWindow window;
     window.initialize(sample_config.window_title);
+    initialize_imgui(window, backend);
 
     // main swapchain creation
     phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
     unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
-    // Imgui init
-    initialize_imgui(window, backend);
-
     struct resources_t
     {
         // material
-        handle::resource mat_albedo = handle::null_resource;
-        handle::resource mat_normal = handle::null_resource;
-        handle::resource mat_arm = handle::null_resource;
+        handle::resource mat_albedo;
+        handle::resource mat_normal;
+        handle::resource mat_arm;
 
         // IBL
-        handle::resource ibl_specular = handle::null_resource;
-        handle::resource ibl_irradiance = handle::null_resource;
-        handle::resource ibl_lut = handle::null_resource;
+        handle::resource ibl_specular;
+        handle::resource ibl_irradiance;
+        handle::resource ibl_lut;
 
         // mesh
-        handle::resource vertex_buffer = handle::null_resource;
-        handle::resource index_buffer = handle::null_resource;
+        handle::resource vertex_buffer;
+        handle::resource index_buffer;
         unsigned num_indices = 0;
 
         // multi-buffered resources
         struct per_frame_resource_t
         {
-            phi::handle::resource cb_camdata = phi::handle::null_resource;
-            phi::handle::resource sb_modeldata = phi::handle::null_resource;
+            phi::handle::resource cb_camdata;
+            phi::handle::resource sb_modeldata;
             phi::handle::resource b_timestamp_readback;
 
-            phi::handle::shader_view shaderview_render_vertex = phi::handle::null_shader_view;
+            phi::handle::shader_view shaderview_render_vertex;
         };
 
         cc::capped_array<per_frame_resource_t, gc_max_num_backbuffers> per_frame_resources;
@@ -96,18 +134,18 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         per_frame_resource_t const& current_frame() const { return per_frame_resources[current_frame_index]; }
 
         // render PSO + SVs
-        handle::pipeline_state pso_render = handle::null_pipeline_state;
-        handle::shader_view shaderview_render = handle::null_shader_view;
-        handle::shader_view shaderview_render_ibl = handle::null_shader_view;
+        handle::pipeline_state pso_render;
+        handle::shader_view shaderview_render;
+        handle::shader_view shaderview_render_ibl;
 
         // render targets
-        handle::resource depthbuffer = handle::null_resource;
-        handle::resource colorbuffer = handle::null_resource;
-        handle::resource colorbuffer_resolve = handle::null_resource;
+        handle::resource depthbuffer;
+        handle::resource colorbuffer;
+        handle::resource colorbuffer_resolve;
 
         // blit PSO + SV
-        handle::pipeline_state pso_blit = handle::null_pipeline_state;
-        handle::shader_view shaderview_blit = handle::null_shader_view;
+        handle::pipeline_state pso_blit;
+        handle::shader_view shaderview_blit;
 
         // timestamp query range
         handle::query_range timestamp_queries;
@@ -175,7 +213,27 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
     // PSO creation
     {
-        cc::array const payload_shape = {
+        auto const vs = get_shader_binary("mesh_pbr_vs", sample_config.shader_ending);
+        auto const ps = get_shader_binary("mesh_pbr_ps", sample_config.shader_ending);
+        CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
+
+        auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
+
+        arg::graphics_pipeline_state_desc desc;
+        desc.config.cull = cull_mode::back;
+        desc.config.depth = depth_function::less;
+        desc.config.samples = gc_msaa_samples;
+
+        desc.framebuffer.add_render_target(format::rgba16f);
+        desc.framebuffer.depth_target = format::depth24un_stencil8u;
+
+        desc.vertices.attributes = attrib_info;
+        desc.vertices.vertex_size_bytes = sizeof(inc::assets::simple_vertex);
+
+        desc.shader_binaries
+            = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
+
+        desc.shader_arg_shapes = {
             // Argument 0, global CBV + model mat structured buffer
             arg::shader_arg_shape(1, 0, 0, true),
             // Argument 1, pixel shader SRVs
@@ -184,26 +242,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             arg::shader_arg_shape(3, 0, 1),
         };
 
-        auto const vs = get_shader_binary("mesh_pbr_vs", sample_config.shader_ending);
-        auto const ps = get_shader_binary("mesh_pbr_ps", sample_config.shader_ending);
-        CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
-
-        cc::array const shader_stages
-            = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
-
-        auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
-
-        arg::framebuffer_config fbconf;
-        fbconf.add_render_target(format::rgba16f);
-        fbconf.depth_target.push_back(format::depth24un_stencil8u);
-
-        pipeline_config config;
-        config.cull = cull_mode::back;
-        config.depth = depth_function::less;
-        config.samples = gc_msaa_samples;
-
-        l_res.pso_render = backend.createPipelineState(arg::vertex_format{attrib_info, sizeof(inc::assets::simple_vertex)}, fbconf, payload_shape,
-                                                       true, shader_stages, config);
+        desc.has_root_constants = true;
+        l_res.pso_render = backend.createPipelineState(desc);
     }
 
     {
@@ -234,12 +274,12 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     {
         l_res.per_frame_resources.emplace(msc_num_backbuffers);
 
-        auto srv = resource_view::structured_buffer(handle::null_resource, phi_test::num_instances, sizeof(tg::mat4));
+        auto srv = resource_view::structured_buffer(handle::null_resource, gc_num_mesh_instances_pbr, sizeof(tg::mat4));
 
         for (auto& pfb : l_res.per_frame_resources)
         {
-            pfb.cb_camdata = backend.createUploadBuffer(sizeof(phi_test::global_data));
-            pfb.sb_modeldata = backend.createUploadBuffer(sizeof(phi_test::model_matrix_data));
+            pfb.cb_camdata = backend.createUploadBuffer(sizeof(pbr_cbv_data));
+            pfb.sb_modeldata = backend.createUploadBuffer(sizeof(pbr_model_matrix_data));
 
             srv.resource = pfb.sb_modeldata;
             pfb.shaderview_render_vertex = backend.createShaderView(cc::span{srv}, {}, {});
@@ -324,7 +364,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::vec3 position_modulos = tg::vec3(9, 6, 9);
     float camera_distance = 1.f;
 
-#define THREAD_BUFFER_SIZE (size_t(sizeof(cmd::draw) * (phi_test::num_instances / phi_test::num_render_threads)) + 1024)
+#define THREAD_BUFFER_SIZE (size_t(sizeof(cmd::draw) * (gc_num_mesh_instances_pbr / phi_test::num_render_threads)) + 1024)
 
     cc::array<std::byte*, phi_test::num_render_threads + 1> thread_cmd_buffer_mem;
 
@@ -337,7 +377,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             std::free(mem);
     };
 
-    phi_test::model_matrix_data* model_data = new phi_test::model_matrix_data();
+    pbr_model_matrix_data* model_data = new pbr_model_matrix_data();
     CC_DEFER { delete model_data; };
 
     uint64_t last_gpu_delta = 0;
@@ -431,7 +471,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                             task_info.out_cmdlists[i] = task_info.backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         }
                     },
-                    phi_test::num_instances, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
 
 
                 td::submit_batched(
@@ -440,7 +480,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                         INC_RMT_TRACE_NAMED("ModelMatrixTask");
                         phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
                     },
-                    phi_test::num_instances, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
             }
 
             {
@@ -483,7 +523,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     cmd::begin_render_pass bcmd;
                     bcmd.viewport = backend.getBackbufferSize(main_swapchain);
                     bcmd.add_backbuffer_rt(current_backbuffer);
-                    bcmd.set_null_depth_stencil();
                     cmd_writer.add_command(bcmd);
                 }
 
@@ -494,27 +533,25 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     cmd_writer.add_command(dcmd);
                 }
 
-                cmd_writer.add_command(cmd::end_render_pass{});
-
                 // ImGui and transition to present
                 {
                     INC_RMT_TRACE_NAMED("ImGuiRecord");
-                    ImGui_ImplSDL2_NewFrame(window.getSdlWindow());
-                    ImGui::NewFrame();
+                    inc::imgui_new_frame(window.getSdlWindow());
 
                     {
-                        ImGui::Begin("PBR Demo");
+                        if (ImGui::Begin("PBR Demo"))
+                        {
+                            ImGui::Text("Frametime: %.3f ms\nGPU Time: %.3f ms\nGPU timestamp delta: %llu @ %llu Hz", frametime,
+                                        (double(last_gpu_delta) / gpu_timestamp_frequency) * 1000., last_gpu_delta, gpu_timestamp_frequency);
+                            ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
+                            ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
 
-                        ImGui::Text("Frametime: %.3f ms\nGPU Time: %.3f ms\nGPU timestamp delta: %llu @ %llu Hz", frametime,
-                                    (double(last_gpu_delta) / gpu_timestamp_frequency) * 1000., last_gpu_delta, gpu_timestamp_frequency);
-                        ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
-                        ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
+                            if (ImGui::Button("Reset modulos"))
+                                position_modulos = tg::vec3(9, 6, 9);
 
-                        if (ImGui::Button("Reset modulos"))
-                            position_modulos = tg::vec3(9, 6, 9);
-
-                        if (ImGui::Button("Reset runtime"))
-                            run_time = 0.f;
+                            if (ImGui::Button("Reset runtime"))
+                                run_time = 0.f;
+                        }
 
                         ImGui::End();
                     }
@@ -526,6 +563,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     ImGui_ImplPHI_RenderDrawData(drawdata, {cmd_writer.buffer_head(), commandsize});
                     cmd_writer.advance_cursor(commandsize);
                 }
+
+                cmd_writer.add_command(cmd::end_render_pass{});
 
                 // transition backbuffer to present
                 cmd::transition_resources tcmd;
@@ -550,9 +589,9 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             // Data upload
             {
                 INC_RMT_TRACE_NAMED("DataUpload");
-                phi_test::global_data camdata;
-                camdata.cam_pos = phi_test::get_cam_pos(run_time, camera_distance);
-                camdata.cam_vp = phi_test::get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
+                pbr_cbv_data camdata;
+                camdata.cam_pos = get_cam_pos(run_time, camera_distance);
+                camdata.cam_vp = get_view_projection_matrix(camdata.cam_pos, window.getWidth(), window.getHeight());
                 camdata.runtime = static_cast<float>(run_time);
 
                 auto* const camdata_map = backend.mapBuffer(l_res.current_frame().cb_camdata);
@@ -561,7 +600,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                 td::wait_for(modeldata_upload_sync);
                 auto* const modeldata_map = backend.mapBuffer(l_res.current_frame().sb_modeldata);
-                std::memcpy(modeldata_map, model_data, sizeof(phi_test::model_matrix_data));
+                std::memcpy(modeldata_map, model_data, sizeof(pbr_model_matrix_data));
                 backend.unmapBuffer(l_res.current_frame().sb_modeldata);
             }
 

@@ -21,29 +21,38 @@ phi_test::sample_config get_d3d12_sample_conf()
 }
 }
 
-APP("sample_pbr_d3d12")
+APP("d3d12_pbr")
 {
-    td::launch([&] {
+    td::scheduler_config config = {};
+    //    config.pin_threads_to_cores = true;
+    td::launch(config, [&] {
         phi::d3d12::BackendD3D12 backend;
         phi_test::run_pbr_sample(backend, get_d3d12_sample_conf());
     });
 }
 
-APP("sample_raytrace_d3d12")
+APP("d3d12_async_compute")
 {
-    phi::d3d12::BackendD3D12 backend;
-    phi_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
-}
-
-APP("sample_async_nbody_d3d12")
-{
-    td::launch([&] {
+    td::scheduler_config config = {};
+    td::launch(config, [&] {
         phi::d3d12::BackendD3D12 backend;
         phi_test::run_nbody_async_compute_sample(backend, get_d3d12_sample_conf());
     });
 }
 
-APP("sample_imgui_d3d12")
+APP("d3d12_rt")
+{
+    phi::d3d12::BackendD3D12 backend;
+    phi_test::run_raytracing_sample(backend, get_d3d12_sample_conf());
+}
+
+APP("d3d12_pathtrace")
+{
+    phi::d3d12::BackendD3D12 backend;
+    phi_test::run_pathtracing_sample(backend, get_d3d12_sample_conf());
+}
+
+APP("d3d12_imgui")
 {
     phi::d3d12::BackendD3D12 backend;
     phi_test::run_imgui_sample(backend, get_d3d12_sample_conf());

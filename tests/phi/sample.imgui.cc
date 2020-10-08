@@ -13,7 +13,7 @@
 
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
-#include <phantasm-hardware-interface/detail/unique_buffer.hh>
+#include <phantasm-hardware-interface/common/container/unique_buffer.hh>
 #include <phantasm-hardware-interface/window_handle.hh>
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
@@ -25,6 +25,9 @@
 
 void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
+    if (!phi_test::run_onboarding_test())
+        return;
+
     using namespace phi;
 
     // backend init
@@ -97,7 +100,7 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
 
         if (!window.isMinimized())
         {
-            auto const frametime = timer.elapsedMilliseconds();
+            auto const frametime = timer.elapsedSeconds();
             timer.restart();
             run_time += frametime / 1000.f;
             log_time += frametime;

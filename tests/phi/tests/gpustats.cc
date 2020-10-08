@@ -2,7 +2,7 @@
 
 #include <rich-log/log.hh>
 
-#include <phantasm-hardware-interface/detail/gpu_stats.hh>
+#include <phantasm-hardware-interface/features/gpu_stats.hh>
 
 TEST("gpustats", disabled)
 {

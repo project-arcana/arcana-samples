@@ -72,6 +72,11 @@ TEST("cc::span")
     CHECK(wb.size() == 3 * sizeof(int));
     wb[3] = cc::byte(8);
     CHECK(v[0] == 1 + (8 << 24));
+
+    static_assert(std::is_trivially_copyable_v<decltype(s)>, "span not triv. copyable");
+    static_assert(std::is_trivially_copyable_v<cc::span<void*>>, "span not triv. copyable");
+    static_assert(std::is_trivially_move_constructible_v<cc::span<void*>>, "span not triv. movable");
+    static_assert(std::is_trivially_move_assignable_v<cc::span<void*>>, "span not triv. movable");
 }
 
 TEST("byte_span")

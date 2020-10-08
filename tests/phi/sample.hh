@@ -9,20 +9,7 @@ namespace phi_test
 {
 inline constexpr auto num_render_threads = 8;
 
-inline auto const get_backend_config = [] {
-    phi::backend_config config;
-    config.adapter = phi::adapter_preference::highest_vram;
-    config.num_threads = td::is_scheduler_alive() ? td::get_current_num_threads() : 1;
-
-    config.validation =
-#ifdef NDEBUG
-        phi::validation_level::off;
-#else
-        phi::validation_level::on_extended;
-#endif
-
-    return config;
-};
+phi::backend_config get_backend_config();
 
 // Sample code
 struct sample_config
@@ -39,6 +26,8 @@ void run_pbr_sample(phi::Backend& backend, sample_config const& sample_config, p
 void run_imgui_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 
 void run_raytracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
+
+void run_pathtracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 
 void run_nbody_async_compute_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& config = get_backend_config());
 }

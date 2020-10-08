@@ -56,6 +56,17 @@ TEST("cc::string_view")
     CHECK(s.last(2) == "lo");
     CHECK(s.last(5) == "hello");
     CHECK(s.last(0) == "");
+
+    struct foo
+    {
+        int method(char const* /*c_str*/) { return 0; }
+        int method(cc::string_view /*str*/) { return 1; }
+    };
+
+    CHECK(foo{}.method("cstr") == 0);
+    char const* cstr_lval = "bla";
+    CHECK(foo{}.method(cstr_lval) == 0);
+    CHECK(foo{}.method(s) == 1);
 }
 
 TEST("cc::string_view split")

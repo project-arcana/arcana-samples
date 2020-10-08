@@ -1,3 +1,8 @@
+
+#include "common/math.hlsli"
+#include "common/space_conversion.hlsli"
+#include "common/ray_common.hlsli"
+
 // Hit information, aka ray payload
 // This sample only carries a shading color and hit distance.
 // Note that the payload should be kept as small as possible,
@@ -7,12 +12,6 @@ struct CustomRayPayload
 {
     float4 colorAndDistance;
     uint currentRecursion;
-};
-
-struct Ray
-{
-    float3 origin;
-    float3 direction;
 };
 
 struct camera_constants
@@ -26,11 +25,9 @@ struct camera_constants
     float4x4 vp; // jittered proj
     float4x4 vp_inv;
 
-    float4x4 clean_vp;
-    float4x4 clean_vp_inv;
-
-    float4x4 prev_clean_vp;
-    float4x4 prev_clean_vp_inv;
+    int frame_index;
+    int num_samples_per_pixel;
+    int max_bounces;
 };
 
 struct Vertex
@@ -55,17 +52,6 @@ ConstantBuffer<camera_constants> gCamData   : register(b0, space0);
 ByteAddressBuffer gMeshIndices              : register(t0, space1);
 StructuredBuffer<Vertex> gMeshVertices      : register(t1, space1);
 
-// extracts the (world space) camera position from an inverse view matrix
-float3 extract_camera_position(float4x4 inverse_view)
-{
-    return inverse_view._m03_m13_m23;
-}
-
-// Retrieve hit world position.
-float3 get_world_hit_position()
-{
-    return WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-}
 
 // Fresnel reflectance - schlick approximation.
 float3 FresnelReflectanceSchlick(in float3 I, in float3 N, in float3 f0)
@@ -125,65 +111,6 @@ float4 CalculatePhongLighting(in float4 albedo, in float3 normal, in bool isInSh
     return ambientColor + diffuseColor + specularColor;
 }
 
-// Load three 16 bit indices from a byte addressed buffer.
-uint3 load_3x16bit_indices(uint offsetBytes, ByteAddressBuffer indexBuffer)
-{
-    uint3 indices;
-
-    // ByteAdressBuffer loads must be aligned at a 4 byte boundary.
-    // Since we need to read three 16 bit indices: { 0, 1, 2 } 
-    // aligned at a 4 byte boundary as: { 0 1 } { 2 0 } { 1 2 } { 0 1 } ...
-    // we will load 8 bytes (~ 4 indices { a b | c d }) to handle two possible index triplet layouts,
-    // based on first index's offsetBytes being aligned at the 4 byte boundary or not:
-    //  Aligned:     { 0 1 | 2 - }
-    //  Not aligned: { - 0 | 1 2 }
-    const uint dwordAlignedOffset = offsetBytes & ~3;    
-    const uint2 four16BitIndices = indexBuffer.Load2(dwordAlignedOffset);
- 
-    // Aligned: { 0 1 | 2 - } => retrieve first three 16bit indices
-    if (dwordAlignedOffset == offsetBytes)
-    {
-        indices.x = four16BitIndices.x & 0xffff;
-        indices.y = (four16BitIndices.x >> 16) & 0xffff;
-        indices.z = four16BitIndices.y & 0xffff;
-    }
-    else // Not aligned: { - 0 | 1 2 } => retrieve last three 16bit indices
-    {
-        indices.x = (four16BitIndices.x >> 16) & 0xffff;
-        indices.y = four16BitIndices.y & 0xffff;
-        indices.z = (four16BitIndices.y >> 16) & 0xffff;
-    }
-
-    return indices;
-}
-
-// Retrieve attribute at a hit position interpolated from vertex attributes using the hit's barycentrics.
-float3 interpolate_hit_attribute(float3 vertexAttribute[3], BuiltInTriangleIntersectionAttributes attr)
-{
-    return vertexAttribute[0] +
-        attr.barycentrics.x * (vertexAttribute[1] - vertexAttribute[0]) +
-        attr.barycentrics.y * (vertexAttribute[2] - vertexAttribute[0]);
-}
-
-// Generate a ray in world space for a camera pixel corresponding to an index from the dispatched 2D grid.
-Ray compute_camera_ray(uint2 index, in float3 cameraPosition, in float4x4 vp_inverse)
-{
-    float2 xy = index + 0.5f; // center in the middle of the pixel.
-    float2 screenPos = xy / DispatchRaysDimensions().xy * 2.0 - 1.0;
-
-    // Invert Y for DirectX-style coordinates.
-    screenPos.y = -screenPos.y;
-
-    // Unproject the pixel coordinate into a world positon.
-    float4 world = mul(vp_inverse, float4(screenPos, 1, 1));
-    world.xyz /= world.w;
-
-    Ray ray;
-    ray.origin = cameraPosition;
-    ray.direction = normalize(world.xyz - ray.origin);
-    return ray;
-}
-
 float4 TraceRadianceRay(in Ray ray, in uint currentRayRecursionDepth)
 {
     if (currentRayRecursionDepth >= MAX_RAY_RECURSION_DEPTH)
@@ -234,26 +161,23 @@ float3 get_hit_primitive_normal(BuiltInTriangleIntersectionAttributes attrib)
     return interpolate_hit_attribute(vertexNormals, attrib);
 }
 
-float3 get_attrib_color(BuiltInTriangleIntersectionAttributes attrib)
-{
-    float3 vertColors[3] = { 
-        float3(1,0,0), 
-        float3(0,1,0), 
-        float3(0,0,1) 
-    };
-    return interpolate_hit_attribute(vertColors, attrib);
-}
-
 [shader("raygeneration")] 
 void EPrimaryRayGen() 
 {
+    float3 res_hitval = 0.f;
+
+    for (int sample_i = 0; sample_i < gCamData.num_samples_per_pixel; ++sample_i)
+    {
+        const uint linear_sample_index = gCamData.frame_index * gCamData.num_samples_per_pixel + sample_i;
+    }
+
     // Initialize the ray payload
     CustomRayPayload payload;
     payload.colorAndDistance = float4(0, 0, 0, 0);
     payload.currentRecursion = 1;
 
     // Generate a ray for a camera pixel corresponding to an index from the dispatched 2D grid.
-    const Ray ray_info = compute_camera_ray(DispatchRaysIndex().xy, extract_camera_position(gCamData.view_inv), gCamData.vp_inv);
+    const Ray ray_info = compute_jittered_camera_ray(DispatchRaysIndex().xy, gCamData.frame_index, extract_camera_position(gCamData.view_inv), gCamData.vp_inv);
 
     RayDesc ray_desc;
     ray_desc.Origin = ray_info.origin;
@@ -266,8 +190,22 @@ void EPrimaryRayGen()
     // Trace the ray
     // params after flag (2-5): visibility mask, hitgroup offset, multiplier for geometry index (BLAS element index), miss shader index
     TraceRay(gSceneBVH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, ray_desc, payload);
+
+    res_hitval = payload.colorAndDistance.rgb;
+
     // Write payload to output UAV
-    gOutput[DispatchRaysIndex().xy] = float4(payload.colorAndDistance.rgb, 1.f);
+    if (gCamData.frame_index == 0)
+    {
+        // override
+        gOutput[DispatchRaysIndex().xy] = float4(res_hitval, 1.f);
+    }
+    else
+    {
+        // accumulate
+        float alpha = 1.f / float(gCamData.frame_index);
+        float3 prev_color = gOutput[DispatchRaysIndex().xy].rgb;
+        gOutput[DispatchRaysIndex().xy] = float4(lerp(prev_color, res_hitval, alpha), 1.f);
+    }
 }
 
 [shader("miss")]
