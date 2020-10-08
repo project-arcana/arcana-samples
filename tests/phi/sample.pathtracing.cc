@@ -98,26 +98,26 @@ struct pathtrace_lightdata_soa
     tg::vec4 skyLightSHData[7];
 };
 
-REFL_INTROSPECT_FUNC(pathtrace_cbv)
+REFL_INTROSPECT(pathtrace_cbv)
 {
-    REFL_INTROSPECT_FIELD(proj);
-    REFL_INTROSPECT_FIELD(proj_inv);
-    REFL_INTROSPECT_FIELD(view);
-    REFL_INTROSPECT_FIELD(view_inv);
-    REFL_INTROSPECT_FIELD(vp);
-    REFL_INTROSPECT_FIELD(vp_inv);
-    REFL_INTROSPECT_FIELD(frame_index);
-    REFL_INTROSPECT_FIELD(num_samples_per_pixel);
-    REFL_INTROSPECT_FIELD(max_bounces);
-    REFL_INTROSPECT_FIELD(fov_radians);
-    REFL_INTROSPECT_FIELD(cam_to_pixel_spread_angle_radians);
+    REFL_FIELD(proj);
+    REFL_FIELD(proj_inv);
+    REFL_FIELD(view);
+    REFL_FIELD(view_inv);
+    REFL_FIELD(vp);
+    REFL_FIELD(vp_inv);
+    REFL_FIELD(frame_index);
+    REFL_FIELD(num_samples_per_pixel);
+    REFL_FIELD(max_bounces);
+    REFL_FIELD(fov_radians);
+    REFL_FIELD(cam_to_pixel_spread_angle_radians);
 }
 
-REFL_INTROSPECT_FUNC(pathtrace_lightdata_soa)
+REFL_INTROSPECT(pathtrace_lightdata_soa)
 {
-    REFL_INTROSPECT_FIELD4(numLights, type, position, normal);
-    REFL_INTROSPECT_FIELD4(color, dPdu, dPdv, dimensions);
-    REFL_INTROSPECT_FIELD4(attenuation, rectLightBarnCosAngle, rectLightBarnLength, skyLightSHData);
+    REFL_FIELD4(numLights, type, position, normal);
+    REFL_FIELD4(color, dPdu, dPdv, dimensions);
+    REFL_FIELD4(attenuation, rectLightBarnCosAngle, rectLightBarnLength, skyLightSHData);
 }
 }
 
