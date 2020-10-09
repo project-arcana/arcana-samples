@@ -16,15 +16,18 @@ TEST("cc::range_ref")
 
     {
         cc::vector<int> v = {1, 2, 3};
+        check_range(v);
         check_range(cc::make_range_ref(v));
         check_range(cc::make_range_ref<int>(v));
     }
     {
         cc::array<int> v = {1, 2, 3};
+        check_range(v);
         check_range(cc::make_range_ref(v));
         check_range(cc::make_range_ref<int>(v));
     }
     {
+        check_range({1, 2, 3});
         check_range(cc::make_range_ref({1, 2, 3}));
         check_range(cc::make_range_ref<int>({1, 2, 3}));
     }
@@ -44,20 +47,24 @@ TEST("cc::range_ref conversion")
 
     {
         cc::vector<cc::string> words = {"brave", "new", "world"};
+        check_range(words, "brave new world");
         check_range(cc::make_range_ref(words), "brave new world");
         check_range(cc::make_range_ref<cc::string_view>(words), "brave new world");
     }
     {
         cc::array<cc::string_view> words = {"brave", "new", "world"};
+        check_range(words, "brave new world");
         check_range(cc::make_range_ref(words), "brave new world");
         check_range(cc::make_range_ref<cc::string_view>(words), "brave new world");
     }
     {
         char const* words[] = {"brave", "new", "world"};
+        check_range(words, "brave new world");
         check_range(cc::make_range_ref(words), "brave new world");
         check_range(cc::make_range_ref<cc::string_view>(words), "brave new world");
     }
     {
+        check_range({"brave", "new", "world"}, "brave new world");
         check_range(cc::make_range_ref({"brave", "new", "world"}), "brave new world");
         check_range(cc::make_range_ref<cc::string_view>({"brave", "new", "world"}), "brave new world");
     }
