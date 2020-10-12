@@ -1,5 +1,6 @@
 #include <nexus/test.hh>
 
+#include <rich-log/experimental.hh>
 #include <rich-log/log.hh>
 #include <rich-log/logger.hh>
 
@@ -8,7 +9,7 @@ TEST("basic logging")
     rlog::enable_win32_colors();
     rlog::set_current_thread_name("td#0");
 
-    rlog::add_whitelist_filter([](cc::string_view domain, cc::string_view) { return domain.empty() || domain.contains("debug"); });
+    rlog::experimental::set_whitelist_filter([](cc::string_view domain, cc::string_view) { return domain.empty() || domain.contains("debug"); });
 
     for (auto style : {rlog::console_log_style::verbose, rlog::console_log_style::brief, rlog::console_log_style::briefer, rlog::console_log_style::message_only})
     {
