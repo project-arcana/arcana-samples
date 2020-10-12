@@ -57,6 +57,14 @@ TEST("cc::string_view")
     CHECK(s.last(5) == "hello");
     CHECK(s.last(0) == "");
 
+    CHECK(s.contains("hell"));
+    CHECK(s.contains("o"));
+    CHECK(s.contains("lo"));
+    CHECK(s.contains("ll"));
+    CHECK(s.contains("h"));
+    CHECK(s.contains("he"));
+    CHECK(!s.contains("hl"));
+
     struct foo
     {
         int method(char const* /*c_str*/) { return 0; }
