@@ -177,7 +177,11 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
 
     mContext.submit(cc::move(frame));
 
-    auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument().add(albedo).add(normal).add(ao_rough_metal).make_graphics());
+    auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument()
+                                                  .add(pr::resource_view_2d(albedo).format(pr::format::rgba8un_srgb)) //
+                                                  .add(normal)
+                                                  .add(ao_rough_metal)
+                                                  .make_graphics());
     dmr::material res;
     res.outer_sv = new_sv;
 

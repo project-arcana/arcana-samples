@@ -291,8 +291,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     {
         sampler_config mat_sampler(sampler_filter::anisotropic);
 
-        cc::array const srv_elems = {resource_view::tex2d(l_res.mat_albedo, format::rgba8un), resource_view::tex2d(l_res.mat_normal, format::rgba8un),
-                                     resource_view::tex2d(l_res.mat_arm, format::rgba8un)};
+        resource_view srv_elems[] = {resource_view::tex2d(l_res.mat_albedo, format::rgba8un_srgb),
+                                     resource_view::tex2d(l_res.mat_normal, format::rgba8un), resource_view::tex2d(l_res.mat_arm, format::rgba8un)};
 
         l_res.shaderview_render = backend.createShaderView(srv_elems, {}, cc::span{mat_sampler});
     }
@@ -302,7 +302,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         lut_sampler.address_u = sampler_address_mode::clamp;
         lut_sampler.address_v = sampler_address_mode::clamp;
 
-        cc::array const srv_elems = {resource_view::texcube(l_res.ibl_specular, format::rgba16f),
+        resource_view srv_elems[] = {resource_view::texcube(l_res.ibl_specular, format::rgba16f),
                                      resource_view::texcube(l_res.ibl_irradiance, format::rgba16f), resource_view::tex2d(l_res.ibl_lut, format::rg16f)};
 
         l_res.shaderview_render_ibl = backend.createShaderView(srv_elems, {}, cc::span{lut_sampler});
@@ -349,7 +349,6 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     auto const f_on_resize = [&]() {
         backend.flushGPU();
         backbuf_size = backend.getBackbufferSize(main_swapchain);
-        LOG("backbuffer resized to {}x{}", backbuf_size.width, backbuf_size.height);
         f_destroy_sized_resources();
         f_create_sized_resources();
     };
