@@ -88,7 +88,7 @@ TEST("cc::range_ref deref conversion")
 
     check_range(vals, 17);
     check_range({1, 2, 3, 4, 5}, 15);
-    check_range({&a, &b, &a, &a}, 19);
+    check_range({&a, &b, &a, &a}, 24);
 }
 
 namespace
@@ -106,7 +106,7 @@ int count_objs(cc::range_ref<foo const&> range)
     range.for_each([&](foo const&) { ++cnt; });
     return cnt;
 }
-int count_objs(cc::range_ref<bar const&> range)
+int count_objs(cc::range_ref<bar const&> range = {})
 {
     auto cnt = 0;
     range.for_each([&](bar const&) { ++cnt; });
@@ -136,6 +136,8 @@ TEST("cc::range_ref overloads")
     pbars.push_back(cc::make_unique<bar>());
     pbars.push_back(cc::make_unique<bar>());
 
+    CHECK(count_objs() == 10); // calls bar version
+
     CHECK(count_objs(foos) == 2);
     CHECK(count_objs(bars) == 13);
 
@@ -147,4 +149,7 @@ TEST("cc::range_ref overloads")
 
     CHECK(count_objs({&foos[0], &foos[1], &foos[0]}) == 3);
     CHECK(count_objs({&bars[0], &bars[1]}) == 12);
+
+    CHECK(count_objs(cc::range_ref<foo const&>()) == 0);
+    CHECK(count_objs(cc::range_ref<bar const&>()) == 10);
 }
