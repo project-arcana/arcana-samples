@@ -21,7 +21,8 @@ TEST("sampler basics")
     CHECK(img(1, 1) == 5);
     CHECK(img(2, 1) == 6);
 
-    auto sampler = tp::linear_clamped_px_sampler(img);
+    // sampler converts to float after lookup
+    auto sampler = tp::linear_clamped_px_sampler<float>(img);
 
     CHECK(sampler({0, 0}) == 1);
     CHECK(sampler({1, 0}) == 2);
@@ -37,7 +38,10 @@ TEST("sampler basics")
     CHECK(sampler({-10, 10}) == 4);
     CHECK(sampler({10, 10}) == 6);
 
-    // NOTE: sampler keeps pixel type, thus interpolation casts to integer
+    CHECK(sampler({0.25f, 0}) == 1.25f);
+    CHECK(sampler({0.5f, 0}) == 1.5f);
+    CHECK(sampler({0.5f, 1}) == 4.5f);
+    CHECK(sampler({0.5f, 0.5f}) == 3);
 }
 
 TEST("sampler tg")
