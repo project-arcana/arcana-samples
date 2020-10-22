@@ -6,6 +6,8 @@
 
 #include <rich-log/log.hh>
 
+#include <typed-geometry/tg.hh>
+
 TEST("tp api")
 {
     // normal 2D texture
@@ -28,5 +30,12 @@ TEST("tp api")
         // for (auto& v : img.pixels())
         //     v = 0.5f;
         // CHECK(view(2, 7) == 0.5f);
+    }
+
+    // io
+    if (false) // don't actually write to files
+    {
+        auto img = tp::image2<tg::u8vec3>::filled({128, 256}, tg::u8vec3(255, 0, 255));
+        tp::write_to_file(img, "img.png");
     }
 }
