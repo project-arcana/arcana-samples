@@ -5,6 +5,7 @@
 #include <clean-core/to_string.hh>
 
 #include <string>
+#include <string_view>
 
 TEST("cc::to_string basics")
 {
@@ -21,10 +22,45 @@ TEST("cc::to_string basics")
     CHECK(cc::to_string(true) == "true");
     CHECK(cc::to_string(false) == "false");
     CHECK(cc::to_string('z') == "z");
-    CHECK(cc::to_string(nullptr) == "nullptr");
+    CHECK(cc::to_string(nullptr) == "[nullptr]");
     CHECK(cc::to_string((void*)0x1234) == "0x0000000000001234");
     CHECK(cc::to_string(std::byte(1)) == "01");
     CHECK(cc::to_string(std::byte(255)) == "FF");
+}
+
+TEST("cc::to_string std")
+{
+    CHECK(cc::to_string(std::string("hello")) == "hello");
+    CHECK(cc::to_string(std::string_view("hello")) == "hello");
+}
+
+TEST("cc::to_string pointers")
+{
+    {
+        int* p = nullptr;
+        CHECK(cc::to_string(p) == "[nullptr]");
+    }
+    {
+        int* p = (int*)0x1234;
+        CHECK(cc::to_string(p) == "0x0000000000001234");
+    }
+    {
+        int const* p = nullptr;
+        CHECK(cc::to_string(p) == "[nullptr]");
+    }
+    {
+        char const* p = nullptr;
+        CHECK(cc::to_string(p) == "[nullptr]");
+    }
+    {
+        char const* p = "hello";
+        CHECK(cc::to_string(p) == "hello");
+    }
+    {
+        char s[] = {'A', 'B', 'C', 0};
+        char* p = s;
+        CHECK(cc::to_string(p) == "ABC");
+    }
 }
 
 namespace
