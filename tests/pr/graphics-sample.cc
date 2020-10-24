@@ -7,6 +7,7 @@
 
 #include <rich-log/log.hh>
 
+#include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
 #include <phantasm-renderer/GraphicsPass.hh>
@@ -137,12 +138,13 @@ struct cam_constants
 
 }
 
-APP("api_test")
+APP("graphics_sample")
 {
     auto ctx = pr::Context(pr::backend::vulkan);
 
     inc::da::SDLWindow window;
-    window.initialize("api test");
+    window.initialize("phantasm-renderer graphics sample");
+
     auto swapchain = ctx.make_swapchain(phi::window_handle{window.getSdlWindow()}, window.getSize());
 
     // pr::graphics_pipeline_state pso_render;
@@ -153,9 +155,6 @@ APP("api_test")
 
     pr::auto_buffer b_modelmats;
     pr::auto_buffer b_camconsts;
-
-    // pr::auto_render_target t_depth;
-    // pr::auto_render_target t_color;
 
     pr::auto_prebuilt_argument sv_render;
 
@@ -221,8 +220,6 @@ APP("api_test")
     tg::isize2 backbuffer_size;
 
     auto create_targets = [&](tg::isize2 size) {
-        //   t_depth = ctx.make_target(size, pr::format::depth32f);
-        //   t_color = ctx.make_target(size, pr::format::rgba16f);
         backbuffer_size = size;
 
         auto const vp = tg::perspective_directx(60_deg, size.width / float(size.height), 0.1f, 10000.f)
