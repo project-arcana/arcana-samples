@@ -67,7 +67,7 @@ bool run_onboarding_test()
 void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backend_type)
 {
     CC_ASSERT(mWindow == nullptr && "double initialize");
-    CC_ASSERT(run_onboarding_test() && "critical error, onboarding cannot recover");
+    CC_RUNTIME_ASSERT(run_onboarding_test() && "critical error, onboarding cannot recover");
 
     mWindow = &window;
 
