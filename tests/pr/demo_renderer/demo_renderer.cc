@@ -12,8 +12,7 @@
 
 #include <dxc-wrapper/file_util.hh>
 
-#include <arcana-incubator/device-abstraction/stringhash.hh>
-#include <arcana-incubator/imgui/imgui_impl_phi.hh>
+#include <arcana-incubator/imgui/imgui.hh>
 #include <arcana-incubator/imgui/imgui_impl_sdl2.hh>
 
 namespace
@@ -29,7 +28,7 @@ bool verify_workdir()
     return file.good();
 }
 
-bool verify_shaders_compiled() { return inc::pre::is_shader_present("misc/imgui_vs", "res/pr/demo_render/bin/"); }
+bool verify_shaders_compiled() { return inc::pre::is_shader_present("mesh/pbr_vs", "res/pr/demo_render/bin/"); }
 
 // help or attempt to recover likely errors during first launch (wrong workdir or shaders not compiled)
 bool run_onboarding_test()
@@ -86,17 +85,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
     mSwapchain = mContext.make_swapchain({mWindow->getSdlWindow()}, mWindow->getSize());
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-
-    if (backend_type == pr::backend::d3d12)
-        ImGui_ImplSDL2_InitForD3D(window.getSdlWindow());
-    else
-        ImGui_ImplSDL2_InitForVulkan(window.getSdlWindow());
-    window.setEventCallback(ImGui_ImplSDL2_ProcessEvent);
-
-    ImGui_ImplPHI_Init(&mContext.get_backend(), 3, phi::format::bgra8un);
-
+    inc::imgui_init(window.getSdlWindow(), &mContext.get_backend(), 3, phi::format::bgra8un);
 
     mTexProcessingPSOs.init(mContext, "res/pr/demo_render/bin/preprocess/");
 
@@ -136,8 +125,7 @@ void dmr::DemoRenderer::destroy()
     {
         mContext.flush();
 
-        ImGui_ImplPHI_Shutdown();
-        ImGui_ImplSDL2_Shutdown();
+        inc::imgui_shutdown();
 
         mPasses = {};
         mScene = {};
@@ -242,16 +230,11 @@ void dmr::DemoRenderer::execute(float dt)
         auto backbuffer = mContext.acquire_backbuffer(mSwapchain);
         mPasses.postprocess.execute_output(mContext, frame, mTargets, mScene, backbuffer);
 
-        ImGui::Render();
-        auto* const imgui_drawdata = ImGui::GetDrawData();
-        auto const imgui_framesize = ImGui_ImplPHI_GetDrawDataCommandSize(imgui_drawdata);
         {
             auto fb = frame.build_framebuffer().loaded_target(backbuffer).make();
-            frame.begin_debug_label("imgui");
-            ImGui_ImplPHI_RenderDrawData(imgui_drawdata, {frame.write_raw_bytes(imgui_framesize), imgui_framesize});
-
-            frame.end_debug_label();
+            inc::imgui_render(frame);
         }
+
         frame.present_after_submit(backbuffer, mSwapchain);
         cf_post = mContext.compile(cc::move(frame));
     }
@@ -259,6 +242,8 @@ void dmr::DemoRenderer::execute(float dt)
     mContext.submit(cc::move(cf_depthpre));
     mContext.submit(cc::move(cf_forward));
     mContext.submit(cc::move(cf_post));
+
+    inc::imgui_viewport_update();
 }
 
 bool dmr::DemoRenderer::handleEvents()
@@ -269,7 +254,10 @@ bool dmr::DemoRenderer::handleEvents()
 
         SDL_Event e;
         while (mWindow->pollSingleEvent(e))
+        {
             mInput.processEvent(e);
+            ImGui_ImplSDL2_ProcessEvent(&e);
+        }
 
         mInput.updatePostPoll();
     }
@@ -283,9 +271,7 @@ bool dmr::DemoRenderer::handleEvents()
     if (mContext.clear_backbuffer_resize(mSwapchain))
         onBackbufferResize(mContext.get_backbuffer_size(mSwapchain));
 
-    ImGui_ImplPHI_NewFrame();
-    ImGui_ImplSDL2_NewFrame(mWindow->getSdlWindow());
-    ImGui::NewFrame();
+    inc::imgui_new_frame(mWindow->getSdlWindow());
 
     return true;
 }

@@ -21,16 +21,29 @@ float2 queryInverseResolution()
     );
 }
 
+// tonemap and un-tonemap values to suppress fireflies
+#define TAA_USE_REVERSIBLE_TONEMAPPING 1
+
 float4 convert_taa_input(float4 c)
 {
-	float3 mapped = fast_tonemap(c.rgb);
+	float3 mapped = 
+#if TAA_USE_REVERSIBLE_TONEMAPPING 
+		fast_tonemap(c.rgb);
+#else
+		c.rgb;
+#endif
 	return rgba_to_ycocg(float4(mapped.x, mapped.y, mapped.z, c.a));
 }
 
 float4 convert_taa_output(float4 c)
 {
 	float4 rgba = ycocg_to_rgba(c);
-	float3 unmapped = fast_invert_tonemap(rgba.rgb);
+	float3 unmapped = 
+#if TAA_USE_REVERSIBLE_TONEMAPPING 
+		fast_invert_tonemap(rgba.rgb);
+#else
+		rgba.rgb;
+#endif
 	return float4(unmapped.x, unmapped.y, unmapped.z, rgba.a);
 }
 
