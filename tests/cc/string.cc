@@ -232,7 +232,7 @@ TEST("cc::string / string_view / char const* equality")
 {
     cc::string s0 = "test";
     cc::string_view s1 = "test";
-    char const s2[5] = "test";
+    char const s2[] = "test";
     char const* s3 = "test";
 
     CHECK(s0 == s0);
@@ -247,11 +247,11 @@ TEST("cc::string / string_view / char const* equality")
 
     CHECK(s2 == s0);
     CHECK(s2 == s1);
-    CHECK(s2 == s2);
+    CHECK(s2 == s2); // pointer check
     // NOT EQUAL (by design)! CHECK(s2 == s3);
 
     CHECK(s3 == s0);
     CHECK(s3 == s1);
     // NOT EQUAL (by design)! CHECK(s3 == s2);
-    CHECK(s3 == s3);
+    CHECK(s3 == s3); // pointer check
 }

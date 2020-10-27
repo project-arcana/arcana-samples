@@ -19,11 +19,11 @@ TEST("collection traits")
         cc::vector<int> v;
         using traits = cc::collection_traits<decltype(v)>;
 
-        static_assert(std::is_same_v<traits::element_t, int>);
         static_assert(traits::is_range);
         static_assert(traits::is_contiguous);
         static_assert(!traits::is_fixed_size);
         static_assert(traits::can_add);
+        static_assert(std::is_same_v<traits::element_t, int>);
 
         cc::collection_add(v, 7);
         CHECK(cc::collection_size(v) == 1);

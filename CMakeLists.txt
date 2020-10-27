@@ -237,6 +237,7 @@ foreach(TARGET_NAME
     clean-ranges
     phantasm-hardware-interface
     babel-serializer
+    texture-processor
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
 endforeach()
