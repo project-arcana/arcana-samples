@@ -227,3 +227,31 @@ TEST("cc::string processing")
         }
     }
 }
+
+TEST("cc::string / string_view / char const* equality")
+{
+    cc::string s0 = "test";
+    cc::string_view s1 = "test";
+    char const s2[5] = "test";
+    char const* s3 = "test";
+
+    CHECK(s0 == s0);
+    CHECK(s0 == s1);
+    CHECK(s0 == s2);
+    CHECK(s0 == s3);
+
+    CHECK(s1 == s0);
+    CHECK(s1 == s1);
+    CHECK(s1 == s2);
+    CHECK(s1 == s3);
+
+    CHECK(s2 == s0);
+    CHECK(s2 == s1);
+    CHECK(s2 == s2);
+    // NOT EQUAL (by design)! CHECK(s2 == s3);
+
+    CHECK(s3 == s0);
+    CHECK(s3 == s1);
+    // NOT EQUAL (by design)! CHECK(s3 == s2);
+    CHECK(s3 == s3);
+}
