@@ -171,13 +171,10 @@ APP("ui rendering")
         ctx.write_to_buffer_raw(fb, font.data);
 
         auto frame = ctx.make_frame();
-        // needed?
-        // frame.transition(fb, pr::state::copy_src);
-        // frame.transition(font_tex, pr::state::copy_dest);
         frame.copy(fb, font_tex);
         frame.transition(font_tex, pr::state::shader_resource, pr::shader::pixel);
+        frame.free_deferred_after_submit(fb.unlock());
         ctx.submit(cc::move(frame));
-        ctx.flush(); // needed?
     }
 
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -434,9 +431,6 @@ APP("ui rendering")
 
         frame.present_after_submit(backbuffer, swapchain);
         ctx.submit(cc::move(frame));
-
-        // less latency
-        ctx.flush();
     }
 
     // make sure nothing is used anymore
