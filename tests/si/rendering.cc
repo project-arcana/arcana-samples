@@ -173,7 +173,7 @@ APP("ui rendering")
         auto frame = ctx.make_frame();
         frame.copy(fb, font_tex);
         frame.transition(font_tex, pr::state::shader_resource, pr::shader::pixel);
-        frame.free_deferred_after_submit(fb.unlock());
+        frame.free_deferred_after_submit(fb.disown());
         ctx.submit(cc::move(frame));
     }
 
