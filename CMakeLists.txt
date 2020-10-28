@@ -57,6 +57,9 @@ add_subdirectory(extern/task-dispatcher)
 # resources
 add_subdirectory(extern/resource-system)
 
+# serialization
+add_subdirectory(extern/babel-serializer)
+
 
 ## Main
 
@@ -73,14 +76,14 @@ add_subdirectory(extern/phantasm-hardware-interface)
 set(DXCWRAP_BUILD_STANDALONE ON CACHE BOOL "" FORCE)
 add_subdirectory(extern/dxc-wrapper)
 
+# texture processing
+add_subdirectory(extern/texture-processor)
+
 # phantasm renderer
 add_subdirectory(extern/phantasm-renderer)
 
 # UI
 add_subdirectory(extern/structured-interface)
-
-# serialization
-add_subdirectory(extern/babel-serializer)
 
 # TODO: other libs
 
@@ -234,6 +237,7 @@ foreach(TARGET_NAME
     clean-ranges
     phantasm-hardware-interface
     babel-serializer
+    texture-processor
 )
     set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "Extern")
 endforeach()

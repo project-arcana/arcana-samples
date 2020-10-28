@@ -11,6 +11,7 @@
 #include <clean-core/strided_span.hh>
 #include <clean-core/string.hh>
 #include <clean-core/string_view.hh>
+#include <clean-core/unique_ptr.hh>
 #include <clean-core/vector.hh>
 
 TEST("collection traits")
@@ -19,11 +20,11 @@ TEST("collection traits")
         cc::vector<int> v;
         using traits = cc::collection_traits<decltype(v)>;
 
-        static_assert(std::is_same_v<traits::element_t, int>);
         static_assert(traits::is_range);
         static_assert(traits::is_contiguous);
         static_assert(!traits::is_fixed_size);
         static_assert(traits::can_add);
+        static_assert(std::is_same_v<traits::element_t, int>);
 
         cc::collection_add(v, 7);
         CHECK(cc::collection_size(v) == 1);
@@ -192,5 +193,20 @@ TEST("collection traits")
         static_assert(!traits::can_add);
 
         CHECK(cc::collection_size(s) == 3);
+    }
+
+    {
+        cc::vector<cc::unique_ptr<int>> v;
+        using traits = cc::collection_traits<decltype(v)>;
+
+        static_assert(traits::is_range);
+        static_assert(traits::is_contiguous);
+        static_assert(!traits::is_fixed_size);
+        static_assert(traits::can_add);
+        static_assert(std::is_same_v<traits::element_t, cc::unique_ptr<int>>);
+
+        cc::collection_add(v, cc::make_unique<int>(7));
+        CHECK(cc::collection_size(v) == 1);
+        CHECK(*v[0] == 7);
     }
 }

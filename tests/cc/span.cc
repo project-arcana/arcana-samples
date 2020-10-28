@@ -89,12 +89,15 @@ TEST("byte_span")
         CHECK(s[1] == std::byte(0x56));
         CHECK(s[2] == std::byte(0x34));
         CHECK(s[3] == std::byte(0x12));
+        CHECK(cc::from_byte_span<uint32_t>(s) == 0x12345678);
+        CHECK(cc::from_byte_span<int32_t>(s) == 0x12345678);
     }
     {
         char c = 'A';
         auto s = cc::as_byte_span(c);
         CHECK(s.size() == 1);
         CHECK(s[0] == std::byte('A'));
+        CHECK(cc::from_byte_span<char>(s) == 'A');
     }
     {
         char c[] = {'A', 'B', 'C'};
@@ -113,6 +116,7 @@ TEST("byte_span")
         CHECK(s[0] == std::byte(1));
         CHECK(s[1] == std::byte(0));
         CHECK(s[4] == std::byte(2));
+        CHECK(cc::from_byte_span<uint32_t>(s.subspan(8, 4)) == 3);
     }
     {
         cc::string_view sv = "hello";

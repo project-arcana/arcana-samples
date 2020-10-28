@@ -102,7 +102,7 @@ TEST("cc::string_stream_ref")
 {
     auto foo = [](cc::string_stream_ref s) {
         s << 'a';
-        char v[] = {'b', 'c', '\0', 'x', 'z'}; // NOTE: must be null-terminated!
+        char v[] = {'b', 'c', '\0'}; // NOTE: must be null-terminated!
         s << v;
         s << "def";
         s << cc::string_view("gh");
