@@ -75,19 +75,12 @@ APP("min_sample")
     // (control has now left the main loop above, shutting down)
     // a short note about RAII and lifetimes in pr:
     {
-        // created resources by default are "auto_" types, move-only, and get freed when destroyed:
-
-        {
-            pr::auto_buffer buf = ctx.make_buffer(32);
-        } // buf is now freed
-
-
-        // auto_ types can be explicitly "unlocked" and then manually managed:
+        // auto_ types must be explicitly "disowned" and then manually managed:
 
         pr::buffer buf2_manual; // (POD, nothing happened here, just a variable)
         {
             pr::auto_buffer buf2 = ctx.make_buffer(64);
-            buf2_manual = buf2.unlock();
+            buf2_manual = buf2.disown();
         } // buf2 ran out of scope, but nothing happened
 
         // buf2_manual must be freed explicitly:

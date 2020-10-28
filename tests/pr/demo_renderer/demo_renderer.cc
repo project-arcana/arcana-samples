@@ -90,16 +90,19 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     mTexProcessingPSOs.init(mContext, "res/pr/demo_render/bin/preprocess/");
 
     // load and preprocess IBL resources
-    inc::pre::filtered_specular_result specular_intermediate;
     {
         auto frame = mContext.make_frame();
 
-        specular_intermediate
+        auto specular_intermediate
             = mTexProcessingPSOs.load_filtered_specular_map_from_file(frame, "res/arcana-sample-resources/phi/texture/ibl/mono_lake.hdr");
 
         mPasses.forward.tex_ibl_spec = cc::move(specular_intermediate.filtered_env);
         mPasses.forward.tex_ibl_irr = mTexProcessingPSOs.create_diffuse_irradiance_map(frame, mPasses.forward.tex_ibl_spec);
         mPasses.forward.tex_ibl_lut = mTexProcessingPSOs.create_brdf_lut(frame, 256);
+
+        // we do not need these two results
+        frame.free_deferred_after_submit(specular_intermediate.equirect_tex.disown());
+        frame.free_deferred_after_submit(specular_intermediate.unfiltered_env.disown());
 
         frame.transition(mPasses.forward.tex_ibl_spec, pr::state::shader_resource, pr::shader::pixel);
         frame.transition(mPasses.forward.tex_ibl_irr, pr::state::shader_resource, pr::shader::pixel);
@@ -116,22 +119,28 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
     onBackbufferResize(mContext.get_backbuffer_size(mSwapchain));
 
     mScene.init(mContext, mContext.get_num_backbuffers(mSwapchain), 500);
-    mContext.flush();
 }
 
 void dmr::DemoRenderer::destroy()
 {
     if (mWindow != nullptr)
     {
-        mContext.flush();
+        mContext.flush_and_shutdown();
 
         inc::imgui_shutdown();
 
-        mPasses = {};
+        mTargets.free_rts(mContext);
+
+        mContext.free_range(mUniqueSVs);
+        mContext.free_range(mUniqueTextures);
+
         mScene = {};
         mTargets = {};
+        mPasses = {};
+
         mUniqueSVs.clear();
         mUniqueTextures.clear();
+
         mUniqueMeshes.clear();
         mTexProcessingPSOs.free();
 
@@ -155,9 +164,9 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
 {
     auto frame = mContext.make_frame();
 
-    auto albedo = mTexProcessingPSOs.load_texture_from_file(frame, p_albedo, pr::format::rgba8un, true, true);
-    auto normal = mTexProcessingPSOs.load_texture_from_file(frame, p_normal, pr::format::rgba8un, true, false);
-    auto ao_rough_metal = mTexProcessingPSOs.load_texture_from_file(frame, p_arm, pr::format::rgba8un, true, false);
+    auto albedo = mTexProcessingPSOs.load_texture_from_file(frame, p_albedo, pr::format::rgba8un, true, true).disown();
+    auto normal = mTexProcessingPSOs.load_texture_from_file(frame, p_normal, pr::format::rgba8un, true, false).disown();
+    auto ao_rough_metal = mTexProcessingPSOs.load_texture_from_file(frame, p_arm, pr::format::rgba8un, true, false).disown();
 
     frame.transition(albedo, pr::state::shader_resource, pr::shader::pixel);
     frame.transition(normal, pr::state::shader_resource, pr::shader::pixel);
@@ -165,18 +174,22 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
 
     mContext.submit(cc::move(frame));
 
-    auto const& new_sv = mUniqueSVs.push_back(mContext.build_argument()
-                                                  .add(pr::resource_view_2d(albedo).format(pr::format::rgba8un_srgb)) //
-                                                  .add(normal)
-                                                  .add(ao_rough_metal)
-                                                  .make_graphics());
-    dmr::material res;
-    res.outer_sv = new_sv;
+    auto const new_arg = mContext.build_argument()
+                             .add(pr::resource_view_2d(albedo).format(pr::format::rgba8un_srgb)) // view albedo as sRGB
+                             .add(normal)
+                             .add(ao_rough_metal)
+                             .make_graphics()
+                             .disown();
 
-    // move to unique array to keep alive
-    mUniqueTextures.push_back(cc::move(albedo));
-    mUniqueTextures.push_back(cc::move(normal));
-    mUniqueTextures.push_back(cc::move(ao_rough_metal));
+    dmr::material res;
+    res.outer_sv = new_arg;
+
+    // unique textures just holds all of these for cleanup
+    mUniqueTextures.push_back(albedo.res.handle);
+    mUniqueTextures.push_back(normal.res.handle);
+    mUniqueTextures.push_back(ao_rough_metal.res.handle);
+
+    mUniqueSVs.push_back(new_arg._sv);
 
     return res;
 }
@@ -279,7 +292,6 @@ bool dmr::DemoRenderer::handleEvents()
 void dmr::DemoRenderer::onBackbufferResize(tg::isize2 new_size)
 {
     mTargets.recreate_rts(mContext, new_size);
-    mTargets.recreate_buffers(mContext, new_size);
     mScene.resolution = new_size;
 
     // clear history targets explicitly

@@ -76,8 +76,8 @@ private:
     inc::pre::texture_processing mTexProcessingPSOs;
 
     cc::vector<inc::pre::pr_mesh> mUniqueMeshes;
-    cc::vector<pr::auto_texture> mUniqueTextures;
-    cc::vector<pr::auto_prebuilt_argument> mUniqueSVs;
+    cc::vector<phi::handle::resource> mUniqueTextures;
+    cc::vector<phi::handle::shader_view> mUniqueSVs;
 
     global_targets mTargets;
     scene mScene;

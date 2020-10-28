@@ -189,7 +189,7 @@ APP("graphics_sample")
         auto const mesh = inc::assets::load_binary_mesh("res/arcana-sample-resources/phi/mesh/ball.mesh");
 
         // create an upload buffer
-        auto const upbuff = ctx.make_upload_buffer(mesh.vertices.size_bytes() + mesh.indices.size_bytes()).unlock();
+        auto const upbuff = ctx.make_upload_buffer(mesh.vertices.size_bytes() + mesh.indices.size_bytes()).disown();
         // memcpy the mesh data to it
         ctx.write_to_buffer(upbuff, mesh.vertices);
         ctx.write_to_buffer(upbuff, mesh.indices, mesh.vertices.size_bytes());
@@ -313,5 +313,5 @@ APP("graphics_sample")
         ctx.present(swapchain);
     }
 
-    ctx.flush();
+    ctx.flush_and_shutdown(); // prevent the auto_ types from asserting
 }
