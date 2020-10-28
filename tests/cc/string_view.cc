@@ -131,14 +131,14 @@ TEST("cc::string_view span interop")
 
 TEST("cc::string_view from array")
 {
-    char v[] = {'a', 'b', '\0', 'd', 'e'};
+    char v[] = {'a', 'b', '\0'};
     auto sv = cc::string_view(v);
     auto ss = cc::span(v);
     auto ssv = cc::string_view(ss);
     auto svs = cc::span(sv);
 
     CHECK(sv.size() == 2);
-    CHECK(ss.size() == 5);
-    CHECK(ssv.size() == 5);
+    CHECK(ss.size() == 3);
+    CHECK(ssv.size() == 3);
     CHECK(svs.size() == 2);
 }
