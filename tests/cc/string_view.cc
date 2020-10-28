@@ -57,6 +57,14 @@ TEST("cc::string_view")
     CHECK(s.last(5) == "hello");
     CHECK(s.last(0) == "");
 
+    CHECK(s.contains("hell"));
+    CHECK(s.contains("o"));
+    CHECK(s.contains("lo"));
+    CHECK(s.contains("ll"));
+    CHECK(s.contains("h"));
+    CHECK(s.contains("he"));
+    CHECK(!s.contains("hl"));
+
     struct foo
     {
         int method(char const* /*c_str*/) { return 0; }
@@ -123,14 +131,14 @@ TEST("cc::string_view span interop")
 
 TEST("cc::string_view from array")
 {
-    char v[] = {'a', 'b', '\0', 'd', 'e'};
+    char v[] = {'a', 'b', '\0'};
     auto sv = cc::string_view(v);
     auto ss = cc::span(v);
     auto ssv = cc::string_view(ss);
     auto svs = cc::span(sv);
 
     CHECK(sv.size() == 2);
-    CHECK(ss.size() == 5);
-    CHECK(ssv.size() == 5);
+    CHECK(ss.size() == 3);
+    CHECK(ssv.size() == 3);
     CHECK(svs.size() == 2);
 }

@@ -21,6 +21,18 @@ constexpr void introspect(I&& i, foo& v)
     i(v.x, "x");
     i(v.b, "b");
 }
+
+enum enumA
+{
+    valA,
+    valB
+};
+enum class enumB
+{
+    valA,
+    valB,
+    valC
+};
 }
 
 TEST("json basics")
@@ -43,6 +55,10 @@ TEST("json basics")
         CHECK(babel::json::to_string('a', cfg) == "\"a\"");
         CHECK(babel::json::to_string("hello", cfg) == "\"hello\"");
         CHECK(babel::json::to_string(cc::string("hello"), cfg) == "\"hello\"");
+        CHECK(babel::json::to_string(valA, cfg) == "0");
+        CHECK(babel::json::to_string(valB, cfg) == "1");
+        CHECK(babel::json::to_string(enumB::valA, cfg) == "0");
+        CHECK(babel::json::to_string(enumB::valB, cfg) == "1");
 
         // optional
         {
@@ -77,6 +93,14 @@ TEST("json basics")
         m["de"] = 32;
         auto vA = "{\"abc\":17,\"de\":32}";
         auto vB = "{\"de\":32,\"abc\":17}";
+        CHECK(babel::json::to_string(m) == cc::any_of(vA, vB));
+    }
+    {
+        cc::map<int, int> m;
+        m[33] = 17;
+        m[-24] = 32;
+        auto vA = "[[33,17],[-24,32]]";
+        auto vB = "[[-24,32],[33,17]]";
         CHECK(babel::json::to_string(m) == cc::any_of(vA, vB));
     }
 
@@ -146,6 +170,20 @@ TEST("json basics")
                   "  \"de\": 32,\n"
                   "  \"abc\": 17\n"
                   "}";
+        CHECK(babel::json::to_string(m, babel::json::write_config{2}) == cc::any_of(vA, vB));
+    }
+    {
+        cc::map<int, int> m;
+        m[7] = 17;
+        m[9] = 32;
+        auto vA = "[\n"
+                  "  [7, 17],\n"
+                  "  [9, 32]\n"
+                  "]";
+        auto vB = "[\n"
+                  "  [9, 32],\n"
+                  "  [7, 17]\n"
+                  "]";
         CHECK(babel::json::to_string(m, babel::json::write_config{2}) == cc::any_of(vA, vB));
     }
 }
@@ -267,9 +305,14 @@ TEST("json parsing")
     CHECK(babel::json::read<foo>("{\"x\": -12,\"b\":true}").x == -12);
     CHECK(babel::json::read<foo>("{\"x\": -12,\"b\":true}").b == true);
     CHECK(babel::json::read<cc::map<cc::string, int>>("{\"a\": 3,\"b\":7}") == cc::map<cc::string, int>{{"a", 3}, {"b", 7}});
+    CHECK(babel::json::read<cc::map<int, int>>("[[1,3],[2,8]]") == cc::map<int, int>{{1, 3}, {2, 8}});
     CHECK(babel::json::read<cc::optional<int>>("null").has_value() == false);
     CHECK(babel::json::read<cc::optional<int>>("17").has_value());
     CHECK(babel::json::read<cc::optional<int>>("17").value() == 17);
     CHECK(babel::json::read<cc::vector<int>>("[1,2,3]") == cc::vector<int>{1, 2, 3});
     CHECK(babel::json::read<cc::array<bool, 3>>("[true,false,true]") == cc::array<bool, 3>{{true, false, true}});
+    CHECK(babel::json::read<enumA>("0") == valA);
+    CHECK(babel::json::read<enumA>("1") == valB);
+    CHECK(babel::json::read<enumB>("0") == enumB::valA);
+    CHECK(babel::json::read<enumB>("1") == enumB::valB);
 }
