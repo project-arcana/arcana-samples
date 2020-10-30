@@ -9,11 +9,11 @@ struct foo
     int a = 123;
     bool b = false;
 };
-template <class I>
-constexpr void introspect(I&& i, foo& v)
+template <class In>
+constexpr void introspect(In&& inspect, foo& v)
 {
-    i(v.a, "a");
-    i(v.b, "b");
+    inspect(v.a, "a");
+    inspect(v.b, "b");
 }
 }
 

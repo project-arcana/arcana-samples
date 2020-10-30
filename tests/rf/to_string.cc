@@ -15,12 +15,31 @@ struct bar
     foo f;
     cc::string s;
 };
-template <class I>
-void introspect(I&& i, bar& v)
+template <class In>
+void introspect(In&& inspect, bar& v)
 {
-    i(v.x, "x");
-    i(v.f, "f");
-    i(v.s, "s");
+    inspect(v.x, "x");
+    inspect(v.f, "f");
+    inspect(v.s, "s");
+}
+
+enum class normal_enum
+{
+    valueA,
+    valueB
+};
+
+enum class intro_enum
+{
+    valueA,
+    valueB
+};
+
+template <class In>
+constexpr void introspect_enum(In&& inspect, intro_enum& f)
+{
+    inspect(f, intro_enum::valueA, "valueA");
+    inspect(f, intro_enum::valueB, "valueB");
 }
 }
 
@@ -48,4 +67,12 @@ TEST("rf::to_string basics")
     // custom to_string
     CHECK(rf::to_string(foo{}) == "foo");
     CHECK(rf::to_string(bar{7, {}, "hello"}) == "{ x: 7, f: foo, s: \"hello\" }");
+
+    // normal enums
+    CHECK(rf::to_string(normal_enum::valueA) == "enum(0)");
+    CHECK(rf::to_string(normal_enum::valueB) == "enum(1)");
+
+    // introspectable enums
+    CHECK(rf::to_string(intro_enum::valueA) == "valueA");
+    CHECK(rf::to_string(intro_enum::valueB) == "valueB");
 }
