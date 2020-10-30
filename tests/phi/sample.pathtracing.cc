@@ -538,7 +538,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             uavs[1].init_as_tex2d(resources.t_current_num_samples, format::r32u);
 
             resource_view srvs[1];
-            srvs[0].init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
+            srvs[0].init_as_accel_struct(resources.tlas);
 
             resources.sv_ray_gen = backend.createShaderView(srvs, uavs, {}, false);
         }
