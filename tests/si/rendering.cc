@@ -158,6 +158,7 @@ APP("ui rendering")
     input.bindMouseAxis(action_mouse_y, 1);
     input.bindMouseButton(action_mouse_left, inc::da::mouse_button::mb_left);
 
+
     // upload font data
     // TODO: mipmaps
     auto const& font = ui_merger.get_font_atlas();
@@ -166,14 +167,13 @@ APP("ui rendering")
     font_arg.add(font_tex);
     font_arg.add_sampler(pr::sampler_filter::min_mag_mip_linear, 0, pr::sampler_address_mode::clamp);
     {
-        auto fb = ctx.make_upload_buffer(font.data.size());
+        auto font_upbuf = ctx.make_upload_buffer_for_texture(font_tex);
         CC_ASSERT(int(font.data.size()) == font.width * font.height);
-        ctx.write_to_buffer_raw(fb, font.data);
 
         auto frame = ctx.make_frame();
-        frame.copy(fb, font_tex);
+        frame.upload_texture_data(font.data, font_upbuf, font_tex);
         frame.transition(font_tex, pr::state::shader_resource, pr::shader::pixel);
-        frame.free_deferred_after_submit(fb.unlock());
+        frame.free_deferred_after_submit(font_upbuf.unlock());
         ctx.submit(cc::move(frame));
     }
 
@@ -250,6 +250,11 @@ APP("ui rendering")
             }
 
             input.updatePostPoll();
+        }
+
+        if (window.clearPendingResize())
+        {
+            ctx.on_window_resize(swapchain, window.getSize());
         }
 
         if (use_frame_counter)
@@ -431,6 +436,7 @@ APP("ui rendering")
 
         frame.present_after_submit(backbuffer, swapchain);
         ctx.submit(cc::move(frame));
+        //        ctx.flush();
     }
 
     // make sure nothing is used anymore
