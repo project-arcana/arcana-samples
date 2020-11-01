@@ -386,7 +386,7 @@ APP("ui rendering")
             vertex_byte_size += rl.vertices.size_bytes();
             index_byte_size += rl.indices.size_bytes();
         }
-        auto ui_vertex_buffer = ctx.get_upload_buffer(vertex_byte_size);
+        auto ui_vertex_buffer = ctx.get_upload_buffer(vertex_byte_size, sizeof(vertex_t));
         auto ui_index_buffer = ctx.get_upload_buffer(index_byte_size, sizeof(int));
 
         // upload buffer data
