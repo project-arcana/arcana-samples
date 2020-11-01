@@ -252,10 +252,13 @@ APP("ui rendering")
             input.updatePostPoll();
         }
 
+        // skip rendering if minimized
+        if (window.isMinimized())
+            continue;
+
+        // resize swapchain when window resizes
         if (window.clearPendingResize())
-        {
             ctx.on_window_resize(swapchain, window.getSize());
-        }
 
         if (use_frame_counter)
             ++frame;
@@ -436,7 +439,7 @@ APP("ui rendering")
 
         frame.present_after_submit(backbuffer, swapchain);
         ctx.submit(cc::move(frame));
-        //        ctx.flush();
+        //     ctx.flush();
     }
 
     // make sure nothing is used anymore
