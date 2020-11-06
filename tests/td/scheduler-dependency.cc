@@ -30,10 +30,11 @@ void mainTaskFunc(void*)
         });
     }
 
-    sync sync;
     auto& sched = Scheduler::Current();
+    counter_handle_t sync = sched.acquireCounterHandle();
     sched.submitTasks(workers, numWorkers, sync);
     sched.wait(sync);
+    sched.releaseCounter(sync);
 }
 }
 
