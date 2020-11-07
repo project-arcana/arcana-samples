@@ -125,6 +125,12 @@ TEST("byte_span")
         CHECK(s.back() == std::byte('o'));
     }
     {
+        char const sa[] = "hello";
+        auto s = cc::as_byte_span(sa);
+        CHECK(s.size() == 6);
+        CHECK(s.back() == std::byte('\0'));
+    }
+    {
         struct
         {
             char a = 'A';
