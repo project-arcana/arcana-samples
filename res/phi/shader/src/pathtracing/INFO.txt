@@ -1,0 +1,2 @@
+The PHI pathtracing sample is closely based on the UE4 reference pathtracer,
+meaning the shader code cannot be published, and certainly not relicensed to MIT.

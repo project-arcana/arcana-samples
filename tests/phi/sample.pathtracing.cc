@@ -32,6 +32,7 @@
 #include <arcana-incubator/device-abstraction/input.hh>
 #include <arcana-incubator/device-abstraction/timer.hh>
 #include <arcana-incubator/pr-util/demo-renderer/data.hh>
+#include <arcana-incubator/pr-util/resource_loading.hh>
 
 #include <arcana-incubator/imgui/imgui.hh>
 #include <arcana-incubator/imgui/imgui_impl_phi.hh>
@@ -126,6 +127,14 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
     if (!phi_test::run_onboarding_test())
         return;
 
+    if (!inc::pre::is_shader_present("pathtrace_lib", "res/phi/shader/bin/"))
+    {
+        LOG_ERROR("missing pathtracing shaders");
+        LOG_ERROR("these are not freely available in the repository due to licensing constraints");
+        LOG_ERROR("contact maintainers to run this sample");
+        return;
+    }
+
     CC_ASSERT(pr::test_gpu_buffer_alignment<pathtrace_cbv>(nullptr, true) && "fatal");
     CC_ASSERT(pr::test_gpu_buffer_alignment<pathtrace_lightdata_soa>(nullptr, true) && "fatal");
 
@@ -143,6 +152,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             LOG_WARN("current GPU has no raytracing capabilities");
         else
             LOG_WARN("raytracing was explicitly disabled");
+
         return;
     }
 
@@ -528,7 +538,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             uavs[1].init_as_tex2d(resources.t_current_num_samples, format::r32u);
 
             resource_view srvs[1];
-            srvs[0].init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
+            srvs[0].init_as_accel_struct(resources.tlas);
 
             resources.sv_ray_gen = backend.createShaderView(srvs, uavs, {}, false);
         }
