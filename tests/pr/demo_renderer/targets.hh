@@ -10,20 +10,14 @@ struct global_targets
 {
     //
     // RTs
-    pr::auto_render_target t_depth;
-    pr::auto_render_target t_forward_hdr;
-    pr::auto_render_target t_forward_velocity;
+    pr::render_target t_depth;
+    pr::render_target t_forward_hdr;
+    pr::render_target t_forward_velocity;
 
-    pr::auto_render_target t_history_a;
-    pr::auto_render_target t_history_b;
-
-    //
-    // Buffers
-    pr::auto_render_target t_cluster_shell_sphere;
-    pr::auto_render_target t_cluster_shell_spot;
+    pr::render_target t_history_a;
+    pr::render_target t_history_b;
 
     void recreate_rts(pr::Context& ctx, tg::isize2 new_size);
-
-    void recreate_buffers(pr::Context& ctx, tg::isize2 new_size);
+    void free_rts(pr::Context& ctx);
 };
 }

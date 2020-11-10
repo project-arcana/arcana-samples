@@ -5,9 +5,14 @@
 #include "space_conversion.hlsli"
 
 // Retrieve world position of the current ray hit
-float3 get_world_hit_position()
+float3 get_rayhit_world_position()
 {
     return WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+}
+
+uint get_raygen_linear_dispatch_index()
+{
+    return DispatchRaysIndex().y * DispatchRaysDimensions().x + DispatchRaysIndex().x;
 }
 
 // ---------------------------------------------------------------
@@ -56,14 +61,9 @@ float3 interpolate_hit_attribute(float3 vertexAttribute[3], BuiltInTriangleInter
 }
 
 // ---------------------------------------------------------------
-// Camera Models / Ray info computation
+// Camera Models / ray info computation
 // ---------------------------------------------------------------
 
-struct Ray
-{
-    float3 origin;
-    float3 direction;
-};
 
 // computes the homogenous device coordinates (HDC) of the position at the given pixel
 float4 ray_dispatch_index_to_hdc(uint2 dispatch_index, float depth, float2 jitter)
@@ -79,33 +79,28 @@ float3 ray_dispatch_index_to_worldspace(uint2 dispatch_index, float depth, float
 	return position.xyz / position.w;
 }
 
-float2 get_subpixel_jitter(uint2 dispatch_index, uint sample_index)
+void ray_rng_initialize(inout RNGState rng, uint frame_index)
 {
-    uint seed = rng_tea(dispatch_index.y * DispatchRaysDimensions().x + dispatch_index.x, sample_index);
-    float r1 = rng_lcg_float(seed);
-    float r2 = rng_lcg_float(seed);
-    return dispatch_index == 0 ? 0.f : float2(r1 - .5f, r2 - .5f);
+    rng_initialize(rng, get_raygen_linear_dispatch_index(), frame_index);
+}
+
+float2 get_subpixel_jitter(inout RNGState rng)
+{
+    float2 r = rng_f2(rng);
+    return r - .5f;
 }
 
 // Generate a ray in world space for a camera pixel corresponding to an index from the dispatched 2D grid
-Ray compute_simple_camera_ray(uint2 index, float3 cameraPosition, float4x4 vp_inverse)
+RayDesc compute_primary_ray(uint2 index, float3 cameraPosition, float4x4 vp_inverse, float2 jitter)
 {
-    float3 world = ray_dispatch_index_to_worldspace(index, 1.f, 0.f, vp_inverse);
+    float3 world = ray_dispatch_index_to_worldspace(index, 1.f, jitter, vp_inverse);
 
-    Ray ray;
-    ray.origin = cameraPosition;
-    ray.direction = normalize(world - ray.origin);
-    return ray;
-}
-
-// Generate a ray in world space for a camera pixel corresponding to an index from the dispatched 2D grid
-// with subpixel jitter based on the sample index (in a sequence of samples of the same scene)
-Ray compute_jittered_camera_ray(uint2 index, uint sample_index, float3 cameraPosition, float4x4 vp_inverse)
-{
-    float3 world = ray_dispatch_index_to_worldspace(index, 1.f, get_subpixel_jitter(index, sample_index), vp_inverse);
-
-    Ray ray;
-    ray.origin = cameraPosition;
-    ray.direction = normalize(world - ray.origin);
+    RayDesc ray;
+    ray.Origin = cameraPosition;
+    ray.Direction = normalize(world - ray.Origin);
+    // Set TMin to a non-zero small value to avoid aliasing issues due to floating - point errors.
+    // TMin should be kept small to prevent missing geometry at close contact areas.
+    ray.TMin = 0.0;
+    ray.TMax = 1.0e27;
     return ray;
 }

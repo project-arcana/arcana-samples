@@ -1,5 +1,7 @@
 #include <nexus/app.hh>
 
+#include <fstream>
+
 #include <typed-geometry/tg.hh>
 
 #include <arcana-incubator/asset-loading/mesh_loader.hh>
@@ -7,6 +9,7 @@
 
 #include <rich-log/log.hh>
 
+#include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
 #include <phantasm-renderer/GraphicsPass.hh>
@@ -61,7 +64,7 @@ float4 main_ps(vs_out p_in) : SV_TARGET
 {
     float3 Li =  normalize(float3(-2, 2, 3));
     float dotNL = saturate(dot(p_in.N, Li)) * 0.55;
-    return float4(dotNL, dotNL, dotNL, 1.0);
+    return float4(abs(p_in.N).bgg * dotNL, 1.0);
 }
 )";
 
@@ -130,20 +133,23 @@ float4 main_ps(vs_out In) : SV_TARGET
 }
 )";
 
-struct cam_constants
+bool verify_workdir()
 {
-    tg::mat4 vp;
-};
-
+    std::ifstream file("res/res_canary");
+    return file.good();
+}
 }
 
-APP("api_test")
+APP("graphics_sample")
 {
+    CC_RUNTIME_ASSERT(verify_workdir() && "cant read res/ folder, set executable working directory to <path>/arcana-samples/ (root)");
+
     auto ctx = pr::Context(pr::backend::vulkan);
 
     inc::da::SDLWindow window;
-    window.initialize("api test");
-    auto swapchain = ctx.make_swapchain(phi::window_handle{window.getSdlWindow()}, window.getSize());
+    window.initialize("phantasm-renderer graphics sample");
+
+    pr::auto_swapchain swapchain = ctx.make_swapchain(phi::window_handle{window.getSdlWindow()}, window.getSize());
 
     // pr::graphics_pipeline_state pso_render;
     pr::auto_graphics_pipeline_state pso_blit;
@@ -154,18 +160,17 @@ APP("api_test")
     pr::auto_buffer b_modelmats;
     pr::auto_buffer b_camconsts;
 
-    // pr::auto_render_target t_depth;
-    // pr::auto_render_target t_color;
-
     pr::auto_prebuilt_argument sv_render;
 
     unsigned const num_instances = 3;
 
+    // compile shaders
     auto const render_vs = ctx.make_shader(sample_shader_text, "main_vs", phi::shader_stage::vertex);
     auto const pixel_vs = ctx.make_shader(sample_shader_text, "main_ps", phi::shader_stage::pixel);
 
     // create persisted PSO
     {
+        // compile shaders
         auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
         auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
 
@@ -173,6 +178,7 @@ APP("api_test")
         config.depth = phi::depth_function::none;
         config.cull = phi::cull_mode::none;
 
+        // construct a PSO from the shaders
         pso_blit = ctx.make_pipeline_state(pr::graphics_pass(s_vertex, s_pixel).arg(1, 0, 1).config(config),
                                            pr::framebuffer(ctx.get_backbuffer_format(swapchain)));
     }
@@ -182,8 +188,9 @@ APP("api_test")
         // load a mesh from disk
         auto const mesh = inc::assets::load_binary_mesh("res/arcana-sample-resources/phi/mesh/ball.mesh");
 
-        // create an upload buffer and memcpy the mesh data to it
-        auto const upbuff = ctx.make_upload_buffer(mesh.vertices.size_bytes() + mesh.indices.size_bytes());
+        // create an upload buffer
+        auto const upbuff = ctx.make_upload_buffer(mesh.vertices.size_bytes() + mesh.indices.size_bytes()).disown();
+        // memcpy the mesh data to it
         ctx.write_to_buffer(upbuff, mesh.vertices);
         ctx.write_to_buffer(upbuff, mesh.indices, mesh.vertices.size_bytes());
 
@@ -194,24 +201,25 @@ APP("api_test")
         {
             auto frame = ctx.make_frame();
 
-            // copy to them
+            // copy data to the proper buffers
             frame.copy(upbuff, b_vertices);
             frame.copy(upbuff, b_indices, mesh.vertices.size_bytes());
 
+            // queue the upload buffer for destruction after this cmdlist ran through
+            frame.free_deferred_after_submit(upbuff);
+
             ctx.submit(cc::move(frame));
         }
-
-        ctx.flush();
     }
 
-    // upload
+    // create and write to cam/model matrix buffers
     {
-        cc::vector<tg::mat4> modelmats;
+        tg::mat4 modelmats[num_instances];
         for (auto i = 0u; i < num_instances; ++i)
-            modelmats.push_back(tg::translation(tg::pos3((-1 + int(i)) * 3.f, 0, 0)) * tg::scaling(0.21f, 0.21f, 0.21f));
+            modelmats[i] = tg::translation(tg::pos3((-1 + int(i)) * 3.f, 0, 0)) * tg::scaling(0.21f, 0.21f, 0.21f);
 
-        b_modelmats = ctx.make_upload_buffer(sizeof(tg::mat4) * modelmats.size(), sizeof(tg::mat4));
-        b_camconsts = ctx.make_upload_buffer(sizeof(cam_constants));
+        b_modelmats = ctx.make_upload_buffer(sizeof(modelmats), sizeof(tg::mat4)); // Model matrix per instance
+        b_camconsts = ctx.make_upload_buffer(sizeof(tg::mat4));                    // VP matrix
 
         ctx.write_to_buffer(b_modelmats, modelmats);
     }
@@ -220,23 +228,28 @@ APP("api_test")
 
     tg::isize2 backbuffer_size;
 
-    auto create_targets = [&](tg::isize2 size) {
-        //   t_depth = ctx.make_target(size, pr::format::depth32f);
-        //   t_color = ctx.make_target(size, pr::format::rgba16f);
+    auto f_recreate_targets = [&](tg::isize2 size) {
         backbuffer_size = size;
 
         auto const vp = tg::perspective_directx(60_deg, size.width / float(size.height), 0.1f, 10000.f)
-                        * tg::look_at_directx(tg::pos3(5, 5, 5), tg::pos3(0, 0, 0), tg::vec3(0, 1, 0));
-        ctx.write_to_buffer(b_camconsts, cam_constants{vp});
+                        * tg::look_at_directx(tg::pos3(5, 1, 5), tg::pos3(1, 0, 0), tg::vec3(0, 1, 0));
+        ctx.write_to_buffer(b_camconsts, vp);
+
+        // we use cached render targets, so clear the caches
+        ctx.clear_resource_caches();
+        ctx.clear_shader_view_cache();
     };
 
-    create_targets(ctx.get_backbuffer_size(swapchain));
+    f_recreate_targets(ctx.get_backbuffer_size(swapchain));
 
     while (!window.isRequestingClose())
     {
         window.pollEvents();
+
         if (window.isMinimized())
+        {
             continue;
+        }
 
         if (window.clearPendingResize())
         {
@@ -245,11 +258,14 @@ APP("api_test")
         }
 
         if (ctx.clear_backbuffer_resize(swapchain))
-            create_targets(ctx.get_backbuffer_size(swapchain));
+        {
+            f_recreate_targets(ctx.get_backbuffer_size(swapchain));
+        }
 
         {
             auto frame = ctx.make_frame();
 
+            // acquire cached render targets
             auto t_depth = ctx.get_target(backbuffer_size, pr::format::depth32f);
             auto t_color = ctx.get_target(backbuffer_size, pr::format::rgba16f);
 
@@ -297,5 +313,5 @@ APP("api_test")
         ctx.present(swapchain);
     }
 
-    ctx.flush();
+    ctx.flush_and_shutdown(); // prevent the auto_ types from asserting
 }

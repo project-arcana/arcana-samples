@@ -335,7 +335,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 uav_sve.init_as_tex2d(resources.rt_write_texture, msc_backbuf_format);
 
                 resource_view srv_sve;
-                srv_sve.init_as_accel_struct(backend.getAccelStructBuffer(resources.tlas));
+                srv_sve.init_as_accel_struct(resources.tlas);
 
                 resources.sv_ray_gen = backend.createShaderView(cc::span{srv_sve}, cc::span{uav_sve}, {}, false);
             }

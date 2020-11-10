@@ -170,7 +170,7 @@
         },
         
         {
-            "source": "pathtrace_lib.hlsl",
+            "source": "pathtracing/pathtrace_lib.hlsl",
             "library": {
                 "exports": [
                     "EPrimaryRayGen",
@@ -180,7 +180,8 @@
                 ],
                 "output": "../bin/pathtrace_lib"
             }
-        }
+        },
+        
         {
             "source": "pathtrace_composite.hlsl",
             "binaries":[
