@@ -12,11 +12,13 @@ TEST("babel::callback")
                 return;
     };
 
+#if 0 // not supported currently
     {
         cc::vector<int> v;
         process([&](int i) { v.push_back(i); }, {1, 2, 3});
         CHECK(v == cc::vector<int>{1, 2, 3});
     }
+#endif
     {
         cc::vector<int> v;
         process(
