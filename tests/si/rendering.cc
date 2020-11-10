@@ -142,6 +142,12 @@ APP("ui rendering")
     si::gui ui;
     si::Default2DMerger ui_merger;
 
+    auto const c_window = ui_merger.style_sheet().add_or_get_class("my_window");
+    ui_merger.style_sheet().add_rule(".my_window", [](si::StyleSheet::computed_style& s) {
+        //
+        s.bg = tg::color3(0.8f, 0.9f, 0.8f);
+    });
+
     // init input
     inc::da::input_manager input;
     input.initialize(100);
@@ -286,6 +292,7 @@ APP("ui rendering")
 
             if (auto w = si::window("test window"))
             {
+                w.set_style_class(c_window);
                 si::text("i'm in a test window!");
                 si::slider("with another slider", slider_vali, -20, 100);
             }
