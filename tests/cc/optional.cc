@@ -3,8 +3,6 @@
 #include <clean-core/optional.hh>
 #include <clean-core/string.hh>
 
-#include <optional>
-
 TEST("cc::optional basics")
 {
     cc::optional<int> v;
