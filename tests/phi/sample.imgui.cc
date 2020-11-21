@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include <clean-core/array.hh>
+
 #include <rich-log/log.hh>
 
 #include <clean-core/capped_array.hh>

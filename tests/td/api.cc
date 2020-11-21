@@ -260,9 +260,9 @@ TEST("td API - consistency", exclusive)
 
             td::wait_for(s3);
 
-            CHECK(!s1.initialized);
-            CHECK(!s2.initialized);
-            CHECK(!s3.initialized);
+            CHECK(!s1.handle.is_valid());
+            CHECK(!s2.handle.is_valid());
+            CHECK(!s3.handle.is_valid());
             CHECK(std::this_thread::get_id() == main_thread_id);
         }
 
