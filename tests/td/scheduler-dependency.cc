@@ -9,31 +9,37 @@ using namespace td;
 namespace
 {
 auto constexpr workloadSize = 5000000;
-std::vector<int> sGlobalBuffer;
-
 auto constexpr chunkSize = 10000;
 auto constexpr numWorkers = workloadSize / chunkSize;
 
-void mainTaskFunc(void*)
+struct GlobalBuffer
 {
-    container::task workers[numWorkers];
+    std::vector<int> data;
+};
+
+void mainTaskFunc(void* arg)
+{
+    GlobalBuffer* const buf = static_cast<GlobalBuffer*>(arg);
+
+    auto workers = std::vector<container::task>(numWorkers);
+
     for (auto i = 0u; i < numWorkers; ++i)
     {
-        unsigned chunkStart = i * chunkSize;
-        unsigned chunkEnd = (i + 1) * chunkSize;
+        unsigned const chunkStart = i * chunkSize;
+        unsigned const chunkEnd = (i + 1) * chunkSize;
 
-        workers[i].lambda([chunkStart, chunkEnd]() {
+        workers[i].lambda([buf, chunkStart, chunkEnd]() {
             for (auto i = chunkStart; i < chunkEnd; ++i)
             {
-                sGlobalBuffer[i] = int(i);
+                buf->data[i] = int(i);
             }
         });
     }
 
     auto& sched = Scheduler::Current();
     auto sync = sched.acquireCounterHandle();
-    sched.submitTasks(workers, numWorkers, sync);
-    sched.wait(sync);
+    sched.submitTasks(workers.data(), numWorkers, sync);
+    sched.wait(sync, true);
     sched.releaseCounter(sync);
 }
 }
@@ -41,18 +47,16 @@ void mainTaskFunc(void*)
 
 TEST("td::Scheduler (dependency)", exclusive)
 {
-    sGlobalBuffer.resize(workloadSize, 0);
-    std::fill(sGlobalBuffer.begin(), sGlobalBuffer.end(), 0);
+    GlobalBuffer globalBuf;
+    globalBuf.data.resize(workloadSize, 0);
+    std::fill(globalBuf.data.begin(), globalBuf.data.end(), 0);
 
     Scheduler scheduler;
-    scheduler.start(container::task{mainTaskFunc});
+    scheduler.start(container::task{mainTaskFunc, &globalBuf});
 
     bool equal = true;
     for (auto i = 0u; i < workloadSize; ++i)
-        equal = equal && sGlobalBuffer[i] == int(i);
+        equal = equal && globalBuf.data[i] == int(i);
 
     CHECK(equal);
-
-    sGlobalBuffer.clear();
-    sGlobalBuffer.shrink_to_fit();
 }

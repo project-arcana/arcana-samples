@@ -105,7 +105,6 @@ TEST("td API - compilation", exclusive)
 
                 // redundant wait
                 td::wait_for(s1, s2, s3, s4);
-                td::wait_for_unpinned(s1, s2, s3, s4);
             }
         }
 

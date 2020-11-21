@@ -1,6 +1,8 @@
 #include <nexus/test.hh>
 
-#include <iostream>
+#include <clean-core/array.hh>
+
+#include <rich-log/log.hh>
 
 #include <task-dispatcher/common/math_intrin.hh>
 #include <task-dispatcher/scheduler.hh>
@@ -18,51 +20,61 @@ void spin_cycles(uint64_t cycles = spin_default)
 {
     auto const current = intrin::rdtsc();
     while (intrin::rdtsc() - current < cycles)
-        ; // Spin
+    {
+        _mm_pause();
+    }
 }
 
 void outer_task_func(void*)
 {
-    std::atomic_int dependency = 0;
+    std::atomic_int* const dependency = new std::atomic_int(0);
 
-    auto& sched = Scheduler::Current();
-    auto s = sched.acquireCounterHandle();
+    auto s = Scheduler::Current().acquireCounterHandle();
 
-    auto tasks = new container::task[num_tasks_inner];
-    for (auto i = 0u; i < num_tasks_inner; ++i)
-        tasks[i].lambda([&dependency]() {
+    cc::array<container::task, num_tasks_inner> tasks;
+
+    for (container::task& task : tasks)
+    {
+        task.lambda([dependency]() {
             spin_cycles();
-            ++dependency;
+            dependency->fetch_add(1);
         });
+    }
 
-    CHECK(dependency.load() == 0);
-    sched.submitTasks(tasks, num_tasks_inner, s);
-    delete[] tasks;
+    CHECK(dependency->load() == 0);
+    Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
 
-    sched.wait(s);
-    sched.releaseCounter(s);
+    Scheduler::Current().wait(s, true);
+    Scheduler::Current().releaseCounter(s);
 
-    CHECK(dependency.load() == num_tasks_inner);
+    CHECK(dependency->load() == num_tasks_inner);
+
+    delete dependency;
 }
 
-void main_task_func(void* arg_void)
+template <int MaxIterations>
+void main_task_func(void*)
 {
-    int const max_iterations = *static_cast<int*>(arg_void);
+    static_assert(MaxIterations > 0, "at least one iteration required");
 
-    for (auto iter = 0; iter < max_iterations; ++iter)
+    auto s = Scheduler::Current().acquireCounterHandle();
+
+    for (auto iter = 0; iter < MaxIterations; ++iter)
     {
-        auto& sched = Scheduler::Current();
-        auto s = sched.acquireCounterHandle();
+        cc::array<container::task, num_tasks_outer> tasks;
 
-        auto tasks = new container::task[num_tasks_outer];
-        for (auto i = 0u; i < num_tasks_outer; ++i)
-            tasks[i].ptr(outer_task_func);
-        sched.submitTasks(tasks, num_tasks_outer, s);
-        delete[] tasks;
+        for (container::task& task : tasks)
+        {
+            task.ptr(outer_task_func);
+        }
 
-        sched.wait(s);
-        sched.releaseCounter(s);
+        Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
+        Scheduler::Current().wait(s, true);
     }
+
+    Scheduler::Current().wait(s, true);
+    int last_state = Scheduler::Current().releaseCounter(s);
+    CHECK(last_state == 0);
 }
 }
 
@@ -78,18 +90,15 @@ TEST("td::Scheduler", exclusive)
     // Run a simple dependency chain
     {
         Scheduler scheduler;
-        auto iterations = 1;
-
-        scheduler.start(container::task{main_task_func, &iterations});
+        scheduler.start(container::task{main_task_func<1>, nullptr});
     }
 
     // Run multiple times
     {
         Scheduler scheduler;
-        auto iterations = 25;
 
-        scheduler.start(container::task{main_task_func, &iterations});
-        scheduler.start(container::task{main_task_func, &iterations});
+        scheduler.start(container::task{main_task_func<25>, nullptr});
+        scheduler.start(container::task{main_task_func<25>, nullptr});
     }
 
     // Run with constrained threads
@@ -98,8 +107,7 @@ TEST("td::Scheduler", exclusive)
         config.num_threads = 2;
 
         Scheduler scheduler(config);
-        auto iterations = 150;
 
-        scheduler.start(container::task{main_task_func, &iterations});
+        scheduler.start(container::task{main_task_func<150>, nullptr});
     }
 }
