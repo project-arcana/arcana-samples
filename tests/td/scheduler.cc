@@ -41,14 +41,14 @@ void outer_task_func(void*)
         });
     }
 
-    CHECK(dependency->load() == 0);
+    CC_ASSERT(dependency->load() == 0);
     Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
 
     Scheduler::Current().wait(s, true, 0);
-    bool releasedSync = Scheduler::Current().releaseCounterIfOnTarget(s, 0);
-    REQUIRE(releasedSync);
+    int lastVal = Scheduler::Current().releaseCounter(s);
+    CC_ASSERT(lastVal == 0);
 
-    CHECK(dependency->load() == num_tasks_inner);
+    CC_ASSERT(dependency->load() == num_tasks_inner);
 
     delete dependency;
 }
@@ -72,7 +72,7 @@ void main_task_func(void*)
         Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
         Scheduler::Current().wait(s, true);
         bool releasedSync = Scheduler::Current().releaseCounterIfOnTarget(s, 0);
-        REQUIRE(releasedSync);
+        CC_ASSERT(releasedSync);
     }
 }
 }

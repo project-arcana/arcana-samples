@@ -235,9 +235,9 @@ TEST("td API - consistency", exclusive)
 
             td::submit(s1, [&] {
                 td::submit(s2, [&] {
-                    CHECK(a == 0);
-                    CHECK(b == 0);
-                    CHECK(c == 0);
+                    CC_ASSERT(a == 0);
+                    CC_ASSERT(b == 0);
+                    CC_ASSERT(c == 0);
                 });
 
                 td::wait_for(s2);
@@ -249,8 +249,8 @@ TEST("td API - consistency", exclusive)
 
             td::submit(s3, [&] {
                 td::wait_for(s1);
-                CHECK(a == 1);
-                CHECK(b == 2);
+                CC_ASSERT(a == 1);
+                CC_ASSERT(b == 2);
                 CHECK(c == 3);
             });
 
