@@ -80,9 +80,6 @@ TEST("td API - compilation", exclusive)
                     s1, +[] {});
                 td::submit(s1, fun);
 
-                // foo f;
-                // auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
-
                 // With arguments
                 td::submit(
                     s1, [](float arg) { gSink += int(arg); }, 1.f);

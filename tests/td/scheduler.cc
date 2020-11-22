@@ -44,8 +44,9 @@ void outer_task_func(void*)
     CHECK(dependency->load() == 0);
     Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
 
-    Scheduler::Current().wait(s, true);
-    Scheduler::Current().releaseCounter(s);
+    Scheduler::Current().wait(s, true, 0);
+    bool releasedSync = Scheduler::Current().releaseCounterIfOnTarget(s, 0);
+    REQUIRE(releasedSync);
 
     CHECK(dependency->load() == num_tasks_inner);
 
@@ -57,10 +58,10 @@ void main_task_func(void*)
 {
     static_assert(MaxIterations > 0, "at least one iteration required");
 
-    auto s = Scheduler::Current().acquireCounterHandle();
 
     for (auto iter = 0; iter < MaxIterations; ++iter)
     {
+        auto s = Scheduler::Current().acquireCounterHandle();
         cc::array<container::task, num_tasks_outer> tasks;
 
         for (container::task& task : tasks)
@@ -70,11 +71,9 @@ void main_task_func(void*)
 
         Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
         Scheduler::Current().wait(s, true);
+        bool releasedSync = Scheduler::Current().releaseCounterIfOnTarget(s, 0);
+        REQUIRE(releasedSync);
     }
-
-    Scheduler::Current().wait(s, true);
-    int last_state = Scheduler::Current().releaseCounter(s);
-    CHECK(last_state == 0);
 }
 }
 
