@@ -484,6 +484,33 @@ TEST("cc::vector/alloc_vector interior references")
     CHECK(true); // this test has the asserts in foo instead of checks
 }
 
+TEST("cc::vector/alloc_vector interior references (value types)")
+{
+    {
+        cc::vector<int> vals;
+        vals.push_back(7);
+
+        for (auto i = 0; i < 100; ++i)
+            vals.emplace_back(vals[0]);
+
+        for (auto& v : vals)
+            CHECK(v == 7);
+    }
+    {
+        std::byte buffer[sizeof(int) * 500];
+        cc::linear_allocator linalloc(buffer);
+
+        cc::alloc_vector<int> vals(&linalloc);
+        vals.push_back(7);
+
+        for (auto i = 0; i < 100; ++i)
+            vals.emplace_back(vals[0]);
+
+        for (auto& v : vals)
+            CHECK(v == 7);
+    }
+}
+
 TEST("cc::alloc_vector realloc")
 {
     // this test checks if realloc is correctly used when growing an alloc_vector with a trivially copyable T
