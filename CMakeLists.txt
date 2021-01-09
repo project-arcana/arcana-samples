@@ -73,7 +73,7 @@ add_subdirectory(extern/sdl2-dev)
 add_subdirectory(extern/phantasm-hardware-interface)
 
 # shader compiler
-set(DXCW_BUILD_STANDALONE ON)
+set(DXCW_BUILD_STANDALONE ON CACHE BOOL "")
 add_subdirectory(extern/dxc-wrapper)
 
 # texture processing
