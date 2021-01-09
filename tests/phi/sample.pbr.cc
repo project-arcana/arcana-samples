@@ -97,7 +97,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     initialize_imgui(window, backend);
 
     // main swapchain creation
-    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
+    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize(), present_mode::synced);
     unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
@@ -490,7 +490,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 if (!current_backbuffer.is_valid())
                 {
                     // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
-                    td::wait_for(render_sync, modeldata_upload_sync);
+                    td::wait_for(render_sync);
+                    td::wait_for(modeldata_upload_sync);
                     backend.discard(all_command_lists);
                     continue;
                 }
