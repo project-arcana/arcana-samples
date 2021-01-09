@@ -154,8 +154,8 @@ APP("ui rendering")
         action_mouse_left,
     };
 
-    input.bindMouseAxis(action_mouse_x, 0);
-    input.bindMouseAxis(action_mouse_y, 1);
+    input.bindMouseAxis(action_mouse_x, inc::da::mouse_axis::x);
+    input.bindMouseAxis(action_mouse_y, inc::da::mouse_axis::y);
     input.bindMouseButton(action_mouse_left, inc::da::mouse_button::mb_left);
 
     // upload font data
@@ -185,7 +185,7 @@ APP("ui rendering")
     auto slider_valf = 0.f;
     bool use_frame_counter = false;
     bool show_wireframe = false;
-    tg::color3 color = tg::color3::red;
+    // tg::color3 color = tg::color3::red;
     cc::string my_string = "editable text";
 
     while (!window.isRequestingClose())
