@@ -76,3 +76,18 @@ TEST("cc::map")
     CHECK(m == cc::map<int, int>{{10, 7}, {12, 8}});
     CHECK(m == cc::map<int, int>{{12, 8}, {10, 7}});
 }
+
+TEST("cc::map pointer stability")
+{
+    cc::map<int, int> m;
+
+    m[0] = 17;
+    auto p = &m[0];
+
+    for (auto i = 0; i < 1000; ++i)
+    {
+        m[100 + i] = i;
+        m[0] = i;
+        CHECK(*p == i);
+    }
+}
