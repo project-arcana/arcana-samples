@@ -10,6 +10,7 @@
 
 #include <clean-core/unique_function.hh>
 
+#include <structured-interface/demo.hh>
 #include <structured-interface/element_tree.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/layout/aabb_layout.hh>
@@ -368,6 +369,9 @@ APP("ui rendering")
                 // TODO
             }
 
+            // demo window
+            si::show_demo_window();
+
             // ui stats
             ui_merger.show_stats_ui();
 
@@ -446,9 +450,11 @@ APP("ui rendering")
 
         frame.present_after_submit(backbuffer, swapchain);
         ctx.submit(cc::move(frame));
-        //     ctx.flush();
+
+        // still needed?
+        ctx.flush();
     }
 
     // make sure nothing is used anymore
-    ctx.flush();
+    ctx.flush_and_shutdown();
 }
