@@ -9,6 +9,8 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <task-dispatcher/td.hh>
+
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/common/byte_util.hh>

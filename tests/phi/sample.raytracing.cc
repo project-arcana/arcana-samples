@@ -12,6 +12,7 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/common/byte_util.hh>

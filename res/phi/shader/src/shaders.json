@@ -191,6 +191,17 @@
                     "output": "../bin/pathtrace_composite"
                 }
             ]
+        },
+
+        {
+            "source": "bindless/fullscreen_texture_multiplex.hlsl",
+            "binaries": [
+                {
+                    "target": "ps",
+                    "entrypoint": "main_ps",
+                    "output": "../bin/bindless_fullscreen"
+                }
+            ]
         }
     ]
 }
