@@ -1,3 +1,4 @@
+#ifdef PHI_BACKEND_D3D12
 #include "sample.hh"
 
 #include <cmath>
@@ -222,3 +223,5 @@ void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_con
     inc::imgui_shutdown();
     backend.destroy();
 }
+
+#endif
