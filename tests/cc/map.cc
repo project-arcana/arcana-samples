@@ -91,3 +91,34 @@ TEST("cc::map pointer stability")
         CHECK(*p == i);
     }
 }
+
+TEST("cc::map no reserve on existing op[]")
+{
+    static int hash_cnt = 0;
+
+    struct hash
+    {
+        size_t operator()(int i) const
+        {
+            ++hash_cnt;
+            return cc::make_hash(i);
+        }
+    };
+
+    CHECK(hash_cnt == 0);
+
+    cc::map<int, int, hash> m;
+    m.reserve(100);
+
+    CHECK(hash_cnt == 0);
+
+    for (auto i = 0; i < 100; ++i)
+        m[i * 13] = i;
+
+    CHECK(hash_cnt == 100);
+
+    for (auto i = 0; i < 100; ++i)
+        m[i * 13]++;
+
+    CHECK(hash_cnt == 200);
+}
