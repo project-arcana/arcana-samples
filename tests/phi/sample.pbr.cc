@@ -546,7 +546,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                             ImGui::Text("Frametime: %.3f ms\nGPU Time: %.3f ms\nGPU timestamp delta: %llu @ %llu Hz", frametime,
                                         (double(last_gpu_delta) / gpu_timestamp_frequency) * 1000., last_gpu_delta, gpu_timestamp_frequency);
                             ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
-                            ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
+                            ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
                             if (ImGui::Button("Reset modulos"))
                                 position_modulos = tg::vec3(9, 6, 9);
