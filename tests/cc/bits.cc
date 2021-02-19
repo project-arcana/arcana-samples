@@ -76,6 +76,85 @@ TEST("bits")
     CHECK(cc::has_bit(0b1100u, 3));
     CHECK(cc::has_bit(cc::uint8(0xFF), 7));
     CHECK(cc::has_bit(cc::uint32(0xFFFFFFFF), 31));
+
+    auto f_test_has_no_bits = [](auto val) {
+        for (auto i = 0; i < sizeof(val) * 8; ++i)
+        {
+            if (cc::has_bit(val, i))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    CHECK(f_test_has_no_bits(cc::uint8(0)));
+    CHECK(f_test_has_no_bits(cc::uint16(0)));
+    CHECK(f_test_has_no_bits(cc::uint32(0)));
+    CHECK(f_test_has_no_bits(cc::uint64(0)));
+
+    auto f_test_has_all_bits = [](auto val) {
+        for (auto i = 0; i < sizeof(val) * 8; ++i)
+        {
+            if (!cc::has_bit(val, i))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    CHECK(f_test_has_all_bits(cc::uint8(-1)));
+    CHECK(f_test_has_all_bits(cc::uint16(-1)));
+    CHECK(f_test_has_all_bits(cc::uint32(-1)));
+    CHECK(f_test_has_all_bits(cc::uint64(-1)));
+
+    CHECK(cc::div_pow2_floor(0u, 1u) == 0u);
+    CHECK(cc::div_pow2_floor(0u, 2u) == 0u);
+    CHECK(cc::div_pow2_floor(0u, 4u) == 0u);
+    CHECK(cc::div_pow2_floor(0u, 32u) == 0u);
+    CHECK(cc::div_pow2_floor(0u, 512u) == 0u);
+
+    CHECK(cc::div_pow2_floor(1u, 1u) == 1u);
+    CHECK(cc::div_pow2_floor(2u, 2u) == 1u);
+    CHECK(cc::div_pow2_floor(4u, 4u) == 1u);
+    CHECK(cc::div_pow2_floor(32u, 32u) == 1u);
+    CHECK(cc::div_pow2_floor(512u, 512u) == 1u);
+
+    CHECK(cc::div_pow2_floor(512u, 256u) == 2u);
+    CHECK(cc::div_pow2_floor(512u, 128u) == 4u);
+    CHECK(cc::div_pow2_floor(512u, 4u) == 128u);
+    CHECK(cc::div_pow2_floor(512u, 2u) == 256u);
+
+    CHECK(cc::div_pow2_floor(3u, 2u) == 1u);
+    CHECK(cc::div_pow2_floor(5u, 4u) == 1u);
+    CHECK(cc::div_pow2_floor(33u, 32u) == 1u);
+    CHECK(cc::div_pow2_floor(513u, 512u) == 1u);
+
+    CHECK(cc::div_pow2_floor(7u, 4u) == 1u);
+    CHECK(cc::div_pow2_floor(63u, 32u) == 1u);
+    CHECK(cc::div_pow2_floor(1023u, 512u) == 1u);
+
+    CHECK(cc::div_pow2_ceil(1u, 1u) == 1u);
+    CHECK(cc::div_pow2_ceil(2u, 2u) == 1u);
+    CHECK(cc::div_pow2_ceil(4u, 4u) == 1u);
+    CHECK(cc::div_pow2_ceil(512u, 512u) == 1u);
+
+    CHECK(cc::div_pow2_ceil(512u, 256u) == 2u);
+    CHECK(cc::div_pow2_ceil(512u, 128u) == 4u);
+    CHECK(cc::div_pow2_ceil(512u, 4u) == 128u);
+    CHECK(cc::div_pow2_ceil(512u, 2u) == 256u);
+
+    CHECK(cc::div_pow2_ceil(3u, 2u) == 2u);
+    CHECK(cc::div_pow2_ceil(5u, 4u) == 2u);
+    CHECK(cc::div_pow2_ceil(33u, 32u) == 2u);
+    CHECK(cc::div_pow2_ceil(513u, 512u) == 2u);
+
+    CHECK(cc::div_pow2_ceil(7u, 4u) == 2u);
+    CHECK(cc::div_pow2_ceil(63u, 32u) == 2u);
+    CHECK(cc::div_pow2_ceil(1023u, 512u) == 2u);
 }
 
 FUZZ_TEST("bits fuzz")(tg::rng& rng)
@@ -95,4 +174,29 @@ FUZZ_TEST("bits fuzz")(tg::rng& rng)
     CHECK(cc::is_pow2(pow2_clamped));
     CHECK(!cc::is_pow2(pow2_clamped - 1));
     CHECK(!cc::is_pow2(pow2_clamped + 1));
+
+    int const bit_idx32 = tg::uniform(rng, 0, 31);
+    cc::uint32 u32 = 0u;
+
+    CHECK(!cc::has_bit(u32, bit_idx32));
+    cc::unset_bit(u32, bit_idx32);
+    CHECK(!cc::has_bit(u32, bit_idx32));
+    cc::set_bit(u32, bit_idx32);
+    CHECK(cc::has_bit(u32, bit_idx32));
+    cc::flip_bit(u32, bit_idx32);
+    CHECK(!cc::has_bit(u32, bit_idx32));
+    cc::flip_bit(u32, bit_idx32);
+    CHECK(cc::has_bit(u32, bit_idx32));
+
+    int const bit_idx64 = tg::uniform(rng, 0, 63);
+    cc::uint64 u64 = 0u;
+    CHECK(!cc::has_bit(u64, bit_idx64));
+    cc::unset_bit(u64, bit_idx64);
+    CHECK(!cc::has_bit(u64, bit_idx64));
+    cc::set_bit(u64, bit_idx64);
+    CHECK(cc::has_bit(u64, bit_idx64));
+    cc::flip_bit(u64, bit_idx64);
+    CHECK(!cc::has_bit(u64, bit_idx64));
+    cc::flip_bit(u64, bit_idx64);
+    CHECK(cc::has_bit(u64, bit_idx64));
 }
