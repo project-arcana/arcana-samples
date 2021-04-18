@@ -50,7 +50,7 @@ APP("min_sample")
 
             // acquiring a backbuffer is NOT a GPU-timeline operation,
             // it is effectively a CPU Fence wait and can stall for non-vsynced swapchains (as the CPU overtakes the presentation)
-            pr::render_target backbuffer = ctx.acquire_backbuffer(swapchain);
+            pr::texture backbuffer = ctx.acquire_backbuffer(swapchain);
 
             // this backbuffer can be used like any other render target (except freed)
             // here it's just transitioned to present state

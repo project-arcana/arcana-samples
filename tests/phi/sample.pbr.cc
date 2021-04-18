@@ -221,7 +221,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
 
-        arg::graphics_pipeline_state_desc desc;
+        arg::graphics_pipeline_state_description desc;
         desc.config.cull = cull_mode::back;
         desc.config.depth = depth_function::less;
         desc.config.samples = gc_msaa_samples;
@@ -230,7 +230,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         desc.framebuffer.depth_target = format::depth24un_stencil8u;
 
         desc.vertices.attributes = attrib_info;
-        desc.vertices.vertex_size_bytes = sizeof(inc::assets::simple_vertex);
+        desc.vertices.vertex_sizes_bytes[0] = sizeof(inc::assets::simple_vertex);
 
         desc.shader_binaries
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
@@ -313,8 +313,10 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::isize2 backbuf_size = tg::isize2(150, 150);
 
     auto const f_create_sized_resources = [&] {
-        l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, backbuf_size, gc_msaa_samples);
-        l_res.colorbuffer = backend.createRenderTarget(format::rgba16f, backbuf_size, gc_msaa_samples);
+        auto clearval_depth = phi::rt_clear_value(1.f, 0);
+        auto clearval_rt = phi::rt_clear_value(0.f, 0.f, 0.f, 1.f);
+        l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, backbuf_size, gc_msaa_samples, 1u, &clearval_depth, "Main Depth");
+        l_res.colorbuffer = backend.createRenderTarget(format::rgba16f, backbuf_size, gc_msaa_samples, 1u, &clearval_rt, "Main Scene");
         l_res.colorbuffer_resolve = gc_msaa_samples > 1 ? backend.createTexture(format::rgba16f, backbuf_size, 1) : l_res.colorbuffer;
 
         {

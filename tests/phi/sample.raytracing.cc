@@ -308,7 +308,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         hit_groups[2].name = "hitgroup2";
         hit_groups[2].closest_hit_export_index = 4; //= "EClosestHitErrorState";
 
-        arg::raytracing_pipeline_state_desc desc;
+        arg::raytracing_pipeline_state_description desc;
         desc.libraries = libraries;
         desc.argument_associations = arg_assocs;
         desc.hit_groups = hit_groups;

@@ -423,7 +423,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
 
 
-        arg::graphics_pipeline_state_desc desc;
+        arg::graphics_pipeline_state_description desc;
         desc.framebuffer.add_render_target(msc_backbuf_format); // target0: backbuffer / output
         desc.framebuffer.add_render_target(write_tex_format);   // target1: new cumulative
         desc.framebuffer.add_render_target(format::r32u);       // target2: new cumulative num samples
@@ -486,7 +486,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         hit_groups[1].name = "SHADING_MODEL_0_HGS";
         hit_groups[1].closest_hit_export_index = 3; // = "ECH0Shadow";
 
-        arg::raytracing_pipeline_state_desc desc;
+        arg::raytracing_pipeline_state_description desc;
         desc.libraries = libraries;
         desc.argument_associations = arg_assocs;
         desc.hit_groups = hit_groups;
