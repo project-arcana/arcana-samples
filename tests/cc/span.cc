@@ -2,11 +2,14 @@
 
 #include <cstdint>
 
+#include <clean-core/array.hh>
 #include <clean-core/span.hh>
 #include <clean-core/string_view.hh>
 #include <clean-core/vector.hh>
 
 #include <clean-ranges/range.hh>
+
+static_assert(std::is_trivially_copyable_v<cc::span<int>>);
 
 TEST("cc::span")
 {
@@ -77,6 +80,19 @@ TEST("cc::span")
     static_assert(std::is_trivially_copyable_v<cc::span<void*>>, "span not triv. copyable");
     static_assert(std::is_trivially_move_constructible_v<cc::span<void*>>, "span not triv. movable");
     static_assert(std::is_trivially_move_assignable_v<cc::span<void*>>, "span not triv. movable");
+}
+
+TEST("cc::span copy")
+{
+    cc::vector<int> input = {1, 2, 3};
+    auto s = cc::span(input);
+
+    cc::array<int, 3> output;
+    s.copy_to(output);
+
+    CHECK(output[0] == 1);
+    CHECK(output[1] == 2);
+    CHECK(output[2] == 3);
 }
 
 TEST("byte_span")
@@ -157,6 +173,11 @@ TEST("cc::span deductions")
         cc::vector<int> const v;
         auto s = cc::span(v);
         static_assert(std::is_same_v<decltype(s.front()), int const&>);
+    }
+    {
+        cc::array<std::byte> v;
+        auto s = cc::span(v);
+        static_assert(std::is_same_v<decltype(s.front()), std::byte&>);
     }
     {
         auto s = cc::span(cc::vector<int>{});
