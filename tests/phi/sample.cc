@@ -14,7 +14,7 @@ phi::backend_config phi_test::get_backend_config()
 #ifdef NDEBUG
         phi::validation_level::off;
 #else
-        phi::validation_level::on_extended;
+        phi::validation_level::on;
 #endif
 
     if (nx::has_cmd_arg("--nsight"))

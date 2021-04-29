@@ -99,7 +99,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     initialize_imgui(window, backend);
 
     // main swapchain creation
-    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize(), present_mode::synced);
+    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize(), present_mode::unsynced_allow_tearing);
     unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
