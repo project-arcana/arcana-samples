@@ -4,12 +4,14 @@
 
 #include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/config.hh>
+#include <phantasm-hardware-interface/window_handle.hh>
 
 #include <rich-log/log.hh>
 
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Frame.hh>
 
+#include <dxc-wrapper/compiler.hh>
 #include <dxc-wrapper/file_util.hh>
 
 #include <arcana-incubator/imgui/imgui.hh>
@@ -83,7 +85,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
     mContext.initialize(backend_type, config);
 
-    mSwapchain = mContext.make_swapchain({mWindow->getSdlWindow()}, mWindow->getSize());
+    mSwapchain = mContext.make_swapchain(phi::window_handle{mWindow->getSdlWindow()}, mWindow->getSize());
 
     inc::imgui_init(window.getSdlWindow(), &mContext.get_backend(), 3, phi::format::bgra8un);
 

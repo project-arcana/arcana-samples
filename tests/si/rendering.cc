@@ -4,6 +4,8 @@
 
 #include <resource-system/res.hh>
 
+#include <phantasm-hardware-interface/window_handle.hh>
+
 #include <phantasm-renderer/pr.hh>
 
 #include <typed-geometry/tg.hh>
@@ -117,7 +119,7 @@ APP("ui rendering")
 {
     auto window = inc::da::SDLWindow("structured interface");
     auto ctx = pr::Context(pr::backend::vulkan);
-    auto swapchain = ctx.make_swapchain({window.getSdlWindow()}, window.getSize());
+    auto swapchain = ctx.make_swapchain(phi::window_handle{window.getSdlWindow()}, window.getSize());
 
     auto vs_clear = ctx.make_shader(shader_code_clear, "main_vs", pr::shader::vertex);
     auto ps_clear = ctx.make_shader(shader_code_clear, "main_ps", pr::shader::pixel);

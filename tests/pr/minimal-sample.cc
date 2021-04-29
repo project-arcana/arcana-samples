@@ -2,6 +2,8 @@
 
 #include <arcana-incubator/device-abstraction/device_abstraction.hh>
 
+#include <phantasm-hardware-interface/window_handle.hh>
+
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Context.hh>
 #include <phantasm-renderer/Frame.hh>
