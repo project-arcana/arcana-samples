@@ -1,3 +1,6 @@
+
+#include <cstdint>
+
 #include <nexus/fuzz_test.hh>
 #include <nexus/test.hh>
 
