@@ -8,9 +8,10 @@
 
 TEST("cc::from_string")
 {
-    int v;
+    int32_t v;
     CHECK(cc::from_string("123", v));
     CHECK(v == 123);
+    CHECK(!cc::from_string("123 trailing text", v));
 }
 
 namespace
@@ -50,8 +51,8 @@ FUZZ_TEST("cc::from_string fuzz")(tg::rng& rng)
 {
     check_range<int32_t>(rng, -100, 100);
     check_range<int64_t>(rng, -100000000000, 100000000000);
-    check_range<uint32_t>(rng, 5u, 100u);
-    check_range<uint64_t>(rng, 5uLL, 100uLL);
+    check_range<uint32_t>(rng, 5, 100);
+    check_range<uint64_t>(rng, 5, 100);
     check_range_near<double>(rng, -100., 100., 0.01);
     check_range_near<float>(rng, -100.f, 100.f, 0.01f);
 }
