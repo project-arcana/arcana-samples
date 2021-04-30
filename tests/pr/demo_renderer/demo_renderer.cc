@@ -4,12 +4,14 @@
 
 #include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/config.hh>
+#include <phantasm-hardware-interface/window_handle.hh>
 
 #include <rich-log/log.hh>
 
 #include <phantasm-renderer/CompiledFrame.hh>
 #include <phantasm-renderer/Frame.hh>
 
+#include <dxc-wrapper/compiler.hh>
 #include <dxc-wrapper/file_util.hh>
 
 #include <arcana-incubator/imgui/imgui.hh>
@@ -83,7 +85,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
     mContext.initialize(backend_type, config);
 
-    mSwapchain = mContext.make_swapchain({mWindow->getSdlWindow()}, mWindow->getSize());
+    mSwapchain = mContext.make_swapchain(phi::window_handle{mWindow->getSdlWindow()}, mWindow->getSize());
 
     inc::imgui_init(window.getSdlWindow(), &mContext.get_backend(), 3, phi::format::bgra8un);
 
@@ -98,7 +100,7 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
         mPasses.forward.tex_ibl_spec = cc::move(specular_intermediate.filtered_env);
         mPasses.forward.tex_ibl_irr = mTexProcessingPSOs.create_diffuse_irradiance_map(frame, mPasses.forward.tex_ibl_spec);
-        mPasses.forward.tex_ibl_lut = mTexProcessingPSOs.create_brdf_lut(frame, 256);
+        mPasses.forward.tex_ibl_lut = mTexProcessingPSOs.create_brdf_lut(frame, 128, 32);
 
         // we do not need these two results
         frame.free_deferred_after_submit(specular_intermediate.equirect_tex.disown());

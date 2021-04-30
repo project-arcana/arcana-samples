@@ -9,12 +9,14 @@ namespace
 {
 using data_block_t = std::array<int, 50>;
 
-auto const fillData = [](data_block_t& dat) {
+void fillData(data_block_t& dat)
+{
     for (auto i = 0u; i < dat.size(); ++i)
         dat[i] = int(i) * 2;
 };
 
-auto const checkData = [](data_block_t const& dat) -> bool {
+bool checkData(data_block_t const& dat)
+{
     for (auto i = 0u; i < dat.size(); ++i)
         if (dat[i] != int(i) * 2)
             return false;

@@ -2,8 +2,8 @@
 
 #include <task-dispatcher/td.hh>
 
-#include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/config.hh>
+#include <phantasm-hardware-interface/fwd.hh>
 
 namespace phi_test
 {
@@ -30,4 +30,6 @@ void run_raytracing_sample(phi::Backend& backend, sample_config const& sample_co
 void run_pathtracing_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config = get_backend_config());
 
 void run_nbody_async_compute_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& config = get_backend_config());
+
+void run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_config const& sample_config, phi::backend_config const& config = get_backend_config());
 }

@@ -7,7 +7,6 @@
 
 #include <typed-geometry/tg.hh>
 
-#include <phantasm-hardware-interface/common/container/linked_pool.hh>
 #include <phantasm-hardware-interface/common/hash.hh>
 #include <phantasm-hardware-interface/common/page_allocator.hh>
 

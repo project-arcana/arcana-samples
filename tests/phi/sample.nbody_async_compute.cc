@@ -11,6 +11,7 @@
 
 #include <task-dispatcher/td-lean.hh>
 
+#include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/common/container/unique_buffer.hh>
@@ -140,7 +141,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
     } res;
 
     unsigned frame_index = 0;
-    uint64_t frame_counter = 0;
+    uint64_t frame_counter = 1; // start at 1 - signalling to the initial value causes vk spam
     bool atob = true;
 
 
@@ -293,13 +294,14 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
     }
 
     float aspect_ratio = 1.f;
-    tg::isize2 viewport_size = {};
+    tg::isize2 backbuf_size;
+    tg::isize2 viewport_size;
 
     auto const f_on_resize = [&] {
-        auto const newsize = backend.getBackbufferSize(main_swapchain);
+        backbuf_size = backend.getBackbufferSize(main_swapchain);
 
-        aspect_ratio = newsize.width / float(newsize.height);
-        viewport_size = {newsize.width / num_viewports.width, newsize.height / num_viewports.height};
+        aspect_ratio = backbuf_size.width / float(backbuf_size.height);
+        viewport_size = {backbuf_size.width / num_viewports.width, backbuf_size.height / num_viewports.height};
     };
 
     f_on_resize();
@@ -429,12 +431,22 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                     ImGui::End();
                 }
 
-                ImGui::Render();
-                auto* const drawdata = ImGui::GetDrawData();
-                auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
-                cmdlist_render.accomodate(commandsize);
-                ImGui_ImplPHI_RenderDrawData(drawdata, {cmdlist_render.raw_writer().buffer_head(), commandsize});
-                cmdlist_render.raw_writer().advance_cursor(commandsize);
+                {
+                    cmd::begin_render_pass bcmd;
+                    bcmd.add_backbuffer_rt(backbuffer, false);
+                    bcmd.set_null_depth_stencil();
+                    bcmd.viewport = backbuf_size;
+                    cmdlist_render.add_command(bcmd);
+
+                    ImGui::Render();
+                    auto* const drawdata = ImGui::GetDrawData();
+                    auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
+                    cmdlist_render.accomodate(commandsize);
+                    ImGui_ImplPHI_RenderDrawData(drawdata, {cmdlist_render.raw_writer().buffer_head(), commandsize});
+                    cmdlist_render.raw_writer().advance_cursor(commandsize);
+
+                    cmdlist_render.add_command(cmd::end_render_pass{});
+                }
 
                 tcmd.transitions.clear();
                 tcmd.add(backbuffer, resource_state::present);

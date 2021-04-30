@@ -4,6 +4,8 @@
 
 #include <resource-system/res.hh>
 
+#include <phantasm-hardware-interface/window_handle.hh>
+
 #include <phantasm-renderer/pr.hh>
 
 #include <typed-geometry/tg.hh>
@@ -118,7 +120,7 @@ APP("ui rendering")
 {
     auto window = inc::da::SDLWindow("structured interface");
     auto ctx = pr::Context(pr::backend::vulkan);
-    auto swapchain = ctx.make_swapchain({window.getSdlWindow()}, window.getSize());
+    auto swapchain = ctx.make_swapchain(phi::window_handle{window.getSdlWindow()}, window.getSize());
 
     auto vs_clear = ctx.make_shader(shader_code_clear, "main_vs", pr::shader::vertex);
     auto ps_clear = ctx.make_shader(shader_code_clear, "main_ps", pr::shader::pixel);
@@ -161,8 +163,8 @@ APP("ui rendering")
         action_mouse_left,
     };
 
-    input.bindMouseAxis(action_mouse_x, 0);
-    input.bindMouseAxis(action_mouse_y, 1);
+    input.bindMouseAxis(action_mouse_x, inc::da::mouse_axis::x);
+    input.bindMouseAxis(action_mouse_y, inc::da::mouse_axis::y);
     input.bindMouseButton(action_mouse_left, inc::da::mouse_button::mb_left);
 
 
@@ -192,7 +194,7 @@ APP("ui rendering")
     auto slider_valf = 0.f;
     bool use_frame_counter = false;
     bool show_wireframe = false;
-    tg::color3 color = tg::color3::red;
+    // tg::color3 color = tg::color3::red;
     cc::string my_string = "editable text";
 
     while (!window.isRequestingClose())

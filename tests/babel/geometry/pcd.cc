@@ -1,5 +1,7 @@
 #include <nexus/test.hh>
 
+#include <cstdint>
+
 #include <clean-core/vector.hh>
 #include <clean-ranges/algorithms/to.hh>
 
@@ -62,14 +64,14 @@ abcdef)";
     CHECK(pts.points == 3);
 
     {
-        auto cols = cr::to<cc::vector>(pts.get_data<cc::uint8>("a"));
+        auto cols = cr::to<cc::vector>(pts.get_data<uint8_t>("a"));
         CHECK(cols.size() == 3);
         CHECK(cols[0] == 'a');
         CHECK(cols[1] == 'c');
         CHECK(cols[2] == 'e');
     }
     {
-        auto cols = cr::to<cc::vector>(pts.get_data<cc::uint8>("b"));
+        auto cols = cr::to<cc::vector>(pts.get_data<uint8_t>("b"));
         CHECK(cols.size() == 3);
         CHECK(cols[0] == 'b');
         CHECK(cols[1] == 'd');

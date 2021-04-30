@@ -1,3 +1,5 @@
+#include <cstdint>
+
 #include <nexus/monte_carlo_test.hh>
 
 #include <clean-core/array.hh>
@@ -12,10 +14,8 @@ TEST("cc::to_string basics")
     cc::string s = "234";
 
     CHECK(cc::to_string(12345) == "12345");
-    CHECK(cc::to_string(12345L) == "12345");
     CHECK(cc::to_string(12345LL) == "12345");
     CHECK(cc::to_string(12345u) == "12345");
-    CHECK(cc::to_string(12345uL) == "12345");
     CHECK(cc::to_string(12345uLL) == "12345");
     CHECK(cc::to_string("123") == "123");
     CHECK(cc::to_string(s) == "234");
@@ -77,12 +77,10 @@ T gen_random(tg::rng& rng)
 
 MONTE_CARLO_TEST("cc::to_string mct")
 {
-    addOp("gen", gen_random<int>);
-    addOp("gen", gen_random<long>);
-    addOp("gen", gen_random<long long>);
-    addOp("gen", gen_random<unsigned int>);
-    addOp("gen", gen_random<unsigned long>);
-    addOp("gen", gen_random<unsigned long long>);
+    addOp("gen", gen_random<int32_t>);
+    addOp("gen", gen_random<int64_t>);
+    addOp("gen", gen_random<uint32_t>);
+    addOp("gen", gen_random<uint64_t>);
     addOp("gen", gen_random<float>);
     addOp("gen", gen_random<double>);
     addOp("gen", gen_random<void*>);
@@ -94,12 +92,10 @@ MONTE_CARLO_TEST("cc::to_string mct")
     addValue("nan", tg::nan<float>);
     addValue("nan", tg::nan<double>);
 
-    addOp("to_string", (cc::string(*)(int))cc::to_string);
-    addOp("to_string", (cc::string(*)(long))cc::to_string);
-    addOp("to_string", (cc::string(*)(long long))cc::to_string);
-    addOp("to_string", (cc::string(*)(unsigned int))cc::to_string);
-    addOp("to_string", (cc::string(*)(unsigned long))cc::to_string);
-    addOp("to_string", (cc::string(*)(unsigned long long))cc::to_string);
+    addOp("to_string", (cc::string(*)(int32_t))cc::to_string);
+    addOp("to_string", (cc::string(*)(int64_t))cc::to_string);
+    addOp("to_string", (cc::string(*)(uint32_t))cc::to_string);
+    addOp("to_string", (cc::string(*)(uint64_t))cc::to_string);
     addOp("to_string", (cc::string(*)(float))cc::to_string);
     addOp("to_string", (cc::string(*)(double))cc::to_string);
     addOp("to_string", (cc::string(*)(void*))cc::to_string);

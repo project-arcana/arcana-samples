@@ -12,6 +12,7 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <phantasm-hardware-interface/Backend.hh>
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/common/byte_util.hh>
@@ -201,8 +202,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 {
                     auto& elem = blas_elements[i];
                     elem.is_opaque = true;
-                    elem.index_buffer = resources.index_buffer;
-                    elem.vertex_buffer = resources.vertex_buffer;
+                    elem.index_addr.buffer = resources.index_buffer;
+                    elem.vertex_addr.buffer = resources.vertex_buffer;
                     elem.num_indices = resources.num_indices;
                     elem.num_vertices = resources.num_vertices;
                 }
@@ -253,7 +254,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
                 cmd::update_top_level tcmd;
                 tcmd.num_instances = num_tlas_instances;
-                tcmd.source_buffer_instances = resources.tlas_instance_buffer;
+                tcmd.source_instances_addr.buffer = resources.tlas_instance_buffer;
                 tcmd.dest_accel_struct = resources.tlas;
                 writer.add_command(tcmd);
             }
@@ -307,7 +308,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         hit_groups[2].name = "hitgroup2";
         hit_groups[2].closest_hit_export_index = 4; //= "EClosestHitErrorState";
 
-        arg::raytracing_pipeline_state_desc desc;
+        arg::raytracing_pipeline_state_description desc;
         desc.libraries = libraries;
         desc.argument_associations = arg_assocs;
         desc.hit_groups = hit_groups;
@@ -459,9 +460,9 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                 {
                     cmd::dispatch_rays dcmd;
                     dcmd.pso = resources.rt_pso;
-                    dcmd.width = backbuf_size.width;
-                    dcmd.height = backbuf_size.height;
-                    dcmd.depth = 1;
+                    dcmd.dispatch_x = backbuf_size.width;
+                    dcmd.dispatch_y = backbuf_size.height;
+                    dcmd.dispatch_z = 1;
                     dcmd.set_strides(table_sizes);
                     dcmd.set_single_buffer(resources.shader_table, false);
                     dcmd.set_offsets(table_offsets.get_ray_gen_offset(backbuf_index), table_offsets.get_miss_offset(0), table_offsets.get_hitgroup_offset(0), 0);

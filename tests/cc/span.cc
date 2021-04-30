@@ -73,7 +73,7 @@ TEST("cc::span")
 
     auto wb = cc::span(v).as_writable_bytes();
     CHECK(wb.size() == 3 * sizeof(int));
-    wb[3] = cc::byte(8);
+    wb[3] = std::byte(8);
     CHECK(v[0] == 1 + (8 << 24));
 
     static_assert(std::is_trivially_copyable_v<decltype(s)>, "span not triv. copyable");

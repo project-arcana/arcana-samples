@@ -49,10 +49,8 @@ TEST("rf::to_string basics")
 
     // cc::to_string
     CHECK(rf::to_string(12345) == "12345");
-    CHECK(rf::to_string(12345L) == "12345");
     CHECK(rf::to_string(12345LL) == "12345");
     CHECK(rf::to_string(12345u) == "12345");
-    CHECK(rf::to_string(12345uL) == "12345");
     CHECK(rf::to_string(12345uLL) == "12345");
     CHECK(rf::to_string("123") == "123");
     CHECK(rf::to_string(s) == "234");

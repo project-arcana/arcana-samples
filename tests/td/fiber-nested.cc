@@ -4,6 +4,8 @@
 
 #include <task-dispatcher/native/fiber.hh>
 
+namespace
+{
 struct MultipleFiberArg
 {
     uint64_t Counter{0};
@@ -133,6 +135,7 @@ void SixthLevelFiberStart(void* arg)
 
     // We should never get here
     CHECK(false);
+}
 }
 
 TEST("td::native::fiber (nested)", exclusive)

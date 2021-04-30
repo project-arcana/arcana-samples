@@ -146,7 +146,7 @@ TEST("td::container::Task (metadata)")
     auto constexpr metaMax = std::numeric_limits<metadata_t>().max();
     for (auto testMetadata : {metaMin, metadata_t(0), metaMax})
     {
-        uint16_t taskRunCanary = TASK_CANARAY_INITIAL;
+        metadata_t taskRunCanary = TASK_CANARAY_INITIAL;
 
         std::array<char, CAPTURE_PAD_SIZE> pad;
         std::fill(pad.begin(), pad.end(), 0);
