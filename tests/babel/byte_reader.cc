@@ -11,7 +11,7 @@ TEST("byte_reader")
         int i = -10;
         bool b = true;
         char c = 'Z';
-        cc::uint16 u = 1000;
+        uint16_t u = 1000;
         size_t s = 12345;
         float f = 3.25f;
         tg::pos3 p = {1.5f, 2.5f, 3.5f};
