@@ -27,9 +27,9 @@ TEST("tp api")
         CHECK(view(5, 13) == 2.0f);
         CHECK(!view.has_natural_stride());
 
-        // for (auto& v : img.pixels())
-        //     v = 0.5f;
-        // CHECK(view(2, 7) == 0.5f);
+        for (auto& v : img.pixels())
+            v = 0.5f;
+        CHECK(view(2, 7) == 0.5f);
     }
 
     // io
