@@ -1,3 +1,5 @@
+#include <cstdint>
+
 #include <nexus/test.hh>
 
 #include <clean-core/any_of.hh>
@@ -294,8 +296,8 @@ TEST("json parsing raw ref")
 
 TEST("json parsing")
 {
-    CHECK(babel::json::read<int>("123") == 123);
-    CHECK(babel::json::read<long>("-123") == -123);
+    CHECK(babel::json::read<int32_t>("123") == 123);
+    CHECK(babel::json::read<int32_t>("-123") == -123);
     CHECK(babel::json::read<bool>("false") == false);
     CHECK(babel::json::read<float>("1.25") == 1.25f);
     CHECK(babel::json::read<double>("-1.25e1") == -12.5);

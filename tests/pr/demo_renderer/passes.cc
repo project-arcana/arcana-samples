@@ -140,7 +140,7 @@ void dmr::postprocess_pass::init(pr::Context& ctx)
     pso_tonemap = ctx.make_pipeline_state(gp, pr::framebuffer(pr::format::bgra8un));
 }
 
-void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame, dmr::global_targets& targets, dmr::scene& scene, const pr::render_target& backbuffer)
+void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame, dmr::global_targets& targets, dmr::scene& scene, const pr::texture& backbuffer)
 {
     auto dbg_label = frame.scoped_debug_label("postprocessing");
 
@@ -159,7 +159,7 @@ void dmr::postprocess_pass::execute_output(pr::Context&, pr::raii::Frame& frame,
     }
 }
 
-void dmr::postprocess_pass::clear_target(pr::raii::Frame& frame, const pr::render_target& target)
+void dmr::postprocess_pass::clear_target(pr::raii::Frame& frame, const pr::texture& target)
 {
     // simply create (and destroy) a framebuffer, the begin_render_pass will clear the target
     auto fb = frame.make_framebuffer(target);

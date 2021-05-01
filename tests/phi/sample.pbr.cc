@@ -9,6 +9,8 @@
 
 #include <typed-geometry/tg.hh>
 
+#include <task-dispatcher/td.hh>
+
 #include <phantasm-hardware-interface/arguments.hh>
 #include <phantasm-hardware-interface/commands.hh>
 #include <phantasm-hardware-interface/common/byte_util.hh>
@@ -97,7 +99,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     initialize_imgui(window, backend);
 
     // main swapchain creation
-    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize());
+    phi::handle::swapchain const main_swapchain = backend.createSwapchain({window.getSdlWindow()}, window.getSize(), present_mode::unsynced_allow_tearing);
     unsigned const msc_num_backbuffers = backend.getNumBackbuffers(main_swapchain);
     phi::format const msc_backbuf_format = backend.getBackbufferFormat(main_swapchain);
 
@@ -219,7 +221,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
 
-        arg::graphics_pipeline_state_desc desc;
+        arg::graphics_pipeline_state_description desc;
         desc.config.cull = cull_mode::back;
         desc.config.depth = depth_function::less;
         desc.config.samples = gc_msaa_samples;
@@ -228,7 +230,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         desc.framebuffer.depth_target = format::depth24un_stencil8u;
 
         desc.vertices.attributes = attrib_info;
-        desc.vertices.vertex_size_bytes = sizeof(inc::assets::simple_vertex);
+        desc.vertices.vertex_sizes_bytes[0] = sizeof(inc::assets::simple_vertex);
 
         desc.shader_binaries
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
@@ -311,8 +313,10 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     tg::isize2 backbuf_size = tg::isize2(150, 150);
 
     auto const f_create_sized_resources = [&] {
-        l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, backbuf_size, gc_msaa_samples);
-        l_res.colorbuffer = backend.createRenderTarget(format::rgba16f, backbuf_size, gc_msaa_samples);
+        auto clearval_depth = phi::rt_clear_value(1.f, 0);
+        auto clearval_rt = phi::rt_clear_value(0.f, 0.f, 0.f, 1.f);
+        l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, backbuf_size, gc_msaa_samples, 1u, &clearval_depth, "Main Depth");
+        l_res.colorbuffer = backend.createRenderTarget(format::rgba16f, backbuf_size, gc_msaa_samples, 1u, &clearval_rt, "Main Scene");
         l_res.colorbuffer_resolve = gc_msaa_samples > 1 ? backend.createTexture(format::rgba16f, backbuf_size, 1) : l_res.colorbuffer;
 
         {
@@ -490,7 +494,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 if (!current_backbuffer.is_valid())
                 {
                     // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
-                    td::wait_for(render_sync, modeldata_upload_sync);
+                    td::wait_for(render_sync);
+                    td::wait_for(modeldata_upload_sync);
                     backend.discard(all_command_lists);
                     continue;
                 }
@@ -543,7 +548,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                             ImGui::Text("Frametime: %.3f ms\nGPU Time: %.3f ms\nGPU timestamp delta: %llu @ %llu Hz", frametime,
                                         (double(last_gpu_delta) / gpu_timestamp_frequency) * 1000., last_gpu_delta, gpu_timestamp_frequency);
                             ImGui::SliderFloat3("Position modulos", tg::data_ptr(position_modulos), 1.f, 50.f);
-                            ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", 2.f);
+                            ImGui::SliderFloat("Camera Distance", &camera_distance, 1.f, 15.f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
                             if (ImGui::Button("Reset modulos"))
                                 position_modulos = tg::vec3(9, 6, 9);

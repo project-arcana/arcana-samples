@@ -7,9 +7,9 @@
 FUZZ_TEST("cc::base64")(tg::rng& rng)
 {
     auto l = uniform(rng, 0, 50);
-    auto bytes = cc::vector<cc::byte>::defaulted(l);
+    auto bytes = cc::vector<std::byte>::defaulted(l);
     for (auto& c : bytes)
-        c = (cc::byte)uniform(rng, 0, 255);
+        c = (std::byte)uniform(rng, 0, 255);
 
     auto s = cc::base64_encode(bytes);
     auto bytes2 = cc::base64_decode(s);

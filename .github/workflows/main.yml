@@ -28,16 +28,16 @@ jobs:
             environment_script: "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build/vcvars64.bat"
           }
         - {
-            name: "Ubuntu 20.04, GCC 8", artifact: "Linux-GCC8-Debug.tar.xz",
+            name: "Ubuntu 20.04, GCC 9", artifact: "Linux-GCC9-Debug.tar.xz",
             os: ubuntu-20.04,
             build_type: "Debug",
-            cc: "gcc-8", cxx: "g++-8"
+            cc: "gcc-9", cxx: "g++-9"
           }
         - {
-            name: "Ubuntu 20.04, Clang 8", artifact: "Linux-Clang8-Debug.tar.xz",
+            name: "Ubuntu 20.04, Clang 9", artifact: "Linux-Clang9-Debug.tar.xz",
             os: ubuntu-20.04,
             build_type: "Debug",
-            cc: "clang-8", cxx: "clang++-8"
+            cc: "clang-9", cxx: "clang++-9"
           }
 
     steps:

@@ -80,9 +80,6 @@ TEST("td API - compilation", exclusive)
                     s1, +[] {});
                 td::submit(s1, fun);
 
-                // foo f;
-                // auto s2 = td::submit_nonoverload(&foo::argmet, f, 1, 2, 3);
-
                 // With arguments
                 td::submit(
                     s1, [](float arg) { gSink += int(arg); }, 1.f);
@@ -105,7 +102,6 @@ TEST("td API - compilation", exclusive)
 
                 // redundant wait
                 td::wait_for(s1, s2, s3, s4);
-                td::wait_for_unpinned(s1, s2, s3, s4);
             }
         }
 
@@ -239,9 +235,9 @@ TEST("td API - consistency", exclusive)
 
             td::submit(s1, [&] {
                 td::submit(s2, [&] {
-                    CHECK(a == 0);
-                    CHECK(b == 0);
-                    CHECK(c == 0);
+                    CC_ASSERT(a == 0);
+                    CC_ASSERT(b == 0);
+                    CC_ASSERT(c == 0);
                 });
 
                 td::wait_for(s2);
@@ -253,16 +249,16 @@ TEST("td API - consistency", exclusive)
 
             td::submit(s3, [&] {
                 td::wait_for(s1);
-                CHECK(a == 1);
-                CHECK(b == 2);
+                CC_ASSERT(a == 1);
+                CC_ASSERT(b == 2);
                 CHECK(c == 3);
             });
 
             td::wait_for(s3);
 
-            CHECK(!s1.initialized);
-            CHECK(!s2.initialized);
-            CHECK(!s3.initialized);
+            CHECK(!s1.handle.is_valid());
+            CHECK(!s2.handle.is_valid());
+            CHECK(!s3.handle.is_valid());
             CHECK(std::this_thread::get_id() == main_thread_id);
         }
 
