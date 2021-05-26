@@ -80,8 +80,9 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::on;
+    config.validation = phi::validation_level::on_extended;
     config.enable_raytracing = false;
+    config.native_features |= config.native_feature_vk_best_practices_layer;
 
     mContext.initialize(backend_type, config);
 
