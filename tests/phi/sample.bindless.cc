@@ -26,7 +26,7 @@
 #include "sample_util.hh"
 #include "scene.hh"
 
-void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
+void phi_test::run_bindless_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
     if (!phi_test::run_onboarding_test())
         return;
@@ -86,7 +86,14 @@ void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_con
     // create shader_view
     handle::shader_view sv_bindless;
     {
-        sv_bindless = backend.createEmptyShaderView(3, 1, false);
+        arg::descriptor_range srv_ranges[] = {{3, arg::descriptor_category::texture}};
+
+        arg::shader_view_description sv_desc;
+        sv_desc.num_srvs = 3;
+        sv_desc.srv_ranges = srv_ranges;
+        sv_desc.num_samplers = 1;
+
+        sv_bindless = backend.createEmptyShaderView(sv_desc, false);
 
         // write sampler
         sampler_config sampler;

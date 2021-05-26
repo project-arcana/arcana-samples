@@ -16,7 +16,7 @@ namespace
 phi_test::sample_config get_d3d12_sample_conf()
 {
     phi_test::sample_config sample_conf;
-    sample_conf.window_title = "phi::d3d12 liveness";
+    sample_conf.window_title = "PHI D3D12 Sample";
     sample_conf.shader_ending = "dxil";
     sample_conf.align_mip_rows = true;
     return sample_conf;
