@@ -95,6 +95,49 @@ TEST("cc::span copy")
     CHECK(output[2] == 3);
 }
 
+namespace
+{
+template <class A, class B>
+void check_copy_to(A a, B b)
+{
+    for (auto& v : b)
+        v = -1;
+
+    a.copy_to(b);
+
+    for (auto i = 0u; i < a.size(); ++i)
+        CHECK(a[i] == b[i]);
+}
+template <class A, class B>
+void check_copy_from(A a, B b)
+{
+    for (auto& v : a)
+        v = -1;
+
+    a.copy_from(b);
+
+    for (auto i = 0u; i < a.size(); ++i)
+        CHECK(a[i] == b[i]);
+}
+}
+
+TEST("cc::span copy variants")
+{
+    int va[] = {1, 2, 3};
+    int vb[] = {1, 2, 3};
+    float vc[] = {1, 2, 3};
+
+    check_copy_to<cc::span<int>, cc::span<int>>(va, vb);
+    check_copy_to<cc::span<int const>, cc::span<int>>(va, vb);
+    check_copy_from<cc::span<int>, cc::span<int>>(va, vb);
+    check_copy_from<cc::span<int>, cc::span<int const>>(va, vb);
+
+    check_copy_to<cc::span<int>, cc::span<float>>(va, vc);
+    check_copy_to<cc::span<int const>, cc::span<float>>(va, vc);
+    check_copy_from<cc::span<int>, cc::span<float>>(va, vc);
+    check_copy_from<cc::span<int>, cc::span<float const>>(va, vc);
+}
+
 TEST("byte_span")
 {
     {
