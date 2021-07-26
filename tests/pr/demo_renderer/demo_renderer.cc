@@ -178,7 +178,7 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
     mContext.submit(cc::move(frame));
 
     auto const new_arg = mContext.build_argument()
-                             .add(pr::resource_view_2d(albedo).format(pr::format::rgba8un_srgb)) // view albedo as sRGB
+                             .add(pr::resource_view_2d(albedo, pr::format::rgba8un_srgb)) // view albedo as sRGB
                              .add(normal)
                              .add(ao_rough_metal)
                              .make_graphics()
@@ -188,9 +188,9 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
     res.outer_sv = new_arg;
 
     // unique textures just holds all of these for cleanup
-    mUniqueTextures.push_back(albedo.res.handle);
-    mUniqueTextures.push_back(normal.res.handle);
-    mUniqueTextures.push_back(ao_rough_metal.res.handle);
+    mUniqueTextures.push_back(albedo.handle);
+    mUniqueTextures.push_back(normal.handle);
+    mUniqueTextures.push_back(ao_rough_metal.handle);
 
     mUniqueSVs.push_back(new_arg._sv);
 
