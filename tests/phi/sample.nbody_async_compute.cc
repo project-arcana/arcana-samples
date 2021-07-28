@@ -2,7 +2,8 @@
 
 #include <atomic>
 
-#include <clean-core/capped_array.hh>
+#include <clean-core/array.hh>
+#include <clean-core/capped_vector.hh>
 #include <clean-core/vector.hh>
 
 #include <typed-geometry/tg.hh>
@@ -137,7 +138,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             handle::shader_view sv_read_b;
         };
 
-        cc::capped_array<per_thread_t, 16> threads;
+        cc::capped_vector<per_thread_t, 16> threads;
     } res;
 
     unsigned frame_index = 0;
@@ -161,13 +162,13 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             auto render_gs = get_shader_binary("nbody/particle_gs", sample_conf.shader_ending);
             auto render_ps = get_shader_binary("nbody/particle_ps", sample_conf.shader_ending);
 
-            auto const shaders = cc::array{
+            arg::graphics_shader const shaders[] = {
                 arg::graphics_shader{{render_vs.get(), render_vs.size()}, shader_stage::vertex},   //
                 arg::graphics_shader{{render_gs.get(), render_gs.size()}, shader_stage::geometry}, //
                 arg::graphics_shader{{render_ps.get(), render_ps.size()}, shader_stage::pixel},    //
             };
 
-            auto const vert_attrs = cc::array{vertex_attribute_info{"COLOR", 0, format::rgba32f}};
+            vertex_attribute_info const vert_attrs[] = {vertex_attribute_info{"COLOR", 0, format::rgba32f}};
 
             arg::framebuffer_config fbconf;
             fbconf.render_targets.push_back(render_target_config{msc_backbuf_format,
@@ -218,7 +219,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         // per-thread particle buffers
         {
             CC_RUNTIME_ASSERT(gc_num_threads <= config.num_threads && "too many threads configured");
-            CC_RUNTIME_ASSERT(gc_num_threads < res.threads.max_size() && "too many threads configured");
+            CC_RUNTIME_ASSERT(gc_num_threads < res.threads.capacity() && "too many threads configured");
 
             // this slightly esoteric setup was copied 1:1 from the d3d12 sample for reproduction's sake
             auto data = cc::vector<nbody_particle>::defaulted(gc_num_particles);
@@ -227,7 +228,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             initialize_nbody_particle_data(cc::span{data}.subspan(gc_num_particles / 2, gc_num_particles / 2), {-center_spread, 0, 0},
                                            {0, 0, 20, 1 / 100000000.0f}, gc_particle_spread);
 
-            res.threads.emplace(gc_num_threads);
+            res.threads.resize(gc_num_threads);
             for (auto& thread : res.threads)
             {
                 thread.b_particle_a = backend.createBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle), resource_heap::gpu, true);
