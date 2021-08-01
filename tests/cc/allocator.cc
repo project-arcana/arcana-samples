@@ -5,6 +5,8 @@
 #include <cstdio>
 
 #include <clean-core/allocator.hh>
+#include <clean-core/bits.hh>
+#include <clean-core/threadsafe_allocators.hh>
 #include <clean-core/utility.hh>
 
 namespace
@@ -86,7 +88,7 @@ void test_basic_integrity(cc::allocator* alloc, bool free_all = false)
 
     auto const buf2_size = 300u;
     std::byte* const buf2 = alloc->alloc(buf2_size);
-    CHECK(buf2 >= buf1 + buf1_size);
+    CHECK(buf2 != buf1);
 
     CHECK(verify_memory_pattern(buf1, buf1_size));
 
@@ -102,45 +104,45 @@ void test_basic_integrity(cc::allocator* alloc, bool free_all = false)
         alloc->free(buf1);
 }
 
-void test_persistent_integrity(cc::allocator* alloc, bool free_all)
+void test_persistent_integrity(cc::allocator* alloc, bool free_all, size_t alloc_sizes = 200)
 {
-    std::byte* persistent_allocs[10] = {0};
+    std::byte* persistent_allocs[10] = {};
 
     for (auto i = 0u; i < 10; ++i)
     {
-        persistent_allocs[i] = alloc->alloc(200);
+        persistent_allocs[i] = alloc->alloc(alloc_sizes);
     }
 
     for (auto i = 0u; i < 10; ++i)
     {
         if (i % 2 == 0)
-            write_memory_pattern(persistent_allocs[i], 200);
+            write_memory_pattern(persistent_allocs[i], alloc_sizes);
         else
-            write_memory_zero(persistent_allocs[i], 200);
+            write_memory_zero(persistent_allocs[i], alloc_sizes);
     }
 
     for (auto i = 0u; i < 10; ++i)
     {
         if (i % 2 == 0)
-            CHECK(verify_memory_pattern(persistent_allocs[i], 200));
+            CHECK(verify_memory_pattern(persistent_allocs[i], alloc_sizes));
         else
-            CHECK(verify_memory_zero(persistent_allocs[i], 200));
+            CHECK(verify_memory_zero(persistent_allocs[i], alloc_sizes));
     }
 
     for (auto i = 0u; i < 10; ++i)
     {
         if (i % 2 == 1)
-            write_memory_pattern(persistent_allocs[i], 200);
+            write_memory_pattern(persistent_allocs[i], alloc_sizes);
         else
-            write_memory_zero(persistent_allocs[i], 200);
+            write_memory_zero(persistent_allocs[i], alloc_sizes);
     }
 
     for (auto i = 0u; i < 10; ++i)
     {
         if (i % 2 == 1)
-            CHECK(verify_memory_pattern(persistent_allocs[i], 200));
+            CHECK(verify_memory_pattern(persistent_allocs[i], alloc_sizes));
         else
-            CHECK(verify_memory_zero(persistent_allocs[i], 200));
+            CHECK(verify_memory_zero(persistent_allocs[i], alloc_sizes));
     }
 
     if (free_all)
@@ -237,6 +239,8 @@ TEST("cc::allocator")
     char stack_buf[4096];
     write_memory_pattern(stack_buf, sizeof(stack_buf));
     REQUIRE(verify_memory_pattern(stack_buf, sizeof(stack_buf)));
+    write_memory_zero(stack_buf, sizeof(stack_buf));
+    REQUIRE(verify_memory_zero(stack_buf, sizeof(stack_buf)));
 }
 
 TEST("cc::linear_allocator")
@@ -253,6 +257,8 @@ TEST("cc::linear_allocator")
     linalloc.reset();
     linalloc.alloc(sizeof(linalloc_buf));
     linalloc.reset();
+
+    test_persistent_integrity(&linalloc, true);
 }
 
 TEST("cc::stack_allocator")
@@ -271,57 +277,111 @@ TEST("cc::stack_allocator")
         stackalloc.free(buf_n);
     }
 
+    stackalloc.reset();
+
     // realloc
     std::byte* const buf_realloc = stackalloc.alloc(250);
-    stackalloc.realloc(buf_realloc, 250, 500);
-    stackalloc.realloc(buf_realloc, 500, 750);
-    stackalloc.realloc(buf_realloc, 750, 1000);
-    stackalloc.realloc(buf_realloc, 1000, 100);
+
+    std::byte* const br1 = stackalloc.realloc(buf_realloc, 250, 500);
+    std::byte* const br2 = stackalloc.realloc(buf_realloc, 500, 750);
+    std::byte* const br3 = stackalloc.realloc(buf_realloc, 750, 1000);
+    std::byte* const br4 = stackalloc.realloc(buf_realloc, 1000, 100);
+    CHECK(br1 == buf_realloc);
+    CHECK(br2 == buf_realloc);
+    CHECK(br3 == buf_realloc);
+    CHECK(br4 == buf_realloc);
     stackalloc.free(buf_realloc);
 }
 
-TEST("cc::scratch_allocator")
+TEST("cc::system_allocator")
 {
-    {
-        std::byte scratchalloc_buf[4096];
-        cc::scratch_allocator scratchalloc(scratchalloc_buf, nullptr);
-
-        CHECK(test_alignment_requirements(&scratchalloc));
-        CHECK(scratchalloc.is_empty());
-
-        test_basic_integrity(&scratchalloc, true);
-        CHECK(scratchalloc.is_empty());
-
-        // alloc and re-free
-        for (auto i = 0u; i < 50; ++i)
-        {
-            std::byte* const buf_n = scratchalloc.alloc(500);
-            CHECK(scratchalloc.in_use(buf_n));
-            scratchalloc.free(buf_n);
-        }
-        CHECK(scratchalloc.is_empty());
-
-        test_persistent_integrity(&scratchalloc, true);
-        CHECK(scratchalloc.is_empty());
-    }
-    // test correct fallback to the backing allocator
-    {
-        std::byte small_buf[64];
-        cc::scratch_allocator backed_scratchalloc(small_buf, cc::system_allocator);
-
-        auto* const large_alloc = backed_scratchalloc.alloc(1024);
-
-        write_memory_pattern(large_alloc, 1024);
-        CHECK(verify_memory_pattern(large_alloc, 1024));
-
-        backed_scratchalloc.free(large_alloc);
-    }
+    CHECK(test_alignment_requirements(cc::system_allocator));
+    test_basic_integrity(cc::system_allocator, true);
+    test_persistent_integrity(cc::system_allocator, true);
 }
 
-FUZZ_TEST("cc::scratch_allocator fuzz")(tg::rng& rng)
+TEST("cc::virtual_stack_allocator")
 {
-    std::byte scratchalloc_buf[8192];
-    cc::scratch_allocator scratchalloc(scratchalloc_buf, nullptr);
+    cc::virtual_stack_allocator valloc(1024uLL * 1024uLL * 256uLL);
+    CHECK(valloc.get_allocated_size_bytes() == 0);
+    CHECK(valloc.get_physical_size_bytes() == 0);
+    CHECK(valloc.get_virtual_size_bytes() > 0);
 
-    test_fuzz_allocations(&scratchalloc, rng, sizeof(scratchalloc_buf));
+    CHECK(test_alignment_requirements(&valloc));
+    CHECK(valloc.get_allocated_size_bytes() == 0);
+    CHECK(valloc.get_physical_size_bytes() > 0);
+    CHECK(valloc.get_virtual_size_bytes() > 0);
+
+    test_basic_integrity(&valloc, true);
+    CHECK(valloc.get_allocated_size_bytes() == 0);
+    CHECK(valloc.get_physical_size_bytes() > 0);
+    CHECK(valloc.get_virtual_size_bytes() > 0);
+
+    test_persistent_integrity(&valloc, true);
+    CHECK(valloc.get_allocated_size_bytes() == 0);
+    CHECK(valloc.get_physical_size_bytes() > 0);
+    CHECK(valloc.get_virtual_size_bytes() > 0);
+
+    std::byte* const dummy_alloc = valloc.alloc(128);
+    CHECK(valloc.get_allocated_size_bytes() > 0);
+    CHECK(valloc.get_physical_size_bytes() > 0);
+    CHECK(valloc.get_virtual_size_bytes() > 0);
+
+    valloc.reset();
+    CHECK(valloc.get_allocated_size_bytes() == 0);
+    CHECK(valloc.get_physical_size_bytes() > 0);
+    CHECK(valloc.get_virtual_size_bytes() > 0);
+
+    valloc.decommit_idle_memory();
+    CHECK(valloc.get_allocated_size_bytes() == 0);
+    CHECK(valloc.get_physical_size_bytes() == 0);
+    CHECK(valloc.get_virtual_size_bytes() > 0);
+}
+
+FUZZ_TEST("cc::virtual_stack_allocator fuzz")(tg::rng& rng)
+{
+    size_t const virtual_memory_size = 1024uLL * 1024uLL * 16uLL;
+    cc::virtual_stack_allocator valloc(virtual_memory_size);
+
+    test_fuzz_allocations(&valloc, rng, virtual_memory_size / 4);
+}
+
+TEST("cc::atomic_linear_allocator")
+{
+    std::byte linalloc_buf[4096];
+    cc::atomic_linear_allocator linalloc(linalloc_buf);
+
+    CHECK(test_alignment_requirements(&linalloc));
+
+    test_basic_integrity(&linalloc, true);
+
+    linalloc.reset();
+    linalloc.alloc(sizeof(linalloc_buf));
+    linalloc.reset();
+    linalloc.alloc(sizeof(linalloc_buf));
+    linalloc.reset();
+
+    test_persistent_integrity(&linalloc, true);
+}
+
+TEST("cc::atomic_pool_allocator")
+{
+    alignas(128) std::byte buf[4096];
+
+    cc::atomic_pool_allocator palloc(buf, 64);
+    CHECK(test_alignment_requirements(&palloc));
+    test_persistent_integrity(&palloc, true, 64);
+}
+
+TEST("cc::tlsf_allocator")
+{
+    size_t buf_size = 1024uLL * 1024uLL * 1uLL; // 1MB
+    void* buf = malloc(buf_size);
+
+    cc::tlsf_allocator talloc(cc::span{static_cast<std::byte*>(buf), buf_size});
+    CHECK(test_alignment_requirements(&talloc));
+    test_basic_integrity(&talloc, true);
+    test_persistent_integrity(&talloc, true);
+
+    free(buf);
 }
