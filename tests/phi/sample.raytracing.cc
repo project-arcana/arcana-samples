@@ -466,11 +466,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     dcmd.set_strides(table_sizes);
                     dcmd.set_single_buffer(resources.shader_table, false);
                     dcmd.set_offsets(table_offsets.get_ray_gen_offset(backbuf_index), table_offsets.get_miss_offset(0), table_offsets.get_hitgroup_offset(0), 0);
-                    //                    dcmd.set_single_shader_table(resources.shader_table, table_sizes);
-                    //                    dcmd.set_zero_sizes();
 
                     writer.add_command(dcmd);
-                    // LOG_INFO("ray gen offset: {} (bb {})", dcmd.table_ray_generation.offset_bytes, backbuf_index);
                 }
 
                 {
