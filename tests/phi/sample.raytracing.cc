@@ -139,8 +139,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     indices16[i] = uint16_t(mesh_data.indices[i]);
                 }
 
-                auto const vert_size = mesh_data.vertices.size_bytes();
-                auto const ind_size = indices16.size_bytes();
+                auto const vert_size = uint32_t(mesh_data.vertices.size_bytes());
+                auto const ind_size = uint32_t(indices16.size_bytes());
 
                 resources.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
                 resources.index_buffer = backend.createBuffer(ind_size, sizeof(uint16_t));
@@ -319,13 +319,15 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         resources.rt_pso = backend.createRaytracingPipelineState(desc);
     }
 
-    auto const f_free_sized_resources = [&] {
+    auto const f_free_sized_resources = [&]
+    {
         backend.free(resources.rt_write_texture);
         backend.free(resources.sv_ray_gen);
         backend.free(resources.shader_table);
     };
 
-    auto const f_create_sized_resources = [&] {
+    auto const f_create_sized_resources = [&]
+    {
         // Create RT write texture
         resources.rt_write_texture = backend.createTexture(msc_backbuf_format, backbuf_size, 1, texture_dimension::t2d, 1, true);
 
@@ -390,7 +392,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     f_create_sized_resources();
 
-    auto const on_resize_func = [&]() {
+    auto const on_resize_func = [&]()
+    {
         backbuf_size = backend.getBackbufferSize(main_swapchain);
 
         f_free_sized_resources();

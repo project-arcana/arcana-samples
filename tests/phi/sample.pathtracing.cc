@@ -242,7 +242,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
             std::memset(map, 0, sizeof(pathtrace_lightdata_soa));
 
-            auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color, float attenuation, tg::vec3 dimensions) {
+            auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color, float attenuation, tg::vec3 dimensions)
+            {
                 auto const index = map->numLights++;
                 map->type[index].val = type;
                 map->position[index].val = pos;
@@ -293,8 +294,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     indices16[i] = uint16_t(mesh_data.indices[i]);
                 }
 
-                auto const vert_size = mesh_data.vertices.size_bytes();
-                auto const ind_size = indices16.size_bytes();
+                auto const vert_size = uint32_t(mesh_data.vertices.size_bytes());
+                auto const ind_size = uint32_t(indices16.size_bytes());
 
                 resources.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
                 resources.index_buffer = backend.createBuffer(ind_size, sizeof(uint16_t));
@@ -497,7 +498,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         resources.rt_pso = backend.createRaytracingPipelineState(desc);
     }
 
-    auto f_free_sized_resources = [&] {
+    auto f_free_sized_resources = [&]
+    {
         handle::resource res_to_free[]
             = {resources.rt_write_texture,          resources.t_current_num_samples,     resources.shader_table,
                resources.t_cumulative_irradiance_a, resources.t_cumulative_irradiance_b, resources.t_cumulative_num_samples_a,
@@ -508,7 +510,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         backend.freeRange(sv_to_free);
     };
 
-    auto f_create_sized_resources = [&] {
+    auto f_create_sized_resources = [&]
+    {
         // textures
         resources.rt_write_texture = backend.createTexture(write_tex_format, backbuf_size, 1, texture_dimension::t2d, 1, true, "pathtrace current irradiance");
         resources.t_current_num_samples = backend.createTexture(format::r32u, backbuf_size, 1, texture_dimension::t2d, 1, true, "pathtrace current num samples");
@@ -579,7 +582,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table);
 
                 [[maybe_unused]] auto f_log_section = [st_map, limit = table_offsets.total_size](char const* name, size_t offset, size_t size,
-                                                                                                 unsigned stack_i = 0, unsigned num_stacks = 1) -> void {
+                                                                                                 unsigned stack_i = 0, unsigned num_stacks = 1) -> void
+                {
                     LOG_INFO("------ {} shader table (stack {}/{}) ------", name, stack_i + 1, num_stacks);
                     LOG_INFO("------ map offset: {}, size: {}, far: {} (limit: {}) ------", offset, size, offset + size, limit);
 
@@ -617,7 +621,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
     f_create_sized_resources();
 
-    auto const on_resize_func = [&]() {
+    auto const on_resize_func = [&]()
+    {
         backbuf_size = backend.getBackbufferSize(main_swapchain);
 
         f_free_sized_resources();
