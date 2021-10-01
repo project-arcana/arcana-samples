@@ -3,7 +3,7 @@
 void main(
     uint vid : SV_VertexID,
     out noperspective float2 Texcoord : TEXCOORD0,
-    out float4 SV_P : SV_POSITION
+    out float4 SV_P : SV_Position
 )
 {
     Texcoord = float2((vid << 1) & 2, vid & 2);
