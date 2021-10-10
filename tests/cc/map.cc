@@ -3,6 +3,8 @@
 #include <clean-core/any_of.hh>
 #include <clean-core/map.hh>
 
+#include <typed-geometry/feature/random.hh>
+
 TEST("cc::map")
 {
     cc::map<int, int> m;
@@ -121,4 +123,91 @@ TEST("cc::map no reserve on existing op[]")
         m[i * 13]++;
 
     CHECK(hash_cnt == 200);
+}
+
+TEST("cc::map transparent key sanity")
+{
+    cc::map<float, int> m;
+    m[3] = 7;
+    CHECK(m.get(3) == 7);
+    CHECK(m.get(3.f) == 7);
+    CHECK(m.get(3.) == 7);
+}
+
+TEST("cc::map badness", debug)
+{
+    // random data
+    {
+        tg::rng rng;
+        cc::map<int, int> m;
+
+        for (auto i = 0; i < 10000; ++i)
+            m[uniform(rng, -100'000'000, 100'000'000)] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+    {
+        tg::rng rng;
+        cc::map<float, int> m;
+
+        for (auto i = 0; i < 10000; ++i)
+            m[uniform(rng, -100.f, 100.f)] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+    {
+        tg::rng rng;
+        cc::map<int64_t, int> m;
+
+        for (auto i = 0; i < 10000; ++i)
+            m[uniform(rng, -(1LL << 50), (1LL << 50))] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+    {
+        tg::rng rng;
+        cc::map<double, int> m;
+
+        for (auto i = 0; i < 10000; ++i)
+            m[uniform(rng, -100., 100.)] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+
+    // ordered data
+    {
+        cc::map<int, int> m;
+        for (auto i = 0; i < 10000; ++i)
+            m[i] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+    {
+        cc::map<float, int> m;
+        for (auto i = 0; i < 10000; ++i)
+            m[i] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+    {
+        cc::map<int, int> m;
+        for (auto i = 0; i < 10000; ++i)
+            m[-i] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+    {
+        cc::map<int, int> m;
+        for (auto i = 0; i < 10000; ++i)
+            m[i * 7] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
+    {
+        cc::map<float, int> m;
+        for (auto i = 0; i < 10000; ++i)
+            m[i * 7] = 7;
+
+        CHECK(cc::experimental::compute_hash_badness(m) < 0.01);
+    }
 }
