@@ -58,8 +58,6 @@ TEST("td::container::Task (lifetime)")
 
 TEST("td::container::Task (static)")
 {
-    static_assert(sizeof(td::container::task) == td::system::l1_cacheline_size);
-
     // Lambdas
     {
         int constexpr a = 0, b = 1, c = 2;

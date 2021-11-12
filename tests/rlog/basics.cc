@@ -2,18 +2,19 @@
 
 #include <rich-log/experimental.hh>
 #include <rich-log/log.hh>
-#include <rich-log/logger.hh>
+
+#include <rich-log/StdOutLogger.hh>
 
 TEST("basic logging")
 {
-    rlog::enable_win32_colors();
-    rlog::set_current_thread_name("td#0");
+    rlog::enableWin32ConsoleColors();
+    rlog::setCurrentThreadName("td#0");
 
     rlog::experimental::set_whitelist_filter([](cc::string_view domain, cc::string_view) { return domain.empty() || domain.contains("debug"); });
 
     for (auto style : {rlog::console_log_style::verbose, rlog::console_log_style::brief, rlog::console_log_style::briefer, rlog::console_log_style::message_only})
     {
-        rlog::set_console_log_style(style);
+        rlog::StdOutLogger logger(style);
 
         {
             LOG("format {}", 5);
