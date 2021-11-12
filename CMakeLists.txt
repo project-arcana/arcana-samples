@@ -15,17 +15,18 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # ==============================================================================
 # Set bin dir
 if(MSVC)
+	# Visual Studio automatically appends /Debug, /Release etc
     set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin)
 elseif(CMAKE_BUILD_TYPE STREQUAL "")
     set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin/Default)
 else()
     set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
 endif()
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BIN_DIR})
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${BIN_DIR})
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BIN_DIR})
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BIN_DIR})
+
+#message(LOG "BIN_DIR: ${BIN_DIR}")
 
 # ===============================================
 # Dependencies
