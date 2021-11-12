@@ -312,7 +312,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
     tg::isize2 backbuf_size = tg::isize2(150, 150);
 
-    auto const f_create_sized_resources = [&] {
+    auto const f_create_sized_resources = [&]
+    {
         auto clearval_depth = phi::rt_clear_value(1.f, 0);
         auto clearval_rt = phi::rt_clear_value(0.f, 0.f, 0.f, 1.f);
         l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, backbuf_size, gc_msaa_samples, 1u, &clearval_depth, "Main Depth");
@@ -339,7 +340,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         }
     };
 
-    auto const f_destroy_sized_resources = [&] {
+    auto const f_destroy_sized_resources = [&]
+    {
         backend.free(l_res.depthbuffer);
         backend.free(l_res.colorbuffer);
         if constexpr (gc_msaa_samples > 1)
@@ -350,7 +352,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         backend.free(l_res.shaderview_blit);
     };
 
-    auto const f_on_resize = [&]() {
+    auto const f_on_resize = [&]()
+    {
         backend.flushGPU();
         backbuf_size = backend.getBackbufferSize(main_swapchain);
         f_destroy_sized_resources();
@@ -427,7 +430,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                 td::submit_batched_n(
                     render_sync,
-                    [&l_res, &task_info, main_swapchain](unsigned start, unsigned end, unsigned i) {
+                    [&l_res, &task_info, main_swapchain](unsigned start, unsigned end, unsigned i)
+                    {
                         INC_RMT_TRACE_NAMED("CommandRecordTask");
 
                         command_stream_writer cmd_writer(task_info.thread_cmd_mem[i + 1], THREAD_BUFFER_SIZE);
@@ -479,7 +483,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
                 td::submit_batched(
                     modeldata_upload_sync,
-                    [run_time, model_data, position_modulos](unsigned start, unsigned end) {
+                    [run_time, model_data, position_modulos](unsigned start, unsigned end)
+                    {
                         INC_RMT_TRACE_NAMED("ModelMatrixTask");
                         phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
                     },
@@ -643,15 +648,26 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     backend.flushGPU();
 
     // free all resources at once
-    cc::array const free_batch
-        = {l_res.mat_albedo,    l_res.mat_normal,   l_res.mat_arm,     l_res.ibl_lut,     l_res.ibl_specular,       l_res.ibl_irradiance,
-           l_res.vertex_buffer, l_res.index_buffer, l_res.colorbuffer, l_res.depthbuffer, l_res.colorbuffer_resolve};
+    phi::handle::resource const free_batch[] = {l_res.mat_albedo,     l_res.mat_normal,    l_res.mat_arm,      l_res.ibl_lut,     l_res.ibl_specular,
+                                                l_res.ibl_irradiance, l_res.vertex_buffer, l_res.index_buffer, l_res.colorbuffer, l_res.depthbuffer};
     backend.freeRange(free_batch);
 
+    if (gc_msaa_samples > 1)
+    {
+        backend.free(l_res.colorbuffer_resolve);
+    }
+
     // free other objects
-    backend.freeVariadic(l_res.shaderview_render_ibl, l_res.pso_render, l_res.pso_blit, l_res.shaderview_blit, l_res.shaderview_render);
+    backend.free(l_res.shaderview_render_ibl);
+    backend.free(l_res.pso_render);
+    backend.free(l_res.pso_blit);
+    backend.free(l_res.shaderview_blit);
+    backend.free(l_res.shaderview_render);
+
     for (auto const& pfr : l_res.per_frame_resources)
+    {
         backend.freeVariadic(pfr.cb_camdata, pfr.sb_modeldata, pfr.shaderview_render_vertex, pfr.b_timestamp_readback);
+    }
 
     shutdown_imgui();
 
