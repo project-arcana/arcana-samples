@@ -1,11 +1,15 @@
 #include <nexus/test.hh>
 
+#include <atomic>
+
 #include <clean-core/array.hh>
 
 #include <rich-log/log.hh>
 
 #include <task-dispatcher/common/math_intrin.hh>
+#include <task-dispatcher/container/task.hh>
 #include <task-dispatcher/scheduler.hh>
+#include <task-dispatcher/sync.hh>
 
 using namespace td;
 
@@ -29,23 +33,26 @@ void outer_task_func(void*)
 {
     std::atomic_int* const dependency = new std::atomic_int(0);
 
-    auto s = Scheduler::Current().acquireCounterHandle();
+    auto s = acquireCounter();
 
     cc::array<container::task, num_tasks_inner> tasks;
 
     for (container::task& task : tasks)
     {
-        task.lambda([dependency]() {
-            spin_cycles();
-            dependency->fetch_add(1);
-        });
+        task.lambda(
+            [dependency]()
+            {
+                spin_cycles();
+                dependency->fetch_add(1);
+            });
     }
 
     CC_ASSERT(dependency->load() == 0);
-    Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
+    submitTasks(s, tasks);
 
-    Scheduler::Current().wait(s, true, 0);
-    int lastVal = Scheduler::Current().releaseCounter(s);
+    waitForCounter(s, true);
+    int lastVal = releaseCounter(s);
+
     CC_ASSERT(lastVal == 0);
 
     CC_ASSERT(dependency->load() == num_tasks_inner);
@@ -61,7 +68,7 @@ void main_task_func(void*)
 
     for (auto iter = 0; iter < MaxIterations; ++iter)
     {
-        auto s = Scheduler::Current().acquireCounterHandle();
+        auto s = acquireCounter();
         cc::array<container::task, num_tasks_outer> tasks;
 
         for (container::task& task : tasks)
@@ -69,9 +76,10 @@ void main_task_func(void*)
             task.ptr(outer_task_func);
         }
 
-        Scheduler::Current().submitTasks(tasks.data(), unsigned(tasks.size()), s);
-        Scheduler::Current().wait(s, true);
-        bool releasedSync = Scheduler::Current().releaseCounterIfOnTarget(s, 0);
+        submitTasks(s, tasks);
+        waitForCounter(s, true);
+
+        bool releasedSync = releaseCounterIfOnZero(s);
         CC_ASSERT(releasedSync);
     }
 }
@@ -88,16 +96,13 @@ TEST("td::Scheduler", exclusive)
 
     // Run a simple dependency chain
     {
-        Scheduler scheduler;
-        scheduler.start(container::task{main_task_func<1>, nullptr});
+        td::launchScheduler(td::scheduler_config{}, container::task{main_task_func<1>, nullptr});
     }
 
     // Run multiple times
     {
-        Scheduler scheduler;
-
-        scheduler.start(container::task{main_task_func<25>, nullptr});
-        scheduler.start(container::task{main_task_func<25>, nullptr});
+        td::launchScheduler(td::scheduler_config{}, container::task{main_task_func<25>, nullptr});
+        td::launchScheduler(td::scheduler_config{}, container::task{main_task_func<25>, nullptr});
     }
 
     // Run with constrained threads
@@ -105,8 +110,6 @@ TEST("td::Scheduler", exclusive)
         scheduler_config config;
         config.num_threads = 2;
 
-        Scheduler scheduler(config);
-
-        scheduler.start(container::task{main_task_func<150>, nullptr});
+        td::launchScheduler(config, container::task{main_task_func<150>, nullptr});
     }
 }
