@@ -4,8 +4,9 @@
 
 #include <clean-core/span.hh>
 
-#include <task-dispatcher/container/task.hh>
-#include <task-dispatcher/scheduler.hh>
+#include <task-dispatcher/Scheduler.hh>
+#include <task-dispatcher/SchedulerConfig.hh>
+#include <task-dispatcher/container/Task.hh>
 #include <task-dispatcher/sync.hh>
 
 using namespace td;
@@ -25,14 +26,14 @@ void mainTaskFunc(void* arg)
 {
     GlobalBuffer* const buf = static_cast<GlobalBuffer*>(arg);
 
-    auto workers = std::vector<container::task>(numWorkers);
+    auto workers = std::vector<Task>(numWorkers);
 
     for (auto i = 0u; i < numWorkers; ++i)
     {
         unsigned const chunkStart = i * chunkSize;
         unsigned const chunkEnd = (i + 1) * chunkSize;
 
-        workers[i].lambda(
+        workers[i].initWithLambda(
             [buf, chunkStart, chunkEnd]()
             {
                 for (auto i = chunkStart; i < chunkEnd; ++i)
@@ -57,7 +58,7 @@ TEST("td::Scheduler (dependency)", exclusive)
     globalBuf.data.resize(workloadSize, 0);
     std::fill(globalBuf.data.begin(), globalBuf.data.end(), 0);
 
-    td::launchScheduler(td::scheduler_config{}, container::task{mainTaskFunc, &globalBuf});
+    td::launchScheduler(td::SchedulerConfig{}, Task{mainTaskFunc, &globalBuf});
 
     bool equal = true;
     for (auto i = 0u; i < workloadSize; ++i)

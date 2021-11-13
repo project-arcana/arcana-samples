@@ -6,9 +6,10 @@
 
 #include <rich-log/log.hh>
 
+#include <task-dispatcher/Scheduler.hh>
+#include <task-dispatcher/SchedulerConfig.hh>
 #include <task-dispatcher/common/math_intrin.hh>
-#include <task-dispatcher/container/task.hh>
-#include <task-dispatcher/scheduler.hh>
+#include <task-dispatcher/container/Task.hh>
 #include <task-dispatcher/sync.hh>
 
 using namespace td;
@@ -35,11 +36,11 @@ void outer_task_func(void*)
 
     auto s = acquireCounter();
 
-    cc::array<container::task, num_tasks_inner> tasks;
+    cc::array<Task, num_tasks_inner> tasks;
 
-    for (container::task& task : tasks)
+    for (Task& task : tasks)
     {
-        task.lambda(
+        task.initWithLambda(
             [dependency]()
             {
                 spin_cycles();
@@ -69,11 +70,11 @@ void main_task_func(void*)
     for (auto iter = 0; iter < MaxIterations; ++iter)
     {
         auto s = acquireCounter();
-        cc::array<container::task, num_tasks_outer> tasks;
+        cc::array<Task, num_tasks_outer> tasks;
 
-        for (container::task& task : tasks)
+        for (Task& task : tasks)
         {
-            task.ptr(outer_task_func);
+            task.initWithFunction(outer_task_func);
         }
 
         submitTasks(s, tasks);
@@ -88,28 +89,28 @@ void main_task_func(void*)
 TEST("td::Scheduler", exclusive)
 {
     {
-        scheduler_config config;
+        SchedulerConfig config;
 
         // Make sure this test does not exceed the configured job limit
-        REQUIRE((num_tasks_inner * num_tasks_outer) + 1 < config.max_num_tasks);
+        REQUIRE((num_tasks_inner * num_tasks_outer) + 1 < config.maxNumTasks);
     }
 
     // Run a simple dependency chain
     {
-        td::launchScheduler(td::scheduler_config{}, container::task{main_task_func<1>, nullptr});
+        td::launchScheduler(td::SchedulerConfig{}, Task{main_task_func<1>, nullptr});
     }
 
     // Run multiple times
     {
-        td::launchScheduler(td::scheduler_config{}, container::task{main_task_func<25>, nullptr});
-        td::launchScheduler(td::scheduler_config{}, container::task{main_task_func<25>, nullptr});
+        td::launchScheduler(td::SchedulerConfig{}, Task{main_task_func<25>, nullptr});
+        td::launchScheduler(td::SchedulerConfig{}, Task{main_task_func<25>, nullptr});
     }
 
     // Run with constrained threads
     {
-        scheduler_config config;
-        config.num_threads = 2;
+        SchedulerConfig config;
+        config.numThreads = 2;
 
-        td::launchScheduler(config, container::task{main_task_func<150>, nullptr});
+        td::launchScheduler(config, Task{main_task_func<150>, nullptr});
     }
 }

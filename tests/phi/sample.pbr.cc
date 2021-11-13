@@ -423,7 +423,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 cc::span<handle::command_list> out_cmdlists;
             } task_info = {thread_cmd_buffer_mem.data(), backend, all_command_lists};
 
-            td::sync render_sync, modeldata_upload_sync;
+            td::Sync render_sync, modeldata_upload_sync;
             // parallel rendering
             {
                 INC_RMT_TRACE_NAMED("TaskDispatch");
