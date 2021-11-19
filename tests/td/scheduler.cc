@@ -10,7 +10,7 @@
 #include <task-dispatcher/SchedulerConfig.hh>
 #include <task-dispatcher/common/math_intrin.hh>
 #include <task-dispatcher/container/Task.hh>
-#include <task-dispatcher/sync.hh>
+#include <task-dispatcher/CounterHandle.hh>
 
 using namespace td;
 
@@ -34,7 +34,7 @@ void outer_task_func(void*)
 {
     std::atomic_int* const dependency = new std::atomic_int(0);
 
-    auto s = acquireCounter();
+    auto s = td::acquireCounter();
 
     cc::array<Task, num_tasks_inner> tasks;
 

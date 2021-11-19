@@ -47,144 +47,85 @@ TEST("td API - compilation", exclusive)
 
     // Launch variants
     {
-        CHECK(!td::is_scheduler_alive());
+        CHECK(!td::isInsideScheduler());
 
         // simple
-        td::launch([] { CHECK(td::is_scheduler_alive()); });
+        td::launch([] { CHECK(td::isInsideScheduler()); });
 
         // rvalue config
-        td::launch(td::SchedulerConfig{}, [] { CHECK(td::is_scheduler_alive()); });
+        td::launch(td::SchedulerConfig{}, [] { CHECK(td::isInsideScheduler()); });
 
         // lvalue config
         td::SchedulerConfig conf;
-        td::launch(conf, [] { CHECK(td::is_scheduler_alive()); });
+        td::launch(conf, [] { CHECK(td::isInsideScheduler()); });
 
-        // nested
-        td::launch([] { td::launch([] { td::launch([] { CHECK(td::is_scheduler_alive()); }); }); });
-
-        CHECK(!td::is_scheduler_alive());
+        CHECK(!td::isInsideScheduler());
     }
 
     td::launch(
         []
         {
-            REQUIRE(td::is_scheduler_alive());
+            REQUIRE(td::isInsideScheduler());
 
-            // submit - single
+            // regular submission of lambdas and callables
             {
                 (void)0; // for clang-format
 
-                // sync argument
-                {
-                    td::Sync s1;
+                td::AutoCounter s1;
 
-                    // Without arguments
-                    td::submit(s1, [] {});
-                    td::submit(
-                        s1, +[] {});
-                    td::submit(s1, function);
+                // Without arguments
+                td::submitLambda(s1, [] {});
+                td::submitLambda(
+                    s1, +[] {});
+                td::submitLambda(s1, function);
 
-                    // With arguments
-                    td::submit(
-                        s1, [](float arg) { gSink += int(arg); }, 1.f);
-                    td::submit(s1, functionWithArgs, 4, 5, 6);
+                // With arguments
+                td::submitCallable(
+                    s1, [](float arg) { gSink += int(arg); }, 1.f);
+                td::submitCallable(s1, functionWithArgs, 4, 5, 6);
 
-                    td::wait_for(s1);
-                }
+                td::waitForCounter(s1);
 
-                // sync return
-                {
-                    // Without arguments
-                    auto s1 = td::submit([] {});
-                    auto s2 = td::submit(function);
-
-                    // With arguments
-                    auto s3 = td::submit([](float arg) { gSink += int(arg); }, 1.f);
-                    auto s4 = td::submit(functionWithArgs, 4, 5, 6);
-
-                    td::wait_for(s1, s2, s3, s4);
-
-                    // redundant wait
-                    td::wait_for(s1, s2, s3, s4);
-                }
+                // redundant wait
+                td::waitForCounter(s1);
             }
 
-            // submit - single with return
+            // batched submission
             {
-                // void return
-                auto s1 = td::submit([] {});
-                auto s2 = td::submit(+[] {});
-                auto s3 = td::submit(function);
-                auto s4 = td::submit([](auto arg) { gSink += arg; }, 5);
-                auto s5 = td::submit(functionWithArgs, 5, 6, 7);
+                cc::allocator* scratch = cc::system_allocator;
+                td::AutoCounter s1;
 
-                td::wait_for(s1, s2, s3, s4, s5);
-
-#if 0
-                // future return
-                auto f1 = td::submit([] { return 1; });
-                auto f2 = td::submit(+[] { return 1; });
-                auto f3 = td::submit(functionWithReturn);
-                auto f4 = td::submit(
-                    [](auto arg) {
-                        gSink += arg;
-                        return gSink;
+                td::submitNumbered(
+                    s1,
+                    [](auto i)
+                    {
+                        //
+                        gSink += i;
                     },
-                    5);
-                auto f5 = td::submit(functionWithArgsAndReturn, 8, 9, 10);
+                    50, scratch);
 
-                static_assert(is_int_future<decltype(f1)>);
-                static_assert(is_int_future<decltype(f2)>);
-                static_assert(is_int_future<decltype(f3)>);
-                static_assert(is_int_future<decltype(f4)>);
-                static_assert(is_int_future<decltype(f5)>);
-#endif
-            }
+                int values[50] = {};
+                td::submitBatchedOnArray<int>(
+                    s1,
+                    [](int& val, uint32_t, uint32_t)
+                    {
+                        //
+                        ++val;
+                    },
+                    values, 16, scratch);
 
-            // submit - n, each, batched
-            {
-                (void)0; // for clang-format
-
-                // sync argument
-                {
-                    td::Sync s1;
-
-                    td::submit_n(
-                        s1, [](auto i) { gSink += i; }, 50);
-
-                    std::array<int, 50> values;
-                    td::submit_each_ref<int>(
-                        s1, [](int& val) { ++val; }, values);
-
-                    td::submit_batched(
-                        s1,
-                        [](auto begin, auto end)
+                td::submitBatched(
+                    s1,
+                    [](uint32_t begin, uint32_t end, uint32_t)
+                    {
+                        for (auto i = begin; i < end; ++i)
                         {
-                            for (auto i = begin; i < end; ++i)
-                                gSink += i;
-                        },
-                        500);
+                            gSink += i;
+                        }
+                    },
+                    500, 16, scratch);
 
-                    td::wait_for(s1);
-                }
-
-                // sync return
-                {
-                    auto s1 = td::submit_n([](auto i) { gSink += i; }, 50);
-
-                    std::array<int, 50> values;
-                    auto s2 = td::submit_each_ref<int>([](int& val) { ++val; }, values);
-
-                    auto s3 = td::submit_batched(
-                        [](auto begin, auto end)
-                        {
-                            for (auto i = begin; i < end; ++i)
-                                gSink += i;
-                        },
-                        500);
-
-                    td::wait_for(s1, s2, s3);
-                }
+                td::waitForCounter(s1);
             }
 
             // move-only arguments and lambdas
@@ -196,17 +137,19 @@ TEST("td API - compilation", exclusive)
 
                 auto l_moveonly = [u = std::move(u1)] { gSink += *u; };
 
-                td::Sync s;
-                td::submit(s, std::move(l_moveonly));
-                td::submit(
+                td::AutoCounter s;
+                td::submitLambda(s, std::move(l_moveonly));
+                td::submitCallable(
                     s, [](std::unique_ptr<int> const& u) { gSink += *u; }, u2);
-                // td::submit(s, [](std::unique_ptr<int> u) { gSink += *u; }, std::move(u3)); // TODO: Error!
 
-                td::wait_for(s);
+                td::submitCallable(
+                    s, [](std::unique_ptr<int> const& u) { gSink += *u; }, std::move(u3));
+
+                td::waitForCounter(s);
             }
         });
 
-    CHECK(!td::is_scheduler_alive());
+    CHECK(!td::isInsideScheduler());
 }
 
 
@@ -214,17 +157,12 @@ TEST("td API - consistency", exclusive)
 {
     /// Basic consistency and sanity checks, WIP
 
-    CHECK(!td::is_scheduler_alive());
+    CHECK(!td::isInsideScheduler());
 
     td::launch(
         []
         {
-            CHECK(td::is_scheduler_alive());
-
-            // Nesting
-            td::launch([] { CHECK(td::is_scheduler_alive()); });
-
-            CHECK(td::is_scheduler_alive());
+            CHECK(td::isInsideScheduler());
 
             auto const main_thread_id = std::this_thread::get_id();
 
@@ -232,45 +170,53 @@ TEST("td API - consistency", exclusive)
             auto const num_tasks = td::getNumLogicalCPUCores() * 50;
             for (auto i = 0; i < 50; ++i)
             {
-                auto s1 = td::submit_n([](auto) { ++gSink; }, num_tasks);
+                td::AutoCounter s1;
+                td::submitNumbered(
+                    s1,
+                    [](uint32_t)
+                    {
+                        //
+                        ++gSink;
+                    },
+                    num_tasks, cc::system_allocator);
 
-                td::wait_for(s1);
+                td::waitForCounter(s1);
                 CHECK(std::this_thread::get_id() == main_thread_id);
             }
 
             // Nested Multi-wait
             {
-                td::Sync s1, s2, s3;
+                td::AutoCounter s1, s2, s3;
                 int a = 0, b = 0, c = 0;
 
-                td::submit(s1,
-                           [&]
-                           {
-                               td::submit(s2,
-                                          [&]
-                                          {
-                                              CC_ASSERT(a == 0);
-                                              CC_ASSERT(b == 0);
-                                              CC_ASSERT(c == 0);
-                                          });
+                td::submitLambda(s1,
+                                 [&]
+                                 {
+                                     td::submitLambda(s2,
+                                                      [&]
+                                                      {
+                                                          CC_ASSERT(a == 0);
+                                                          CC_ASSERT(b == 0);
+                                                          CC_ASSERT(c == 0);
+                                                      });
 
-                               td::wait_for(s2);
+                                     td::waitForCounter(s2);
 
-                               a = 1;
-                               b = 2;
-                               c = 3;
-                           });
+                                     a = 1;
+                                     b = 2;
+                                     c = 3;
+                                 });
 
-                td::submit(s3,
-                           [&]
-                           {
-                               td::wait_for(s1);
-                               CC_ASSERT(a == 1);
-                               CC_ASSERT(b == 2);
-                               CHECK(c == 3);
-                           });
+                td::submitLambda(s3,
+                                 [&]
+                                 {
+                                     td::waitForCounter(s1);
+                                     CC_ASSERT(a == 1);
+                                     CC_ASSERT(b == 2);
+                                     CHECK(c == 3);
+                                 });
 
-                td::wait_for(s3);
+                td::waitForCounter(s3);
 
                 CHECK(!s1.handle.isValid());
                 CHECK(!s2.handle.isValid());
@@ -280,61 +226,83 @@ TEST("td API - consistency", exclusive)
 
             // Chained dependency
             {
-                auto constexpr n = 50;
+                enum
+                {
+                    Num = 50
+                };
 
-                std::array<int, n> res_array;
-                std::fill(res_array.begin(), res_array.end(), 0);
+                int res_array[Num] = {};
+                td::AutoCounter syncs[Num] = {};
 
-                std::array<td::Sync, n> syncs;
-                std::fill(syncs.begin(), syncs.end(), td::Sync{});
-
-                for (auto i = 0; i < n; ++i)
+                for (auto i = 0; i < Num; ++i)
                 {
                     CHECK(res_array[i] == 0);
-                    if (i < n - 1)
+                    if (i < Num - 1)
                     {
-                        // TODO: Why doesn't this compile with [&res_array, i] ?
-                        td::submit(syncs[i], [dat_ptr = res_array.data(), i] { dat_ptr[i] = i; });
+                        td::submitLambda(syncs[i], [dat_ptr = res_array, i] { dat_ptr[i] = i; });
                     }
 
                     if (i > 0)
                     {
-                        td::wait_for(syncs[i - 1]);
+                        td::waitForCounter(syncs[i - 1]);
                         CHECK(res_array[i - 1] == i - 1);
                     }
                 }
 
-                td::wait_for(syncs[n - 1]);
+                td::waitForCounter(syncs[Num - 1]);
+
                 CHECK(std::this_thread::get_id() == main_thread_id);
             }
 
             // Number of executions
             {
-                auto constexpr n = 500;
+                enum
+                {
+                    Num = 500
+                };
+
                 std::atomic_int counter = {0};
-                CHECK(counter.load() == 0);
-                auto s = td::submit_n([&](auto) { ++counter; }, n);
-                td::wait_for(s);
-                CHECK(counter.load() == n);
+                REQUIRE(counter.load() == 0);
+
+                td::AutoCounter s;
+                td::submitNumbered(
+                    s,
+                    [&](auto) { //
+                        counter.fetch_add(1);
+                    },
+                    Num, cc::system_allocator);
+                td::waitForCounter(s);
+
+                CHECK(counter.load() == Num);
+
                 CHECK(std::this_thread::get_id() == main_thread_id);
             }
 
             // submit_each
             {
-                std::vector<int> values;
-                values.resize(30, 0);
+                int values[30] = {};
 
                 for (auto v : values)
                     CHECK(v == 0);
 
-                auto s = td::submit_each_ref<int>([](int& v) { v = 1; }, values);
+                td::AutoCounter s;
+                td::submitBatchedOnArray<int>(
+                    s,
+                    [](int& v, uint32_t, uint32_t)
+                    {
+                        //
+                        v = 1;
+                    },
+                    values, 16, cc::system_allocator);
 
-                td::wait_for(s);
+                td::waitForCounter(s);
 
                 for (auto v : values)
+                {
                     CHECK(v == 1);
+                }
             }
         });
 
-    CHECK(!td::is_scheduler_alive());
+    CHECK(!td::isInsideScheduler());
 }

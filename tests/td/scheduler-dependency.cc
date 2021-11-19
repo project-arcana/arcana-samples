@@ -4,10 +4,10 @@
 
 #include <clean-core/span.hh>
 
+#include <task-dispatcher/CounterHandle.hh>
 #include <task-dispatcher/Scheduler.hh>
 #include <task-dispatcher/SchedulerConfig.hh>
 #include <task-dispatcher/container/Task.hh>
-#include <task-dispatcher/sync.hh>
 
 using namespace td;
 
