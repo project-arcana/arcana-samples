@@ -24,19 +24,16 @@ int functionWithArgsAndReturn(int a, int b, int c)
     return gSink;
 }
 
-struct foo
+struct DummyType
 {
-    void method() { ++gSink; }
+    int mValue = 0;
 
-    void methodWithArgs(int a, int b, int c) { gSink += (a + b + c); }
+    void method() { ++mValue; }
 
-    int methodWithReturn() { return ++gSink; }
+    void methodWithArgs(int a, int b, int c) { mValue += (a + b + c); }
 
-    int methodWithArgsAndReturn(int a, int b, int c)
-    {
-        gSink += (a + b + c);
-        return gSink;
-    }
+    void overloadedMethod() { ++mValue; }
+    void overloadedMethod(void*) { ++mValue; }
 };
 }
 
@@ -67,11 +64,13 @@ TEST("td API - compilation", exclusive)
         {
             REQUIRE(td::isInsideScheduler());
 
-            // regular submission of lambdas and callables
+            // single submission
             {
                 (void)0; // for clang-format
 
                 td::AutoCounter s1;
+
+                // regular lambdas or function pointers
 
                 // Without arguments
                 td::submitLambda(s1, [] {});
@@ -79,12 +78,25 @@ TEST("td API - compilation", exclusive)
                     s1, +[] {});
                 td::submitLambda(s1, function);
 
-                // With arguments
+                // advanced callables with arguments
                 td::submitCallable(
                     s1, [](float arg) { gSink += int(arg); }, 1.f);
                 td::submitCallable(s1, functionWithArgs, 4, 5, 6);
 
+                // methods
+                DummyType dummy;
+                REQUIRE(dummy.mValue == 0);
+
+                // methods can be submitted directly
+                td::submitMethod(s1, &dummy, &DummyType::method);
+                // arguments are immediately moved into the task
+                td::submitMethod(s1, &dummy, &DummyType::methodWithArgs, 1, 2, 3);
+                // overloaded methods must be cast to a specific function pointer type
+                td::submitMethod(s1, &dummy, static_cast<void (DummyType::*)(void*)>(&DummyType::overloadedMethod), nullptr);
+
                 td::waitForCounter(s1);
+
+                CHECK(dummy.mValue == 1 + (1 + 2 + 3) + 1);
 
                 // redundant wait
                 td::waitForCounter(s1);
@@ -95,35 +107,39 @@ TEST("td API - compilation", exclusive)
                 cc::allocator* scratch = cc::system_allocator;
                 td::AutoCounter s1;
 
+                // submits 50 tasks called with i = 0 ... 49
                 td::submitNumbered(
                     s1,
-                    [](auto i)
+                    [](uint32_t i)
                     {
-                        //
+                        // this is a single task
                         gSink += i;
                     },
                     50, scratch);
 
-                int values[50] = {};
-                td::submitBatchedOnArray<int>(
-                    s1,
-                    [](int& val, uint32_t, uint32_t)
-                    {
-                        //
-                        ++val;
-                    },
-                    values, 16, scratch);
-
+                // submits up to 16 tasks called on equally sized ranges inside 0 to 499
                 td::submitBatched(
                     s1,
-                    [](uint32_t begin, uint32_t end, uint32_t)
+                    [](uint32_t begin, uint32_t end, uint32_t /*batchIdx*/)
                     {
+                        // this is a single task responsible for a certain range in 0 .. 499
                         for (auto i = begin; i < end; ++i)
                         {
                             gSink += i;
                         }
                     },
                     500, 16, scratch);
+
+                // submits up to 16 tasks calling the lambda once for each element in batches
+                int values[50] = {};
+                td::submitBatchedOnArray<int>(
+                    s1,
+                    [](int& val, uint32_t /*elementIdx*/, uint32_t /*batchIdx*/)
+                    {
+                        // this is called for each element in the task's batch range
+                        ++val;
+                    },
+                    values, 16, scratch);
 
                 td::waitForCounter(s1);
             }
@@ -267,7 +283,7 @@ TEST("td API - consistency", exclusive)
                 td::AutoCounter s;
                 td::submitNumbered(
                     s,
-                    [&](auto) { //
+                    [&](uint32_t /*idx*/) { //
                         counter.fetch_add(1);
                     },
                     Num, cc::system_allocator);
@@ -288,7 +304,7 @@ TEST("td API - consistency", exclusive)
                 td::AutoCounter s;
                 td::submitBatchedOnArray<int>(
                     s,
-                    [](int& v, uint32_t, uint32_t)
+                    [](int& v, uint32_t /*elementIdx*/, uint32_t /*batchIdx*/)
                     {
                         //
                         v = 1;
