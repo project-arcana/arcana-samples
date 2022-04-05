@@ -48,7 +48,7 @@ FUZZ_TEST("matrix decompose")(tg::rng& rng)
     }
 
     // direct functions
-    CHECK(tg::transformation_of(M) == nx::approx(translation));
+    CHECK(tg::translation_of(M) == nx::approx(translation));
     CHECK(tg::rotation_mat3_of(M) == nx::approx(tg::mat3(rotation)));
     CHECK(tg::rotation_mat4_of(M) == nx::approx(tg::mat4(rotation)));
     CHECK(tg::rotation_quat_of(M) == cc::any_of(nx::approx(rotation), nx::approx(-rotation)));
