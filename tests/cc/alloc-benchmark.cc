@@ -80,101 +80,170 @@ TEST("cc::alloc benchmark")
 
     linear_alloc la(10000 * 1000 * sizeof(int));
 
-    measure("(cold) new/delete int", ptrs.size(), [&] {
-        for (auto& p : ptrs)
-            p = new int();
-        for (auto& p : ptrs)
-            ct::sink << p;
-        for (auto p : ptrs)
-            delete p;
-    });
-    measure("(cold) linear alloc int", ptrs.size(), [&] {
-        for (auto& p : ptrs)
-            p = la.alloc<int>();
-        for (auto& p : ptrs)
-            ct::sink << p;
-        la.reset();
-    });
-    measure("(cold) cc::alloc int", ptrs.size(), [&] {
-        for (auto& p : ptrs)
-            p = cc::alloc<int>();
-        for (auto& p : ptrs)
-            ct::sink << p;
-        for (auto p : ptrs)
-            cc::free(p);
-    });
+    measure("(cold) new/delete int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                    p = new int();
+                for (auto& p : ptrs)
+                    ct::sink << p;
+                for (auto p : ptrs)
+                    delete p;
+            });
+    measure("(cold) linear alloc int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                    p = la.alloc<int>();
+                for (auto& p : ptrs)
+                    ct::sink << p;
+                la.reset();
+            });
+    measure("(cold) cc::alloc int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                    p = cc::alloc<int>();
+                for (auto& p : ptrs)
+                    ct::sink << p;
+                for (auto p : ptrs)
+                    cc::free(p);
+            });
 
-    measure("(hot) new/delete int", ptrs.size(), [&] {
-        for (auto& p : ptrs)
-        {
-            p = new int();
-            ct::sink << p;
-            delete p;
-        }
-    });
-    measure("(hot) linear alloc int", ptrs.size(), [&] {
-        for (auto& p : ptrs)
-        {
-            p = la.alloc<int>();
-            ct::sink << p;
-            la.reset();
-        }
-    });
-    measure("(hot) cc::alloc int", ptrs.size(), [&] {
-        for (auto& p : ptrs)
-        {
-            p = cc::alloc<int>();
-            ct::sink << p;
-            cc::free(p);
-        }
-    });
+    measure("(hot) new/delete int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                {
+                    p = new int();
+                    ct::sink << p;
+                    delete p;
+                }
+            });
+    measure("(hot) linear alloc int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                {
+                    p = la.alloc<int>();
+                    ct::sink << p;
+                    la.reset();
+                }
+            });
+    measure("(hot) cc::alloc int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                {
+                    p = cc::alloc<int>();
+                    ct::sink << p;
+                    cc::free(p);
+                }
+            });
 
-    measure("(cold) new/delete array<int, 100>", ptrs.size(), [&] {
-        for (auto& p : ptrs2)
-            p = new cc::array<int, 100>();
-        for (auto& p : ptrs)
-            ct::sink << p;
-        for (auto p : ptrs2)
-            delete p;
-    });
-    measure("(cold) linear alloc array<int, 100>", ptrs.size(), [&] {
-        for (auto& p : ptrs2)
-            p = la.alloc<cc::array<int, 100>>();
-        for (auto& p : ptrs)
-            ct::sink << p;
-        la.reset();
-    });
-    measure("(cold) cc::alloc array<int, 100>", ptrs.size(), [&] {
-        for (auto& p : ptrs2)
-            p = cc::alloc<cc::array<int, 100>>();
-        for (auto& p : ptrs)
-            ct::sink << p;
-        for (auto p : ptrs2)
-            cc::free(p);
-    });
+    measure("(cold) new/delete array<int, 100>", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs2)
+                    p = new cc::array<int, 100>();
+                for (auto& p : ptrs)
+                    ct::sink << p;
+                for (auto p : ptrs2)
+                    delete p;
+            });
+    measure("(cold) linear alloc array<int, 100>", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs2)
+                    p = la.alloc<cc::array<int, 100>>();
+                for (auto& p : ptrs)
+                    ct::sink << p;
+                la.reset();
+            });
+    measure("(cold) cc::alloc array<int, 100>", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs2)
+                    p = cc::alloc<cc::array<int, 100>>();
+                for (auto& p : ptrs)
+                    ct::sink << p;
+                for (auto p : ptrs2)
+                    cc::free(p);
+            });
 
-    measure("(hot) new/delete array<int, 100>", ptrs.size(), [&] {
-        for (auto& p : ptrs2)
-        {
-            p = new cc::array<int, 100>();
-            ct::sink << p;
-            delete p;
-        }
-    });
-    measure("(hot) linear alloc array<int, 100>", ptrs.size(), [&] {
-        for (auto& p : ptrs2)
-        {
-            p = la.alloc<cc::array<int, 100>>();
-            ct::sink << p;
-            la.reset();
-        }
-    });
-    measure("(hot) cc::alloc array<int, 100>", ptrs.size(), [&] {
-        for (auto& p : ptrs2)
-        {
-            p = cc::alloc<cc::array<int, 100>>();
-            ct::sink << p;
-            cc::free(p);
-        }
-    });
+    measure("(hot) new/delete array<int, 100>", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs2)
+                {
+                    p = new cc::array<int, 100>();
+                    ct::sink << p;
+                    delete p;
+                }
+            });
+    measure("(hot) linear alloc array<int, 100>", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs2)
+                {
+                    p = la.alloc<cc::array<int, 100>>();
+                    ct::sink << p;
+                    la.reset();
+                }
+            });
+    measure("(hot) cc::alloc array<int, 100>", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs2)
+                {
+                    p = cc::alloc<cc::array<int, 100>>();
+                    ct::sink << p;
+                    cc::free(p);
+                }
+            });
+
+    measure("(frag) new/delete int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                    p = nullptr;
+                uint32_t x = 1;
+                for (auto i = 0; i < 5; ++i)
+                    for (auto& p : ptrs)
+                    {
+                        x = x * 5 + 11;
+                        if (p != nullptr && (x & 0b100))
+                        {
+                            delete p;
+                            p = nullptr;
+                        }
+                        else if (p == nullptr && (x & 0b100))
+                        {
+                            p = new int;
+                            *p = x;
+                        }
+                    }
+            });
+    measure("(frag) cc::alloc int", ptrs.size(),
+            [&]
+            {
+                for (auto& p : ptrs)
+                    p = nullptr;
+                uint32_t x = 1;
+                for (auto i = 0; i < 5; ++i)
+                    for (auto& p : ptrs)
+                    {
+                        x = x * 5 + 11;
+                        if (p != nullptr && (x & 0b100))
+                        {
+                            cc::free(p);
+                            p = nullptr;
+                        }
+                        else if (p == nullptr && (x & 0b100))
+                        {
+                            p = cc::alloc<int>();
+                            *p = x;
+                        }
+                    }
+            });
 }

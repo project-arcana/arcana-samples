@@ -44,6 +44,9 @@ TEST("resource API", disabled)
     //   - are lightweight value types
     //   - are similar to a std::future and a std::shared_ptr
 
+    // caching system:
+    // - via seperate hash -> content system
+
     // open questions:
     // - how do changes propagate?
     // - how can reachability be checked?
@@ -58,6 +61,9 @@ TEST("resource API", disabled)
     // misc:
     // - no string names (can be done externally by the user)
     // - use Mesh&& to directly consume/unload dependency
+    // - nodes can be heterogeneously available (not in shipping, only on current pc, only on special server)
+    //   (can be used to make sure certain nodes / resource compilers are not shipped)
+    // - handle.diagnose_not_loaded() -> print why is not loaded (e.g. which dependencies are missing, are their nodes/systems executed?)
 
     // define resources
 
