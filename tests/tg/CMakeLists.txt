@@ -9,4 +9,5 @@ add_arcana_test(tg-tests "${SOURCES}")
 
 target_link_libraries(tg-tests PUBLIC
     typed-geometry
+    rich-log
 )
