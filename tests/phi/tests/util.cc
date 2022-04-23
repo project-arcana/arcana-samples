@@ -48,6 +48,9 @@ FUZZ_TEST("mipsize utils fuzz")(tg::rng& rng)
     CHECK(phi::util::get_mip_size(random, num_mips) == 1);
 }
 
+// disabled - these values are wrong because they do not respect per-subresource 512B alignment plus this test
+// uses the deprecated helper that does not support block-compressed textures and array configurations
+#if 0
 TEST("upload sizes")
 {
     //    auto const f_test_upsize = [](tg::isize3 size, phi::format fmt) {
@@ -114,6 +117,7 @@ TEST("upload sizes")
     CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 1, true) == 415656448);
     CHECK(phi::util::get_texture_size_bytes({51241, 78823, 2}, phi::format::rgba32f, 1, false) == 398000096);
 }
+#endif
 
 TEST("memory alignment")
 {

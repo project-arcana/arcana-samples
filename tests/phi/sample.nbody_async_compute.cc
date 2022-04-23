@@ -150,7 +150,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
     // setup
     {
-        inc::growing_writer setup_cmdlist(2048);
+        inc::growing_writer setup_cmdlist(2048, cc::system_allocator);
         handle::resource upbuffer;
 
         res.b_camdata_stacked = backend.createUploadBuffer(sizeof(nbody_camdata) * num_frames, sizeof(nbody_camdata));
@@ -162,28 +162,31 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             auto render_gs = get_shader_binary("nbody/particle_gs", sample_conf.shader_ending);
             auto render_ps = get_shader_binary("nbody/particle_ps", sample_conf.shader_ending);
 
-            arg::graphics_shader const shaders[] = {
+            arg::graphics_pipeline_state_description desc = {};
+
+            desc.shader_binaries= {
                 arg::graphics_shader{{render_vs.get(), render_vs.size()}, shader_stage::vertex},   //
                 arg::graphics_shader{{render_gs.get(), render_gs.size()}, shader_stage::geometry}, //
                 arg::graphics_shader{{render_ps.get(), render_ps.size()}, shader_stage::pixel},    //
             };
 
             vertex_attribute_info const vert_attrs[] = {vertex_attribute_info{"COLOR", 0, format::rgba32f}};
+            desc.vertices.attributes = vert_attrs;
+            desc.vertices.vertex_sizes_bytes[0] = sizeof(nbody_particle_vertex);
 
-            arg::framebuffer_config fbconf;
-            fbconf.render_targets.push_back(render_target_config{msc_backbuf_format,
-                                                                 true,
-                                                                 {
-                                                                     blend_factor::src_alpha, blend_factor::one, blend_op::op_add, // color
-                                                                     blend_factor::zero, blend_factor::zero, blend_op::op_add      // alpha
-                                                                 }});
+            desc.framebuffer.render_targets.push_back(arg::render_target_config{msc_backbuf_format,
+                                                                      true,
+                                                                      {
+                                                                          blend_factor::src_alpha, blend_factor::one, blend_op::op_add, // color
+                                                                          blend_factor::zero, blend_factor::zero, blend_op::op_add      // alpha
+                                                                      }});
 
-            auto shape = arg::shader_arg_shape(1, 0, 0, true);
 
-            pipeline_config conf;
-            conf.topology = primitive_topology::points;
+            desc.root_signature.add_shader_arg(1, 0, 0, true);
 
-            res.pso_render = backend.createPipelineState({vert_attrs, sizeof(nbody_particle_vertex)}, fbconf, cc::span{shape}, false, shaders, conf);
+            desc.config.topology = primitive_topology::points;
+
+            res.pso_render = backend.createPipelineState(desc, "Render Particles");
         }
 
         // compute PSO
@@ -356,8 +359,10 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
             cc::array<handle::command_list, gc_num_threads> cls_compute;
 
-            auto compute_sync = td::submit_n(
-                [&](unsigned i) {
+            td::AutoCounter compute_sync;
+            td::submitNumbered(
+                compute_sync,
+                [&](uint32_t i) {
                     auto& thread = res.threads[i];
                     auto& cmdlist = cmdlists_compute[i];
                     cmdlist.reset();
@@ -380,7 +385,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
                     cls_compute[i] = backend.recordCommandList(cmdlist.buffer(), cmdlist.size(), queue_type::compute);
                 },
-                gc_num_threads);
+                gc_num_threads, cc::system_allocator);
 
             // render cmdlist
             handle::command_list cl_render;
@@ -456,7 +461,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                 cl_render = backend.recordCommandList(cmdlist_render.buffer(), cmdlist_render.size(), queue_type::direct);
             }
 
-            td::wait_for(compute_sync);
+            td::waitForCounter(compute_sync);
 
             fence_operation signal_op = {res.f_global, ++frame_counter};
             backend.submit(cls_compute, queue_type::compute, {}, cc::span{signal_op});

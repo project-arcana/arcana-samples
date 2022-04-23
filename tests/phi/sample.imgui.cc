@@ -57,17 +57,15 @@ void phi_test::run_imgui_sample(phi::Backend& backend, sample_config const& samp
 
         CC_RUNTIME_ASSERT(vertex_binary.is_valid() && pixel_binary.is_valid() && "failed to load shaders");
 
-        cc::capped_vector<arg::graphics_shader, 6> shader_stages;
-        shader_stages.push_back(arg::graphics_shader{{vertex_binary.get(), vertex_binary.size()}, shader_stage::vertex});
-        shader_stages.push_back(arg::graphics_shader{{pixel_binary.get(), pixel_binary.size()}, shader_stage::pixel});
+        arg::graphics_pipeline_state_description desc = {};
+        desc.config.cull = cull_mode::front;
 
-        arg::framebuffer_config fbconf;
-        fbconf.add_render_target(msc_backbuf_format);
+        desc.framebuffer.add_render_target(msc_backbuf_format);
 
-        pipeline_config config;
-        config.cull = cull_mode::front;
+        desc.shader_binaries.push_back(arg::graphics_shader{{vertex_binary.get(), vertex_binary.size()}, shader_stage::vertex});
+        desc.shader_binaries.push_back(arg::graphics_shader{{pixel_binary.get(), pixel_binary.size()}, shader_stage::pixel});
 
-        pso_clear = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, {}, false, shader_stages, config);
+        pso_clear = backend.createPipelineState(desc, "Clear");
     }
 
 

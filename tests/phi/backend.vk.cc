@@ -46,10 +46,12 @@ APP("vk_imgui")
     phi_test::run_imgui_sample(backend, get_vk_sample_conf());
 }
 
+#if 0 // currently unsupported
 APP("vk_bindless")
 {
     phi::vk::BackendVulkan backend;
     phi_test::run_bindless_sample(backend, get_vk_sample_conf());
 }
+#endif
 
 #endif

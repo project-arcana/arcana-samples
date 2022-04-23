@@ -221,7 +221,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
 
-        arg::graphics_pipeline_state_description desc;
+        arg::graphics_pipeline_state_description desc = {};
         desc.config.cull = cull_mode::back;
         desc.config.depth = depth_function::less;
         desc.config.samples = gc_msaa_samples;
@@ -235,7 +235,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         desc.shader_binaries
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
-        desc.shader_arg_shapes = {
+        desc.root_signature.shader_arg_shapes = {
             // Argument 0, global CBV + model mat structured buffer
             arg::shader_arg_shape(1, 0, 0, true),
             // Argument 1, pixel shader SRVs
@@ -244,8 +244,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             arg::shader_arg_shape(3, 0, 1),
         };
 
-        desc.has_root_constants = true;
-        l_res.pso_render = backend.createPipelineState(desc);
+        desc.root_signature.has_root_constants = true;
+        l_res.pso_render = backend.createPipelineState(desc, "PBR Mesh Forward");
     }
 
     {
@@ -254,23 +254,23 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
 
     {
-        // Argument 0, blit target SRV + sampler
-        cc::array const payload_shape = {arg::shader_arg_shape(1, 0, 1)};
-
         auto const vs = get_shader_binary("fullscreen_vs", sample_config.shader_ending);
         auto const ps = get_shader_binary("postprocess_ps", sample_config.shader_ending);
         CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
 
-        cc::array const shader_stages
+        arg::graphics_pipeline_state_description desc = {};
+
+        desc.shader_binaries
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
-        arg::framebuffer_config fbconf;
-        fbconf.add_render_target(msc_backbuf_format);
+        desc.framebuffer.add_render_target(msc_backbuf_format);
 
-        phi::pipeline_config config;
-        config.cull = phi::cull_mode::front;
+        desc.config.cull = phi::cull_mode::front;
 
-        l_res.pso_blit = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, payload_shape, false, shader_stages, config);
+        // Argument 0, blit target SRV + sampler
+        desc.root_signature.add_shader_arg(1, 0, 1, false);
+
+        l_res.pso_blit = backend.createPipelineState(desc, "Blit");
     }
 
     {
@@ -312,8 +312,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
     tg::isize2 backbuf_size = tg::isize2(150, 150);
 
-    auto const f_create_sized_resources = [&]
-    {
+    auto const f_create_sized_resources = [&] {
         auto clearval_depth = phi::rt_clear_value(1.f, 0);
         auto clearval_rt = phi::rt_clear_value(0.f, 0.f, 0.f, 1.f);
         l_res.depthbuffer = backend.createRenderTarget(format::depth24un_stencil8u, backbuf_size, gc_msaa_samples, 1u, &clearval_depth, "Main Depth");
@@ -340,8 +339,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         }
     };
 
-    auto const f_destroy_sized_resources = [&]
-    {
+    auto const f_destroy_sized_resources = [&] {
         backend.free(l_res.depthbuffer);
         backend.free(l_res.colorbuffer);
         if constexpr (gc_msaa_samples > 1)
@@ -352,8 +350,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         backend.free(l_res.shaderview_blit);
     };
 
-    auto const f_on_resize = [&]()
-    {
+    auto const f_on_resize = [&]() {
         backend.flushGPU();
         backbuf_size = backend.getBackbufferSize(main_swapchain);
         f_destroy_sized_resources();
@@ -423,15 +420,14 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 cc::span<handle::command_list> out_cmdlists;
             } task_info = {thread_cmd_buffer_mem.data(), backend, all_command_lists};
 
-            td::Sync render_sync, modeldata_upload_sync;
+            td::AutoCounter render_sync, modeldata_upload_sync;
             // parallel rendering
             {
                 INC_RMT_TRACE_NAMED("TaskDispatch");
 
-                td::submit_batched_n(
+                td::submitBatched(
                     render_sync,
-                    [&l_res, &task_info, main_swapchain](unsigned start, unsigned end, unsigned i)
-                    {
+                    [&l_res, &task_info, main_swapchain](uint32_t start, uint32_t end, uint32_t i) {
                         INC_RMT_TRACE_NAMED("CommandRecordTask");
 
                         command_stream_writer cmd_writer(task_info.thread_cmd_mem[i + 1], THREAD_BUFFER_SIZE);
@@ -478,17 +474,16 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                             task_info.out_cmdlists[i] = task_info.backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         }
                     },
-                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads, cc::system_allocator);
 
 
-                td::submit_batched(
+                td::submitBatched(
                     modeldata_upload_sync,
-                    [run_time, model_data, position_modulos](unsigned start, unsigned end)
-                    {
+                    [run_time, model_data, position_modulos](uint32_t start, uint32_t end, uint32_t) {
                         INC_RMT_TRACE_NAMED("ModelMatrixTask");
                         phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
                     },
-                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads, cc::system_allocator);
             }
 
             {
@@ -499,8 +494,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 if (!current_backbuffer.is_valid())
                 {
                     // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
-                    td::wait_for(render_sync);
-                    td::wait_for(modeldata_upload_sync);
+                    td::waitForCounter(render_sync);
+                    td::waitForCounter(modeldata_upload_sync);
                     backend.discard(all_command_lists);
                     continue;
                 }
@@ -607,14 +602,14 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 std::memcpy(camdata_map, &camdata, sizeof(camdata));
                 backend.unmapBuffer(l_res.current_frame().cb_camdata);
 
-                td::wait_for(modeldata_upload_sync);
+                td::waitForCounter(modeldata_upload_sync);
                 auto* const modeldata_map = backend.mapBuffer(l_res.current_frame().sb_modeldata);
                 std::memcpy(modeldata_map, model_data, sizeof(pbr_model_matrix_data));
                 backend.unmapBuffer(l_res.current_frame().sb_modeldata);
             }
 
             // CPU-sync and submit
-            td::wait_for(render_sync);
+            td::waitForCounter(render_sync);
             backend.submit(all_command_lists);
 
             // present

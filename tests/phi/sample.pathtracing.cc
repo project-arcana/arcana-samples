@@ -242,8 +242,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
             std::memset(map, 0, sizeof(pathtrace_lightdata_soa));
 
-            auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color, float attenuation, tg::vec3 dimensions)
-            {
+            auto f_add_light = [map](pathtrace_light_type type, tg::vec3 pos, tg::vec3 normal, tg::vec3 color, float attenuation, tg::vec3 dimensions) {
                 auto const index = map->numLights++;
                 map->type[index].val = type;
                 map->position[index].val = pos;
@@ -433,11 +432,11 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
         // current and cumulative irradiance and num samples, SRVs
-        desc.shader_arg_shapes = {arg::shader_arg_shape(4, 0, 0)};
+        desc.root_signature.shader_arg_shapes = {arg::shader_arg_shape(4, 0, 0)};
 
-        desc.has_root_constants = true;
+        desc.root_signature.has_root_constants = true;
 
-        resources.pso_tonemap = backend.createPipelineState(desc);
+        resources.pso_tonemap = backend.createPipelineState(desc, "Tonemap");
     }
 
     // RT PSO setup
@@ -462,9 +461,9 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         {
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.set_target_identifiable();
-            raygen_assoc.target_indices = {0};                                            // EPrimaryRayGen
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 2, 0, true}); // t: accelstruct; u: output tex, output num samples; b: cam data
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
+            raygen_assoc.target_indices = {0};                         // EPrimaryRayGen
+            raygen_assoc.root_signature.add_shader_arg(1, 2, 0, true); // t: accelstruct; u: output tex, output num samples; b: cam data
+            raygen_assoc.root_signature.add_shader_arg(0, 0, 0, true); // b: light data
         }
         {
             auto& miss_assoc = arg_assocs.emplace_back();
@@ -474,9 +473,9 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         {
             auto& hitgroup_assoc = arg_assocs.emplace_back();
             hitgroup_assoc.set_target_hitgroup();
-            hitgroup_assoc.target_indices = {0, 1};                                          // all hitgroups
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, false}); // t: accelstruct
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
+            hitgroup_assoc.target_indices = {0, 1};                       // all hitgroups
+            hitgroup_assoc.root_signature.add_shader_arg(0, 0, 0, false); // t: accelstruct
+            hitgroup_assoc.root_signature.add_shader_arg(2, 0, 0, false); // t: mesh vertex and index buffer
         }
 
         arg::raytracing_hit_group hit_groups[2];
@@ -498,8 +497,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         resources.rt_pso = backend.createRaytracingPipelineState(desc);
     }
 
-    auto f_free_sized_resources = [&]
-    {
+    auto f_free_sized_resources = [&] {
         handle::resource res_to_free[]
             = {resources.rt_write_texture,          resources.t_current_num_samples,     resources.shader_table,
                resources.t_cumulative_irradiance_a, resources.t_cumulative_irradiance_b, resources.t_cumulative_num_samples_a,
@@ -510,8 +508,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         backend.freeRange(sv_to_free);
     };
 
-    auto f_create_sized_resources = [&]
-    {
+    auto f_create_sized_resources = [&] {
         // textures
         resources.rt_write_texture = backend.createTexture(write_tex_format, backbuf_size, 1, texture_dimension::t2d, 1, true, "pathtrace current irradiance");
         resources.t_current_num_samples = backend.createTexture(format::r32u, backbuf_size, 1, texture_dimension::t2d, 1, true, "pathtrace current num samples");
@@ -582,8 +579,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                 std::byte* const st_map = backend.mapBuffer(resources.shader_table);
 
                 [[maybe_unused]] auto f_log_section = [st_map, limit = table_offsets.total_size](char const* name, size_t offset, size_t size,
-                                                                                                 unsigned stack_i = 0, unsigned num_stacks = 1) -> void
-                {
+                                                                                                 unsigned stack_i = 0, unsigned num_stacks = 1) -> void {
                     LOG_INFO("------ {} shader table (stack {}/{}) ------", name, stack_i + 1, num_stacks);
                     LOG_INFO("------ map offset: {}, size: {}, far: {} (limit: {}) ------", offset, size, offset + size, limit);
 
@@ -621,8 +617,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
 
     f_create_sized_resources();
 
-    auto const on_resize_func = [&]()
-    {
+    auto const on_resize_func = [&]() {
         backbuf_size = backend.getBackbufferSize(main_swapchain);
 
         f_free_sized_resources();

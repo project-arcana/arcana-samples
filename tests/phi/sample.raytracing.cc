@@ -287,14 +287,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.target_type = raygen_assoc.e_target_identifiable_shader;
             raygen_assoc.target_indices = {0};                                            // EPrimaryRayGen
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct, u: output tex
-            raygen_assoc.has_root_constants = false;
+            raygen_assoc.root_signature.add_shader_arg(1, 1, 0, true); // t: accelstruct, u: output tex
+            raygen_assoc.root_signature.has_root_constants = false;
 
             auto& hitgroup_assoc = arg_assocs.emplace_back();
             hitgroup_assoc.target_type = raygen_assoc.e_target_hitgroup;
             hitgroup_assoc.target_indices = {0, 1, 2};                                       // all hitgroups
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false}); // t: accelstruct
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
+            hitgroup_assoc.root_signature.add_shader_arg(1, 1, 0, false); // t: accelstruct
+            hitgroup_assoc.root_signature.add_shader_arg(2, 0, 0, false); // t: mesh vertex and index buffer
         }
 
         arg::raytracing_hit_group hit_groups[3];
