@@ -128,3 +128,26 @@ TEST("nx::args")
         CHECK(args.positional_args() == cc::vector<cc::string>{"abc", "def", "-a", "--x", "end"});
     }
 }
+
+TEST("nx::args positional")
+{
+    {
+        int power = 0;
+        cc::string tier;
+
+        auto args = nx::args() //
+                        .add_positional(power, 'P', "")
+                        .add_positional(tier, 'T', "");
+
+        char const* argv[] = {
+            "10", //
+            "F",  //
+        };
+
+        auto ok = args.parse(sizeof(argv) / sizeof(argv[0]), argv);
+        CHECK(ok);
+
+        CHECK(power == 10);
+        CHECK(tier == "F");
+    }
+}

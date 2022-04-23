@@ -12,6 +12,7 @@
 
 #include <clean-core/unique_function.hh>
 
+#include <structured-interface/demo.hh>
 #include <structured-interface/element_tree.hh>
 #include <structured-interface/gui.hh>
 #include <structured-interface/layout/aabb_layout.hh>
@@ -144,6 +145,12 @@ APP("ui rendering")
     si::gui ui;
     si::Default2DMerger ui_merger;
 
+    auto const c_window = ui_merger.style_sheet().add_or_get_class("my_window");
+    ui_merger.style_sheet().add_rule(".my_window", [](si::StyleSheet::computed_style& s) {
+        //
+        s.bg = tg::color3(0.8f, 0.9f, 0.8f);
+    });
+
     // init input
     inc::da::input_manager input;
     input.initialize(100);
@@ -160,6 +167,7 @@ APP("ui rendering")
     input.bindMouseAxis(action_mouse_y, inc::da::mouse_axis::y);
     input.bindMouseButton(action_mouse_left, inc::da::mouse_button::mb_left);
 
+
     // upload font data
     // TODO: mipmaps
     auto const& font = ui_merger.get_font_atlas();
@@ -168,14 +176,13 @@ APP("ui rendering")
     font_arg.add(font_tex);
     font_arg.add_sampler(pr::sampler_filter::min_mag_mip_linear, 0, pr::sampler_address_mode::clamp);
     {
-        auto fb = ctx.make_upload_buffer(font.data.size());
+        auto font_upbuf = ctx.make_upload_buffer_for_texture(font_tex);
         CC_ASSERT(int(font.data.size()) == font.width * font.height);
-        ctx.write_to_buffer_raw(fb, font.data);
 
         auto frame = ctx.make_frame();
-        frame.copy(fb, font_tex);
+        frame.upload_texture_data(font.data, font_upbuf, font_tex);
         frame.transition(font_tex, pr::state::shader_resource, pr::shader::pixel);
-        frame.free_deferred_after_submit(fb.disown());
+        frame.free_deferred_after_submit(font_upbuf.disown());
         ctx.submit(cc::move(frame));
     }
 
@@ -254,6 +261,14 @@ APP("ui rendering")
             input.updatePostPoll();
         }
 
+        // skip rendering if minimized
+        if (window.isMinimized())
+            continue;
+
+        // resize swapchain when window resizes
+        if (window.clearPendingResize())
+            ctx.on_window_resize(swapchain, window.getSize());
+
         if (use_frame_counter)
             ++frame;
 
@@ -280,6 +295,7 @@ APP("ui rendering")
 
             if (auto w = si::window("test window"))
             {
+                w.set_style_class(c_window);
                 si::text("i'm in a test window!");
                 si::slider("with another slider", slider_vali, -20, 100);
             }
@@ -355,6 +371,9 @@ APP("ui rendering")
                 // TODO
             }
 
+            // demo window
+            si::show_demo_window();
+
             // ui stats
             ui_merger.show_stats_ui();
 
@@ -383,7 +402,7 @@ APP("ui rendering")
             vertex_byte_size += rl.vertices.size_bytes();
             index_byte_size += rl.indices.size_bytes();
         }
-        auto ui_vertex_buffer = ctx.get_upload_buffer(vertex_byte_size);
+        auto ui_vertex_buffer = ctx.get_upload_buffer(vertex_byte_size, sizeof(vertex_t));
         auto ui_index_buffer = ctx.get_upload_buffer(index_byte_size, sizeof(int));
 
         // upload buffer data
@@ -433,8 +452,11 @@ APP("ui rendering")
 
         frame.present_after_submit(backbuffer, swapchain);
         ctx.submit(cc::move(frame));
+
+        // still needed?
+        ctx.flush();
     }
 
     // make sure nothing is used anymore
-    ctx.flush();
+    ctx.flush_and_shutdown();
 }

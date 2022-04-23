@@ -4,7 +4,7 @@
 #include <memory>
 
 #include <task-dispatcher/common/system_info.hh>
-#include <task-dispatcher/container/task.hh>
+#include <task-dispatcher/container/Task.hh>
 
 namespace
 {
@@ -31,14 +31,12 @@ TEST("td::Task (lifetime)")
             std::shared_ptr<int> sharedInt = std::make_shared<int>(SHARED_INT_VALUE);
             weakInt = sharedInt;
 
-            task.initWithLambda(
-                [sharedInt, &taskExecuted]()
-                {
-                    // Check if sharedInt is alive and correct
-                    CHECK(*sharedInt == SHARED_INT_VALUE);
+            task.initWithLambda([sharedInt, &taskExecuted]() {
+                // Check if sharedInt is alive and correct
+                CHECK(*sharedInt == SHARED_INT_VALUE);
 
-                    taskExecuted = true;
-                });
+                taskExecuted = true;
+            });
 
             // sharedInt runs out of scope
         }
@@ -89,8 +87,7 @@ TEST("td::Task (static)")
             auto expected_stack = 0;
             auto stack_increment = 5;
 
-            auto const check_increment = [&]()
-            {
+            auto const check_increment = [&]() {
                 expected_stack += stack_increment;
                 CHECK(gSink == expected_stack);
             };
@@ -150,20 +147,18 @@ TEST("td::Task (metadata)")
 
         task.mMetadata = testMetadata;
 
-        task.initWithLambda(
-            [testMetadata, &taskRunCanary, pad]()
+        task.initWithLambda([testMetadata, &taskRunCanary, pad]() {
+            // Sanity
+            CHECK(taskRunCanary == TASK_CANARY_INITIAL);
+
+            taskRunCanary = testMetadata;
+
+            for (auto i = 0u; i < CAPTURE_PAD_SIZE; ++i)
             {
-                // Sanity
-                CHECK(taskRunCanary == TASK_CANARY_INITIAL);
-
-                taskRunCanary = testMetadata;
-
-                for (auto i = 0u; i < CAPTURE_PAD_SIZE; ++i)
-                {
-                    // Check if the pad does not collide with the metadata
-                    CHECK(pad[i] == 0);
-                }
-            });
+                // Check if the pad does not collide with the metadata
+                CHECK(pad[i] == 0);
+            }
+        });
 
         // Test if the task write didn't compromise the metadata
         CHECK(task.mMetadata == testMetadata);

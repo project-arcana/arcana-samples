@@ -56,3 +56,17 @@ TEST("res dependent define")
     CHECK(h3.get() == 22);
     CHECK(h4.get() == 25);
 }
+
+TEST("res propagate change")
+{
+    auto add = [](float a, float b) { return a + b; };
+    auto c3 = res::create(3.0f);
+    auto h = res::define(add, c3, 2.f);
+
+    CHECK(h.try_get() == nullptr); // not loaded but now requested
+
+    res::system().process_all();
+
+    CHECK(c3.get() == 3);
+    CHECK(h.get() == 5);
+}

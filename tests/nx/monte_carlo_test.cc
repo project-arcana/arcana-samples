@@ -32,7 +32,10 @@ MONTE_CARLO_TEST("mct basic")
     addOp("gen", [](tg::rng& rng) { return uniform(rng, -10, 10) * 2; });
     addOp("add", [](int a, int b) { return a + b; });
     addOp("sub", [](int a, int b) { return a - b; });
-    addOp("tri", [](int a, int b, int c) { return a * b - c; });
+    addOp("tri", [](int a, int b, int c) { return a * b - c; }).when([](int a, int b, int c) {
+        // make sure no int overflow occurs
+        return tg::abs(a) < 1000 && tg::abs(b) < 1000 && tg::abs(c) < 1000;
+    });
     addOp("inc 2", [](int& a) { a += 2; });
     addOp("div", [](int a) { return a / 2; }).when([](int a) { return a % 4 == 0; });
 

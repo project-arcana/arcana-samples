@@ -20,7 +20,7 @@ TEST("iteration")
         visited.add(p);
     }
 
-    CHECK(visited.size() == img.extent().pixels());
+    CHECK(visited.size() == img.extent().pixel_count());
 
     for (auto&& [p, v] : img)
         v = p.x + p.y;

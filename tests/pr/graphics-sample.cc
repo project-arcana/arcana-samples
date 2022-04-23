@@ -176,7 +176,7 @@ APP("graphics_sample")
         auto const s_vertex = ctx.make_shader(blit_shader_text, "main_vs", phi::shader_stage::vertex);
         auto const s_pixel = ctx.make_shader(blit_shader_text, "main_ps", phi::shader_stage::pixel);
 
-        phi::pipeline_config config;
+        phi::arg::pipeline_config config;
         config.depth = phi::depth_function::none;
         config.cull = phi::cull_mode::none;
 
@@ -275,7 +275,7 @@ APP("graphics_sample")
                 auto fb = frame.make_framebuffer(t_color, t_depth);
 
                 // create a pass using cache access
-                phi::pipeline_config config;
+                phi::arg::pipeline_config config;
                 config.depth = phi::depth_function::less;
                 config.cull = phi::cull_mode::back;
                 auto gp = pr::graphics_pass<inc::assets::simple_vertex>(config, render_vs, pixel_vs).arg(1, 0, 0, true).enable_constants();
