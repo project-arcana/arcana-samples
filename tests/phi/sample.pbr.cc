@@ -90,7 +90,11 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     inc::RmtInstance _remotery_instance;
 
     // backend init
-    backend.initialize(backend_config);
+    if (backend.initialize(backend_config) != phi::init_status::success)
+    {
+        // failed to init
+        return;
+    }
 
     // window init
     inc::da::initialize();

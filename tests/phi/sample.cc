@@ -11,6 +11,7 @@ phi::backend_config phi_test::get_backend_config()
     config.num_threads = td::is_scheduler_alive() ? td::get_current_num_threads() : 1;
 
     config.validation = phi::validation_level::on;
+    config.enable_raytracing = true;
 
     if (nx::has_cmd_arg("--gbv"))
     {

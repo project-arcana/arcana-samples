@@ -22,7 +22,11 @@ APP("vk_pbr")
 {
     td::launch([&] {
         phi::vk::BackendVulkan backend;
-        phi_test::run_pbr_sample(backend, get_vk_sample_conf());
+
+        phi::backend_config backendConfig = phi_test::get_backend_config();
+        backendConfig.enable_raytracing = false;
+
+        phi_test::run_pbr_sample(backend, get_vk_sample_conf(), backendConfig);
     });
 }
 
@@ -30,7 +34,11 @@ APP("vk_async_compute")
 {
     td::launch([&] {
         phi::vk::BackendVulkan backend;
-        phi_test::run_nbody_async_compute_sample(backend, get_vk_sample_conf());
+
+        phi::backend_config backendConfig = phi_test::get_backend_config();
+        backendConfig.enable_raytracing = false;
+
+        phi_test::run_nbody_async_compute_sample(backend, get_vk_sample_conf(), backendConfig);
     });
 }
 
@@ -43,7 +51,11 @@ APP("vk_rt")
 APP("vk_imgui")
 {
     phi::vk::BackendVulkan backend;
-    phi_test::run_imgui_sample(backend, get_vk_sample_conf());
+
+    phi::backend_config backendConfig = phi_test::get_backend_config();
+    backendConfig.enable_raytracing = false;
+
+    phi_test::run_imgui_sample(backend, get_vk_sample_conf(), backendConfig);
 }
 
 #if 0 // currently unsupported
