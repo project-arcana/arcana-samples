@@ -11,6 +11,7 @@ target_link_libraries(phi-tests PUBLIC
     clean-core
     task-dispatcher
     typed-geometry
+    dxc-wrapper
     phantasm-hardware-interface
     phantasm-renderer
     arcana-incubator

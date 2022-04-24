@@ -6,12 +6,12 @@
 
 namespace tg
 {
-template <class I>
-void introspect(I&& i, pos3 const& p)
+template <class In>
+void introspect(In&& inspect, pos3 const& p)
 {
-    i(p.x, "x");
-    i(p.y, "y");
-    i(p.z, "z");
+    inspect(p.x, "x");
+    inspect(p.y, "y");
+    inspect(p.z, "z");
 }
 }
 
@@ -22,11 +22,11 @@ struct edge
     tg::pos3 a;
     tg::pos3 b;
 };
-template <class I>
-void introspect(I&& i, edge const& e)
+template <class In>
+void introspect(In&& inspect, edge const& e)
 {
-    i(e.a, "a");
-    i(e.b, "b");
+    inspect(e.a, "a");
+    inspect(e.b, "b");
 }
 }
 

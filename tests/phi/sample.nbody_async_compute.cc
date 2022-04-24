@@ -2,7 +2,8 @@
 
 #include <atomic>
 
-#include <clean-core/capped_array.hh>
+#include <clean-core/array.hh>
+#include <clean-core/capped_vector.hh>
 #include <clean-core/vector.hh>
 
 #include <typed-geometry/tg.hh>
@@ -137,7 +138,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             handle::shader_view sv_read_b;
         };
 
-        cc::capped_array<per_thread_t, 16> threads;
+        cc::capped_vector<per_thread_t, 16> threads;
     } res;
 
     unsigned frame_index = 0;
@@ -149,7 +150,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
     // setup
     {
-        inc::growing_writer setup_cmdlist(2048);
+        inc::growing_writer setup_cmdlist(2048, cc::system_allocator);
         handle::resource upbuffer;
 
         res.b_camdata_stacked = backend.createUploadBuffer(sizeof(nbody_camdata) * num_frames, sizeof(nbody_camdata));
@@ -161,28 +162,31 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             auto render_gs = get_shader_binary("nbody/particle_gs", sample_conf.shader_ending);
             auto render_ps = get_shader_binary("nbody/particle_ps", sample_conf.shader_ending);
 
-            auto const shaders = cc::array{
+            arg::graphics_pipeline_state_description desc = {};
+
+            desc.shader_binaries= {
                 arg::graphics_shader{{render_vs.get(), render_vs.size()}, shader_stage::vertex},   //
                 arg::graphics_shader{{render_gs.get(), render_gs.size()}, shader_stage::geometry}, //
                 arg::graphics_shader{{render_ps.get(), render_ps.size()}, shader_stage::pixel},    //
             };
 
-            auto const vert_attrs = cc::array{vertex_attribute_info{"COLOR", 0, format::rgba32f}};
+            vertex_attribute_info const vert_attrs[] = {vertex_attribute_info{"COLOR", 0, format::rgba32f}};
+            desc.vertices.attributes = vert_attrs;
+            desc.vertices.vertex_sizes_bytes[0] = sizeof(nbody_particle_vertex);
 
-            arg::framebuffer_config fbconf;
-            fbconf.render_targets.push_back(render_target_config{msc_backbuf_format,
-                                                                 true,
-                                                                 {
-                                                                     blend_factor::src_alpha, blend_factor::one, blend_op::op_add, // color
-                                                                     blend_factor::zero, blend_factor::zero, blend_op::op_add      // alpha
-                                                                 }});
+            desc.framebuffer.render_targets.push_back(arg::render_target_config{msc_backbuf_format,
+                                                                      true,
+                                                                      {
+                                                                          blend_factor::src_alpha, blend_factor::one, blend_op::op_add, // color
+                                                                          blend_factor::zero, blend_factor::zero, blend_op::op_add      // alpha
+                                                                      }});
 
-            auto shape = arg::shader_arg_shape(1, 0, 0, true);
 
-            pipeline_config conf;
-            conf.topology = primitive_topology::points;
+            desc.root_signature.add_shader_arg(1, 0, 0, true);
 
-            res.pso_render = backend.createPipelineState({vert_attrs, sizeof(nbody_particle_vertex)}, fbconf, cc::span{shape}, false, shaders, conf);
+            desc.config.topology = primitive_topology::points;
+
+            res.pso_render = backend.createPipelineState(desc, "Render Particles");
         }
 
         // compute PSO
@@ -218,7 +222,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
         // per-thread particle buffers
         {
             CC_RUNTIME_ASSERT(gc_num_threads <= config.num_threads && "too many threads configured");
-            CC_RUNTIME_ASSERT(gc_num_threads < res.threads.max_size() && "too many threads configured");
+            CC_RUNTIME_ASSERT(gc_num_threads < res.threads.capacity() && "too many threads configured");
 
             // this slightly esoteric setup was copied 1:1 from the d3d12 sample for reproduction's sake
             auto data = cc::vector<nbody_particle>::defaulted(gc_num_particles);
@@ -227,7 +231,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
             initialize_nbody_particle_data(cc::span{data}.subspan(gc_num_particles / 2, gc_num_particles / 2), {-center_spread, 0, 0},
                                            {0, 0, 20, 1 / 100000000.0f}, gc_particle_spread);
 
-            res.threads.emplace(gc_num_threads);
+            res.threads.resize(gc_num_threads);
             for (auto& thread : res.threads)
             {
                 thread.b_particle_a = backend.createBuffer(unsigned(data.size_bytes()), sizeof(nbody_particle), resource_heap::gpu, true);
@@ -355,8 +359,10 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
             cc::array<handle::command_list, gc_num_threads> cls_compute;
 
-            auto compute_sync = td::submit_n(
-                [&](unsigned i) {
+            td::AutoCounter compute_sync;
+            td::submitNumbered(
+                compute_sync,
+                [&](uint32_t i) {
                     auto& thread = res.threads[i];
                     auto& cmdlist = cmdlists_compute[i];
                     cmdlist.reset();
@@ -379,7 +385,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
 
                     cls_compute[i] = backend.recordCommandList(cmdlist.buffer(), cmdlist.size(), queue_type::compute);
                 },
-                gc_num_threads);
+                gc_num_threads, cc::system_allocator);
 
             // render cmdlist
             handle::command_list cl_render;
@@ -442,7 +448,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
                     cmdlist_render.accomodate(commandsize);
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {cmdlist_render.raw_writer().buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {cmdlist_render.raw_writer().buffer_head(), commandsize});
                     cmdlist_render.raw_writer().advance_cursor(commandsize);
 
                     cmdlist_render.add_command(cmd::end_render_pass{});
@@ -455,7 +461,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                 cl_render = backend.recordCommandList(cmdlist_render.buffer(), cmdlist_render.size(), queue_type::direct);
             }
 
-            td::wait_for(compute_sync);
+            td::waitForCounter(compute_sync);
 
             fence_operation signal_op = {res.f_global, ++frame_counter};
             backend.submit(cls_compute, queue_type::compute, {}, cc::span{signal_op});

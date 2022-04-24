@@ -26,7 +26,7 @@
 #include "sample_util.hh"
 #include "scene.hh"
 
-void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
+void phi_test::run_bindless_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& backend_config)
 {
     if (!phi_test::run_onboarding_test())
         return;
@@ -34,7 +34,9 @@ void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_con
     using namespace phi;
 
     // backend init
-    backend.initialize(backend_config);
+    phi::backend_config config_copy = backend_config;
+    config_copy.max_num_srvs = 8192; // increase SRV limit because we use a lot of them here
+    backend.initialize(config_copy);
 
     // window init
     inc::da::initialize();
@@ -63,13 +65,13 @@ void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_con
         arg::framebuffer_config fbconf;
         fbconf.add_render_target(msc_backbuf_format);
 
-        pipeline_config config;
+        phi::pipeline_config config;
         config.cull = cull_mode::front;
 
         arg::shader_arg_shape shapes[1];
-        shapes[0] = arg::shader_arg_shape{3, 0, 1, false};
+        shapes[0] = arg::shader_arg_shape{1024 * 1, 0, 1, false};
 
-        pso_fullscreen = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, shapes, false, shader_stages, config);
+        pso_fullscreen = backend.createPipelineState(arg::vertex_format{}, fbconf, shapes, false, shader_stages, config, "Fullscreen Texture Multiplex");
     }
 
     // load 3 textures
@@ -86,12 +88,35 @@ void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_con
     // create shader_view
     handle::shader_view sv_bindless;
     {
-        sv_bindless = backend.createEmptyShaderView(3, 1, false);
+        arg::descriptor_entry srv_entries[] = {{arg::descriptor_category::texture, 1024}};
+
+        arg::shader_view_description sv_desc;
+        sv_desc.num_srvs = 1024 * 1;
+        sv_desc.srv_entries = srv_entries;
+        sv_desc.num_samplers = 1;
+
+        sv_bindless = backend.createEmptyShaderView(sv_desc, false);
 
         // write sampler
         sampler_config sampler;
         sampler.init_default(phi::sampler_filter::min_mag_mip_linear);
         backend.writeShaderViewSamplers(sv_bindless, 0, cc::span{sampler});
+
+
+        if (backend.getBackendType() == backend_type::vulkan)
+        {
+            // write to all SRVs to shut up Vulkan GBV (this is not required for correctness)
+            resource_view filled_srvs[16];
+            for (auto i = 0u; i < CC_COUNTOF(filled_srvs); ++i)
+            {
+                filled_srvs[i].init_as_tex2d(res_textures[0], format::rgba8un);
+            }
+
+            for (auto i = 0u; i < 1024 / CC_COUNTOF(filled_srvs); ++i)
+            {
+                backend.writeShaderViewSRVs(sv_bindless, i * CC_COUNTOF(filled_srvs), filled_srvs);
+            }
+        }
 
         resource_view srvs[3];
         for (auto i = 0u; i < CC_COUNTOF(srvs); ++i)
@@ -101,11 +126,11 @@ void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_con
         backend.writeShaderViewSRVs(sv_bindless, 0, srvs);
     }
 
-    auto const on_resize_func = [&]() {
+    auto const F_OnResize = [&]() {
         //
     };
 
-    auto cmd_buf_mem = cc::array<std::byte>(10 * 1024u);
+    auto cmdBufMemory = cc::array<std::byte>(10 * 1024u);
 
     inc::da::Timer timer;
     int targetDescriptorSlot = 0;
@@ -144,21 +169,26 @@ void phi_test::run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_con
             ImGui::SliderInt("Texture Index", &targetTextureIndex, 0, CC_COUNTOF(res_textures) - 1);
             if (ImGui::Button("Rewrite Descriptor"))
             {
+                // you would usually have N-buffered bindless SVs
+                backend.flushGPU();
+
                 resource_view srv;
                 srv.init_as_tex2d(res_textures[targetTextureIndex], format::rgba8un);
-                backend.writeShaderViewSRVs(sv_bindless, targetDescriptorSlot, cc::span{srv});
+
+                uint32_t targetOffset = uint32_t(targetDescriptorSlot);
+                backend.writeShaderViewSRVs(sv_bindless, targetOffset, cc::span{srv});
             }
         }
         ImGui::End();
 
         if (backend.clearPendingResize(main_swapchain))
-            on_resize_func();
+            F_OnResize();
 
         cc::capped_vector<handle::command_list, 3> cmdlists;
 
         // render / present
         {
-            command_stream_writer cmd_writer(cmd_buf_mem.data(), cmd_buf_mem.size());
+            command_stream_writer cmd_writer(cmdBufMemory.data(), cmdBufMemory.size());
 
             auto const ng_backbuffer = backend.acquireBackbuffer(main_swapchain);
 

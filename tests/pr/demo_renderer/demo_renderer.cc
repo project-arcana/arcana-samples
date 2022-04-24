@@ -80,8 +80,9 @@ void dmr::DemoRenderer::initialize(inc::da::SDLWindow& window, pr::backend backe
 
     phi::backend_config config;
     config.adapter = phi::adapter_preference::highest_vram;
-    config.validation = phi::validation_level::on;
+    config.validation = phi::validation_level::on_extended;
     config.enable_raytracing = false;
+    config.native_features |= config.native_feature_vk_best_practices_layer;
 
     mContext.initialize(backend_type, config);
 
@@ -177,7 +178,7 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
     mContext.submit(cc::move(frame));
 
     auto const new_arg = mContext.build_argument()
-                             .add(pr::resource_view_2d(albedo).format(pr::format::rgba8un_srgb)) // view albedo as sRGB
+                             .add(pr::resource_view_2d(albedo, pr::format::rgba8un_srgb)) // view albedo as sRGB
                              .add(normal)
                              .add(ao_rough_metal)
                              .make_graphics()
@@ -187,9 +188,9 @@ dmr::material dmr::DemoRenderer::loadMaterial(const char* p_albedo, const char* 
     res.outer_sv = new_arg;
 
     // unique textures just holds all of these for cleanup
-    mUniqueTextures.push_back(albedo.res.handle);
-    mUniqueTextures.push_back(normal.res.handle);
-    mUniqueTextures.push_back(ao_rough_metal.res.handle);
+    mUniqueTextures.push_back(albedo.handle);
+    mUniqueTextures.push_back(normal.handle);
+    mUniqueTextures.push_back(ao_rough_metal.handle);
 
     mUniqueSVs.push_back(new_arg._sv);
 

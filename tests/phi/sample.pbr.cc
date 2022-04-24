@@ -90,7 +90,11 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     inc::RmtInstance _remotery_instance;
 
     // backend init
-    backend.initialize(backend_config);
+    if (backend.initialize(backend_config) != phi::init_status::success)
+    {
+        // failed to init
+        return;
+    }
 
     // window init
     inc::da::initialize();
@@ -221,7 +225,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
         auto const attrib_info = pr::get_vertex_attributes<inc::assets::simple_vertex>();
 
-        arg::graphics_pipeline_state_description desc;
+        arg::graphics_pipeline_state_description desc = {};
         desc.config.cull = cull_mode::back;
         desc.config.depth = depth_function::less;
         desc.config.samples = gc_msaa_samples;
@@ -235,7 +239,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
         desc.shader_binaries
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
-        desc.shader_arg_shapes = {
+        desc.root_signature.shader_arg_shapes = {
             // Argument 0, global CBV + model mat structured buffer
             arg::shader_arg_shape(1, 0, 0, true),
             // Argument 1, pixel shader SRVs
@@ -244,8 +248,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
             arg::shader_arg_shape(3, 0, 1),
         };
 
-        desc.has_root_constants = true;
-        l_res.pso_render = backend.createPipelineState(desc);
+        desc.root_signature.has_root_constants = true;
+        l_res.pso_render = backend.createPipelineState(desc, "PBR Mesh Forward");
     }
 
     {
@@ -254,23 +258,23 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
 
 
     {
-        // Argument 0, blit target SRV + sampler
-        cc::array const payload_shape = {arg::shader_arg_shape(1, 0, 1)};
-
         auto const vs = get_shader_binary("fullscreen_vs", sample_config.shader_ending);
         auto const ps = get_shader_binary("postprocess_ps", sample_config.shader_ending);
         CC_RUNTIME_ASSERT(vs.is_valid() && ps.is_valid() && "failed to load shaders");
 
-        cc::array const shader_stages
+        arg::graphics_pipeline_state_description desc = {};
+
+        desc.shader_binaries
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
-        arg::framebuffer_config fbconf;
-        fbconf.add_render_target(msc_backbuf_format);
+        desc.framebuffer.add_render_target(msc_backbuf_format);
 
-        phi::pipeline_config config;
-        config.cull = phi::cull_mode::front;
+        desc.config.cull = phi::cull_mode::front;
 
-        l_res.pso_blit = backend.createPipelineState(arg::vertex_format{{}, 0}, fbconf, payload_shape, false, shader_stages, config);
+        // Argument 0, blit target SRV + sampler
+        desc.root_signature.add_shader_arg(1, 0, 1, false);
+
+        l_res.pso_blit = backend.createPipelineState(desc, "Blit");
     }
 
     {
@@ -420,14 +424,14 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 cc::span<handle::command_list> out_cmdlists;
             } task_info = {thread_cmd_buffer_mem.data(), backend, all_command_lists};
 
-            td::sync render_sync, modeldata_upload_sync;
+            td::AutoCounter render_sync, modeldata_upload_sync;
             // parallel rendering
             {
                 INC_RMT_TRACE_NAMED("TaskDispatch");
 
-                td::submit_batched_n(
+                td::submitBatched(
                     render_sync,
-                    [&l_res, &task_info, main_swapchain](unsigned start, unsigned end, unsigned i) {
+                    [&l_res, &task_info, main_swapchain](uint32_t start, uint32_t end, uint32_t i) {
                         INC_RMT_TRACE_NAMED("CommandRecordTask");
 
                         command_stream_writer cmd_writer(task_info.thread_cmd_mem[i + 1], THREAD_BUFFER_SIZE);
@@ -474,16 +478,16 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                             task_info.out_cmdlists[i] = task_info.backend.recordCommandList(cmd_writer.buffer(), cmd_writer.size());
                         }
                     },
-                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads, cc::system_allocator);
 
 
-                td::submit_batched(
+                td::submitBatched(
                     modeldata_upload_sync,
-                    [run_time, model_data, position_modulos](unsigned start, unsigned end) {
+                    [run_time, model_data, position_modulos](uint32_t start, uint32_t end, uint32_t) {
                         INC_RMT_TRACE_NAMED("ModelMatrixTask");
                         phi_test::fill_model_matrix_data(*model_data, run_time, start, end, position_modulos);
                     },
-                    gc_num_mesh_instances_pbr, phi_test::num_render_threads);
+                    gc_num_mesh_instances_pbr, phi_test::num_render_threads, cc::system_allocator);
             }
 
             {
@@ -494,8 +498,8 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 if (!current_backbuffer.is_valid())
                 {
                     // The vulkan-only scenario: acquiring failed, and we have to discard the current frame
-                    td::wait_for(render_sync);
-                    td::wait_for(modeldata_upload_sync);
+                    td::waitForCounter(render_sync);
+                    td::waitForCounter(modeldata_upload_sync);
                     backend.discard(all_command_lists);
                     continue;
                 }
@@ -564,7 +568,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     ImGui::Render();
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {cmd_writer.buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {cmd_writer.buffer_head(), commandsize});
                     cmd_writer.advance_cursor(commandsize);
                 }
 
@@ -602,14 +606,14 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                 std::memcpy(camdata_map, &camdata, sizeof(camdata));
                 backend.unmapBuffer(l_res.current_frame().cb_camdata);
 
-                td::wait_for(modeldata_upload_sync);
+                td::waitForCounter(modeldata_upload_sync);
                 auto* const modeldata_map = backend.mapBuffer(l_res.current_frame().sb_modeldata);
                 std::memcpy(modeldata_map, model_data, sizeof(pbr_model_matrix_data));
                 backend.unmapBuffer(l_res.current_frame().sb_modeldata);
             }
 
             // CPU-sync and submit
-            td::wait_for(render_sync);
+            td::waitForCounter(render_sync);
             backend.submit(all_command_lists);
 
             // present
@@ -643,15 +647,26 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
     backend.flushGPU();
 
     // free all resources at once
-    cc::array const free_batch
-        = {l_res.mat_albedo,    l_res.mat_normal,   l_res.mat_arm,     l_res.ibl_lut,     l_res.ibl_specular,       l_res.ibl_irradiance,
-           l_res.vertex_buffer, l_res.index_buffer, l_res.colorbuffer, l_res.depthbuffer, l_res.colorbuffer_resolve};
+    phi::handle::resource const free_batch[] = {l_res.mat_albedo,     l_res.mat_normal,    l_res.mat_arm,      l_res.ibl_lut,     l_res.ibl_specular,
+                                                l_res.ibl_irradiance, l_res.vertex_buffer, l_res.index_buffer, l_res.colorbuffer, l_res.depthbuffer};
     backend.freeRange(free_batch);
 
+    if (gc_msaa_samples > 1)
+    {
+        backend.free(l_res.colorbuffer_resolve);
+    }
+
     // free other objects
-    backend.freeVariadic(l_res.shaderview_render_ibl, l_res.pso_render, l_res.pso_blit, l_res.shaderview_blit, l_res.shaderview_render);
+    backend.free(l_res.shaderview_render_ibl);
+    backend.free(l_res.pso_render);
+    backend.free(l_res.pso_blit);
+    backend.free(l_res.shaderview_blit);
+    backend.free(l_res.shaderview_render);
+
     for (auto const& pfr : l_res.per_frame_resources)
+    {
         backend.freeVariadic(pfr.cb_camdata, pfr.sb_modeldata, pfr.shaderview_render_vertex, pfr.b_timestamp_readback);
+    }
 
     shutdown_imgui();
 

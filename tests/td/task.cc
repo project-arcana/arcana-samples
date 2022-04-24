@@ -1,12 +1,10 @@
 #include <nexus/test.hh>
 
 #include <array>
-#include <iostream>
-#include <limits>
 #include <memory>
 
 #include <task-dispatcher/common/system_info.hh>
-#include <task-dispatcher/container/task.hh>
+#include <task-dispatcher/container/Task.hh>
 
 namespace
 {
@@ -15,14 +13,14 @@ int gSink = 0;
 void test_func(void* userdata) { gSink += *static_cast<int*>(userdata); }
 }
 
-TEST("td::container::Task (lifetime)")
+TEST("td::Task (lifetime)")
 {
     // Constants are not constexpr variables because
     // lambda captures are a concern of this test.
     // Could be randomized.
 #define SHARED_INT_VALUE 55
 
-    td::container::task task;
+    td::Task task;
     std::weak_ptr<int> weakInt;
 
     for (auto i = 0; i < 3; ++i)
@@ -33,7 +31,7 @@ TEST("td::container::Task (lifetime)")
             std::shared_ptr<int> sharedInt = std::make_shared<int>(SHARED_INT_VALUE);
             weakInt = sharedInt;
 
-            task.lambda([sharedInt, &taskExecuted]() {
+            task.initWithLambda([sharedInt, &taskExecuted]() {
                 // Check if sharedInt is alive and correct
                 CHECK(*sharedInt == SHARED_INT_VALUE);
 
@@ -47,7 +45,7 @@ TEST("td::container::Task (lifetime)")
         CHECK(!weakInt.expired());
         CHECK(!taskExecuted);
 
-        task.execute_and_cleanup();
+        task.runTask();
 
         // Check if execute_and_cleanup destroyed the lambda capture
         CHECK(taskExecuted);
@@ -56,10 +54,8 @@ TEST("td::container::Task (lifetime)")
 #undef SHARED_INT_VALUE
 }
 
-TEST("td::container::Task (static)")
+TEST("td::Task (static)")
 {
-    static_assert(sizeof(td::container::task) == td::system::l1_cacheline_size);
-
     // Lambdas
     {
         int constexpr a = 0, b = 1, c = 2;
@@ -75,13 +71,13 @@ TEST("td::container::Task (static)")
         auto l_noncopyable = [p = std::move(uptr)] { gSink += *p; };
 
         // Test if these lambda types compile
-        td::container::task(std::move(l_trivial)).execute_and_cleanup();
-        td::container::task(std::move(l_ref_cap)).execute_and_cleanup();
-        td::container::task(std::move(l_val_cap)).execute_and_cleanup();
-        td::container::task(std::move(l_val_cap_mutable)).execute_and_cleanup();
-        td::container::task(std::move(l_noexcept)).execute_and_cleanup();
-        td::container::task(std::move(l_constexpr)).execute_and_cleanup();
-        td::container::task(std::move(l_noncopyable)).execute_and_cleanup();
+        td::Task(std::move(l_trivial)).runTask();
+        td::Task(std::move(l_ref_cap)).runTask();
+        td::Task(std::move(l_val_cap)).runTask();
+        td::Task(std::move(l_val_cap_mutable)).runTask();
+        td::Task(std::move(l_noexcept)).runTask();
+        td::Task(std::move(l_constexpr)).runTask();
+        td::Task(std::move(l_noncopyable)).runTask();
     }
 
     // Function pointers
@@ -100,90 +96,82 @@ TEST("td::container::Task (static)")
 
             CHECK(gSink == expected_stack);
 
-            td::container::task(l_decayable, &stack_increment).execute_and_cleanup();
+            td::Task(l_decayable, &stack_increment).runTask();
             check_increment();
 
-            td::container::task([](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).execute_and_cleanup();
+            td::Task([](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment).runTask();
             check_increment();
 
-            td::container::task(
+            td::Task(
                 +[](void* userdata) { gSink += *static_cast<int*>(userdata); }, &stack_increment)
-                .execute_and_cleanup();
+                .runTask();
             check_increment();
 
-            td::container::task(test_func, &stack_increment).execute_and_cleanup();
+            td::Task(test_func, &stack_increment).runTask();
             check_increment();
         }
 
         // Function pointer variant, takes lambdas and function pointers void(void*)
-        td::container::task([](void*) {}).execute_and_cleanup();
-        td::container::task(+[](void*) {}).execute_and_cleanup();
-        td::container::task([](void*) {}, nullptr).execute_and_cleanup();
-        td::container::task(
+        td::Task([](void*) {}).runTask();
+        td::Task(+[](void*) {}).runTask();
+        td::Task([](void*) {}, nullptr).runTask();
+        td::Task(
             +[](void*) {}, nullptr)
-            .execute_and_cleanup();
+            .runTask();
 
         // Lambda variant, takes lambdas and function pointers void()
-        td::container::task([] {}).execute_and_cleanup();
-        // td::container::task(+[] {}).execute_and_cleanup(); // ERROR
-        // td::container::task([] {}, nullptr).execute_and_cleanup(); // ERROR
-        // td::container::task(+[] {}, nullptr).execute_and_cleanup(); // ERROR
+        td::Task([] {}).runTask();
+        // td::Task(+[] {}).execute_and_cleanup(); // ERROR
+        // td::Task([] {}, nullptr).execute_and_cleanup(); // ERROR
+        // td::Task(+[] {}, nullptr).execute_and_cleanup(); // ERROR
     }
 }
 
-TEST("td::container::Task (metadata)")
+TEST("td::Task (metadata)")
 {
-    // Constants are not constexpr variables because
-    // lambda captures are a concern of this test.
-    // Could be randomized.
-#define TASK_CANARAY_INITIAL 20
-#define CAPTURE_PAD_SIZE 32
-
-    td::container::task task;
-
-    using metadata_t = td::container::task::default_metadata_t;
-    auto constexpr metaMin = std::numeric_limits<metadata_t>().min();
-    auto constexpr metaMax = std::numeric_limits<metadata_t>().max();
-    for (auto testMetadata : {metaMin, metadata_t(0), metaMax})
+    enum
     {
-        metadata_t taskRunCanary = TASK_CANARAY_INITIAL;
+        TASK_CANARY_INITIAL = 20,
+        CAPTURE_PAD_SIZE = 32,
+    };
+
+    td::Task task;
+
+    using metadata_t = decltype(td::Task::mMetadata);
+    for (auto testMetadata : {metadata_t(0), metadata_t(100), metadata_t(255), metadata_t(-1)})
+    {
+        metadata_t taskRunCanary = TASK_CANARY_INITIAL;
 
         std::array<char, CAPTURE_PAD_SIZE> pad;
         std::fill(pad.begin(), pad.end(), 0);
 
-        task.set_metadata(testMetadata);
+        task.mMetadata = testMetadata;
 
-        // Test if the write was successful
-        CHECK(task.get_metadata() == testMetadata);
-
-        task.lambda([testMetadata, &taskRunCanary, pad]() {
+        task.initWithLambda([testMetadata, &taskRunCanary, pad]() {
             // Sanity
-            CHECK(taskRunCanary == TASK_CANARAY_INITIAL);
+            CHECK(taskRunCanary == TASK_CANARY_INITIAL);
 
             taskRunCanary = testMetadata;
 
             for (auto i = 0u; i < CAPTURE_PAD_SIZE; ++i)
             {
                 // Check if the pad does not collide with the metadata
-                CHECK(pad.at(i) == 0);
+                CHECK(pad[i] == 0);
             }
         });
 
         // Test if the task write didn't compromise the metadata
-        CHECK(task.get_metadata() == testMetadata);
+        CHECK(task.mMetadata == testMetadata);
 
         // Sanity
-        CHECK(taskRunCanary == TASK_CANARAY_INITIAL);
+        CHECK(taskRunCanary == TASK_CANARY_INITIAL);
 
-        task.execute_and_cleanup();
+        task.runTask();
 
         // Test if the task ran correctly
         CHECK(taskRunCanary == testMetadata);
 
         // Test if the metadata survived
-        CHECK(task.get_metadata() == testMetadata);
+        CHECK(task.mMetadata == testMetadata);
     }
-
-#undef TASK_CANARAY_INITIAL
-#undef CAPTURE_PAD_SIZE
 }

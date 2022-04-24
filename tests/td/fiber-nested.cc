@@ -140,30 +140,31 @@ void SixthLevelFiberStart(void* arg)
 
 TEST("td::native::fiber (nested)", exclusive)
 {
-    auto constexpr kHalfMebibyte = 524288;
+    auto const kHalfMebibyte = 524288;
+    auto* const alloc = cc::system_allocator; 
 
     MultipleFiberArg singleFiberArg;
     singleFiberArg.Counter = 0ULL;
     td::native::create_main_fiber(singleFiberArg.MainFiber);
 
-    td::native::create_fiber(singleFiberArg.FirstFiber, FirstLevelFiberStart, &singleFiberArg, kHalfMebibyte);
-    td::native::create_fiber(singleFiberArg.SecondFiber, SecondLevelFiberStart, &singleFiberArg, kHalfMebibyte);
-    td::native::create_fiber(singleFiberArg.ThirdFiber, ThirdLevelFiberStart, &singleFiberArg, kHalfMebibyte);
-    td::native::create_fiber(singleFiberArg.FourthFiber, FourthLevelFiberStart, &singleFiberArg, kHalfMebibyte);
-    td::native::create_fiber(singleFiberArg.FifthFiber, FifthLevelFiberStart, &singleFiberArg, kHalfMebibyte);
-    td::native::create_fiber(singleFiberArg.SixthFiber, SixthLevelFiberStart, &singleFiberArg, kHalfMebibyte);
+    td::native::create_fiber(singleFiberArg.FirstFiber, FirstLevelFiberStart, &singleFiberArg, kHalfMebibyte, alloc);
+    td::native::create_fiber(singleFiberArg.SecondFiber, SecondLevelFiberStart, &singleFiberArg, kHalfMebibyte, alloc);
+    td::native::create_fiber(singleFiberArg.ThirdFiber, ThirdLevelFiberStart, &singleFiberArg, kHalfMebibyte, alloc);
+    td::native::create_fiber(singleFiberArg.FourthFiber, FourthLevelFiberStart, &singleFiberArg, kHalfMebibyte, alloc);
+    td::native::create_fiber(singleFiberArg.FifthFiber, FifthLevelFiberStart, &singleFiberArg, kHalfMebibyte, alloc);
+    td::native::create_fiber(singleFiberArg.SixthFiber, SixthLevelFiberStart, &singleFiberArg, kHalfMebibyte, alloc);
 
     // The order should be:
     // 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 1 -> 5 -> 1 -> 3 -> 2 -> 4 -> 6 -> 4 -> 2 -> 5 -> 3 -> 6 -> Main
 
     td::native::switch_to_fiber(singleFiberArg.FirstFiber, singleFiberArg.MainFiber);
 
-    td::native::delete_fiber(singleFiberArg.FirstFiber);
-    td::native::delete_fiber(singleFiberArg.SecondFiber);
-    td::native::delete_fiber(singleFiberArg.ThirdFiber);
-    td::native::delete_fiber(singleFiberArg.FourthFiber);
-    td::native::delete_fiber(singleFiberArg.FifthFiber);
-    td::native::delete_fiber(singleFiberArg.SixthFiber);
+    td::native::delete_fiber(singleFiberArg.FirstFiber, alloc);
+    td::native::delete_fiber(singleFiberArg.SecondFiber, alloc);
+    td::native::delete_fiber(singleFiberArg.ThirdFiber, alloc);
+    td::native::delete_fiber(singleFiberArg.FourthFiber, alloc);
+    td::native::delete_fiber(singleFiberArg.FifthFiber, alloc);
+    td::native::delete_fiber(singleFiberArg.SixthFiber, alloc);
     td::native::delete_main_fiber(singleFiberArg.MainFiber);
 
     CHECK(((((((((((((((((((0ULL + 8ULL) * 3ULL) + 7ULL) * 6ULL) - 9ULL) * 2ULL) * 4) * 5) + 1) * 3) + 9) + 8) - 9) * 5) + 7) + 1) * 6) - 3)

@@ -16,7 +16,7 @@ namespace
 phi_test::sample_config get_d3d12_sample_conf()
 {
     phi_test::sample_config sample_conf;
-    sample_conf.window_title = "phi::d3d12 liveness";
+    sample_conf.window_title = "PHI D3D12 Sample";
     sample_conf.shader_ending = "dxil";
     sample_conf.align_mip_rows = true;
     return sample_conf;
@@ -25,8 +25,8 @@ phi_test::sample_config get_d3d12_sample_conf()
 
 APP("d3d12_pbr")
 {
-    td::scheduler_config config = {};
-    //    config.pin_threads_to_cores = true;
+    td::SchedulerConfig config = {};
+    //    config.pinThreadsToCores = true;
     td::launch(config, [&] {
         phi::d3d12::BackendD3D12 backend;
         phi_test::run_pbr_sample(backend, get_d3d12_sample_conf());
@@ -35,7 +35,7 @@ APP("d3d12_pbr")
 
 APP("d3d12_async_compute")
 {
-    td::scheduler_config config = {};
+    td::SchedulerConfig config = {};
     td::launch(config, [&] {
         phi::d3d12::BackendD3D12 backend;
         phi_test::run_nbody_async_compute_sample(backend, get_d3d12_sample_conf());

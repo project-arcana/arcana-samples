@@ -31,5 +31,5 @@ void run_pathtracing_sample(phi::Backend& backend, sample_config const& sample_c
 
 void run_nbody_async_compute_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& config = get_backend_config());
 
-void run_bindless_sample(phi::d3d12::BackendD3D12& backend, sample_config const& sample_config, phi::backend_config const& config = get_backend_config());
+void run_bindless_sample(phi::Backend& backend, sample_config const& sample_config, phi::backend_config const& config = get_backend_config());
 }

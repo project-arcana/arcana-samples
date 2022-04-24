@@ -139,8 +139,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     indices16[i] = uint16_t(mesh_data.indices[i]);
                 }
 
-                auto const vert_size = mesh_data.vertices.size_bytes();
-                auto const ind_size = indices16.size_bytes();
+                auto const vert_size = uint32_t(mesh_data.vertices.size_bytes());
+                auto const ind_size = uint32_t(indices16.size_bytes());
 
                 resources.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
                 resources.index_buffer = backend.createBuffer(ind_size, sizeof(uint16_t));
@@ -287,14 +287,14 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.target_type = raygen_assoc.e_target_identifiable_shader;
             raygen_assoc.target_indices = {0};                                            // EPrimaryRayGen
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, true}); // t: accelstruct, u: output tex
-            raygen_assoc.has_root_constants = false;
+            raygen_assoc.root_signature.add_shader_arg(1, 1, 0, true); // t: accelstruct, u: output tex
+            raygen_assoc.root_signature.has_root_constants = false;
 
             auto& hitgroup_assoc = arg_assocs.emplace_back();
             hitgroup_assoc.target_type = raygen_assoc.e_target_hitgroup;
             hitgroup_assoc.target_indices = {0, 1, 2};                                       // all hitgroups
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 1, 0, false}); // t: accelstruct
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
+            hitgroup_assoc.root_signature.add_shader_arg(1, 1, 0, false); // t: accelstruct
+            hitgroup_assoc.root_signature.add_shader_arg(2, 0, 0, false); // t: mesh vertex and index buffer
         }
 
         arg::raytracing_hit_group hit_groups[3];
@@ -319,13 +319,15 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
         resources.rt_pso = backend.createRaytracingPipelineState(desc);
     }
 
-    auto const f_free_sized_resources = [&] {
+    auto const f_free_sized_resources = [&]
+    {
         backend.free(resources.rt_write_texture);
         backend.free(resources.sv_ray_gen);
         backend.free(resources.shader_table);
     };
 
-    auto const f_create_sized_resources = [&] {
+    auto const f_create_sized_resources = [&]
+    {
         // Create RT write texture
         resources.rt_write_texture = backend.createTexture(msc_backbuf_format, backbuf_size, 1, texture_dimension::t2d, 1, true);
 
@@ -390,7 +392,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
 
     f_create_sized_resources();
 
-    auto const on_resize_func = [&]() {
+    auto const on_resize_func = [&]()
+    {
         backbuf_size = backend.getBackbufferSize(main_swapchain);
 
         f_free_sized_resources();
@@ -466,11 +469,8 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                     dcmd.set_strides(table_sizes);
                     dcmd.set_single_buffer(resources.shader_table, false);
                     dcmd.set_offsets(table_offsets.get_ray_gen_offset(backbuf_index), table_offsets.get_miss_offset(0), table_offsets.get_hitgroup_offset(0), 0);
-                    //                    dcmd.set_single_shader_table(resources.shader_table, table_sizes);
-                    //                    dcmd.set_zero_sizes();
 
                     writer.add_command(dcmd);
-                    // LOG_INFO("ray gen offset: {} (bb {})", dcmd.table_ray_generation.offset_bytes, backbuf_index);
                 }
 
                 {
@@ -517,7 +517,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                         writer.add_command(bcmd);
                     }
 
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {writer.buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {writer.buffer_head(), commandsize});
                     writer.advance_cursor(commandsize);
 
                     writer.add_command(cmd::end_render_pass{});

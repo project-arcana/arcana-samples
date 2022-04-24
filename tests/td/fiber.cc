@@ -82,7 +82,7 @@ TEST("td::native::fiber", exclusive)
 
     CHECK(singleFiberArg.counter == 0);
 
-    td::native::create_fiber(singleFiberArg.otherFiber, test_fiber_func, &singleFiberArg, kHalfMebibyte);
+    td::native::create_fiber(singleFiberArg.otherFiber, test_fiber_func, &singleFiberArg, kHalfMebibyte, cc::system_allocator);
 
     CHECK(singleFiberArg.counter == 0);
 
@@ -113,6 +113,6 @@ TEST("td::native::fiber", exclusive)
         CHECK(singleFiberArg.counter == 50);
     }
 
-    td::native::delete_fiber(singleFiberArg.otherFiber);
+    td::native::delete_fiber(singleFiberArg.otherFiber, cc::system_allocator);
     td::native::delete_main_fiber(singleFiberArg.mainFiber);
 }

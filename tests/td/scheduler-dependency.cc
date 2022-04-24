@@ -2,7 +2,12 @@
 
 #include <vector>
 
-#include <task-dispatcher/scheduler.hh>
+#include <clean-core/span.hh>
+
+#include <task-dispatcher/CounterHandle.hh>
+#include <task-dispatcher/Scheduler.hh>
+#include <task-dispatcher/SchedulerConfig.hh>
+#include <task-dispatcher/container/Task.hh>
 
 using namespace td;
 
@@ -21,26 +26,28 @@ void mainTaskFunc(void* arg)
 {
     GlobalBuffer* const buf = static_cast<GlobalBuffer*>(arg);
 
-    auto workers = std::vector<container::task>(numWorkers);
+    auto workers = std::vector<Task>(numWorkers);
 
     for (auto i = 0u; i < numWorkers; ++i)
     {
         unsigned const chunkStart = i * chunkSize;
         unsigned const chunkEnd = (i + 1) * chunkSize;
 
-        workers[i].lambda([buf, chunkStart, chunkEnd]() {
-            for (auto i = chunkStart; i < chunkEnd; ++i)
+        workers[i].initWithLambda(
+            [buf, chunkStart, chunkEnd]()
             {
-                buf->data[i] = int(i);
-            }
-        });
+                for (auto i = chunkStart; i < chunkEnd; ++i)
+                {
+                    buf->data[i] = int(i);
+                }
+            });
     }
 
-    auto& sched = Scheduler::Current();
-    auto sync = sched.acquireCounterHandle();
-    sched.submitTasks(workers.data(), numWorkers, sync);
-    sched.wait(sync, true);
-    sched.releaseCounter(sync);
+    auto sync = td::acquireCounter();
+    td::submitTasks(sync, workers);
+
+    td::waitForCounter(sync);
+    td::releaseCounter(sync);
 }
 }
 
@@ -51,8 +58,7 @@ TEST("td::Scheduler (dependency)", exclusive)
     globalBuf.data.resize(workloadSize, 0);
     std::fill(globalBuf.data.begin(), globalBuf.data.end(), 0);
 
-    Scheduler scheduler;
-    scheduler.start(container::task{mainTaskFunc, &globalBuf});
+    td::launchScheduler(td::SchedulerConfig{}, Task{mainTaskFunc, &globalBuf});
 
     bool equal = true;
     for (auto i = 0u; i < workloadSize; ++i)

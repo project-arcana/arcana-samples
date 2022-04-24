@@ -293,8 +293,8 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     indices16[i] = uint16_t(mesh_data.indices[i]);
                 }
 
-                auto const vert_size = mesh_data.vertices.size_bytes();
-                auto const ind_size = indices16.size_bytes();
+                auto const vert_size = uint32_t(mesh_data.vertices.size_bytes());
+                auto const ind_size = uint32_t(indices16.size_bytes());
 
                 resources.vertex_buffer = backend.createBuffer(vert_size, sizeof(inc::assets::simple_vertex));
                 resources.index_buffer = backend.createBuffer(ind_size, sizeof(uint16_t));
@@ -432,11 +432,11 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
             = {arg::graphics_shader{{vs.get(), vs.size()}, shader_stage::vertex}, arg::graphics_shader{{ps.get(), ps.size()}, shader_stage::pixel}};
 
         // current and cumulative irradiance and num samples, SRVs
-        desc.shader_arg_shapes = {arg::shader_arg_shape(4, 0, 0)};
+        desc.root_signature.shader_arg_shapes = {arg::shader_arg_shape(4, 0, 0)};
 
-        desc.has_root_constants = true;
+        desc.root_signature.has_root_constants = true;
 
-        resources.pso_tonemap = backend.createPipelineState(desc);
+        resources.pso_tonemap = backend.createPipelineState(desc, "Tonemap");
     }
 
     // RT PSO setup
@@ -461,9 +461,9 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         {
             auto& raygen_assoc = arg_assocs.emplace_back();
             raygen_assoc.set_target_identifiable();
-            raygen_assoc.target_indices = {0};                                            // EPrimaryRayGen
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{1, 2, 0, true}); // t: accelstruct; u: output tex, output num samples; b: cam data
-            raygen_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, true}); // b: light data
+            raygen_assoc.target_indices = {0};                         // EPrimaryRayGen
+            raygen_assoc.root_signature.add_shader_arg(1, 2, 0, true); // t: accelstruct; u: output tex, output num samples; b: cam data
+            raygen_assoc.root_signature.add_shader_arg(0, 0, 0, true); // b: light data
         }
         {
             auto& miss_assoc = arg_assocs.emplace_back();
@@ -473,9 +473,9 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
         {
             auto& hitgroup_assoc = arg_assocs.emplace_back();
             hitgroup_assoc.set_target_hitgroup();
-            hitgroup_assoc.target_indices = {0, 1};                                          // all hitgroups
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{0, 0, 0, false}); // t: accelstruct
-            hitgroup_assoc.argument_shapes.push_back(arg::shader_arg_shape{2, 0, 0, false}); // t: mesh vertex and index buffer
+            hitgroup_assoc.target_indices = {0, 1};                       // all hitgroups
+            hitgroup_assoc.root_signature.add_shader_arg(0, 0, 0, false); // t: accelstruct
+            hitgroup_assoc.root_signature.add_shader_arg(2, 0, 0, false); // t: mesh vertex and index buffer
         }
 
         arg::raytracing_hit_group hit_groups[2];
@@ -812,7 +812,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
 
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {writer.buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {writer.buffer_head(), commandsize});
                     writer.advance_cursor(commandsize);
                 }
 
