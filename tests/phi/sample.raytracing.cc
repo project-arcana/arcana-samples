@@ -517,7 +517,7 @@ void phi_test::run_raytracing_sample(phi::Backend& backend, sample_config const&
                         writer.add_command(bcmd);
                     }
 
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {writer.buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {writer.buffer_head(), commandsize});
                     writer.advance_cursor(commandsize);
 
                     writer.add_command(cmd::end_render_pass{});

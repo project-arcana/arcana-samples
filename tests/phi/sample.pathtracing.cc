@@ -812,7 +812,7 @@ void phi_test::run_pathtracing_sample(phi::Backend& backend, sample_config const
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
 
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {writer.buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {writer.buffer_head(), commandsize});
                     writer.advance_cursor(commandsize);
                 }
 

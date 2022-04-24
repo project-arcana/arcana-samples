@@ -568,7 +568,7 @@ void phi_test::run_pbr_sample(phi::Backend& backend, sample_config const& sample
                     ImGui::Render();
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {cmd_writer.buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {cmd_writer.buffer_head(), commandsize});
                     cmd_writer.advance_cursor(commandsize);
                 }
 

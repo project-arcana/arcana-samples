@@ -448,7 +448,7 @@ void phi_test::run_nbody_async_compute_sample(phi::Backend& backend, sample_conf
                     auto* const drawdata = ImGui::GetDrawData();
                     auto const commandsize = ImGui_ImplPHI_GetDrawDataCommandSize(drawdata);
                     cmdlist_render.accomodate(commandsize);
-                    ImGui_ImplPHI_RenderDrawData(drawdata, {cmdlist_render.raw_writer().buffer_head(), commandsize});
+                    ImGui_ImplPHI_RenderDrawDataToBuffer(drawdata, {cmdlist_render.raw_writer().buffer_head(), commandsize});
                     cmdlist_render.raw_writer().advance_cursor(commandsize);
 
                     cmdlist_render.add_command(cmd::end_render_pass{});
