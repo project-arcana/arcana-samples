@@ -111,6 +111,7 @@ include(extern/clean-core/cmake/AddTest.cmake)
 
 # register arcana tests
 add_subdirectory(extern/clean-core/tests)
+add_subdirectory(extern/clean-ranges/tests)
 add_subdirectory(extern/typed-geometry/tests)
 
 # register extra samples and tests
